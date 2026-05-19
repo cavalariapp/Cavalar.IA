@@ -1,0 +1,2492 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cavalar.IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700;1,900&display=swap" rel="stylesheet">
+<style>
+/* ===========================
+   BRAND TOKENS
+=========================== */
+:root {
+  --bg:       #080d18;
+  --surface:  #0f1623;
+  --surface2: #141e2e;
+  --fg:       #ffffff;
+  --muted:    #7a8ba8;
+  --border:   #1c2840;
+  --accent:   #e84d0e;
+  --accent-dim:  rgba(232,77,14,.13);
+  --accent-glow: rgba(232,77,14,.28);
+
+  --font-display: 'Barlow Condensed', 'Impact', 'Arial Narrow', Arial, sans-serif;
+  --font-body:    -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ===========================
+   RESET + BASE
+=========================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* ===========================
+   APP SHELL
+=========================== */
+.app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+  background: var(--bg);
+}
+
+/* ===========================
+   SCREENS
+=========================== */
+.screen {
+  display: none;
+  min-height: 100dvh;
+  padding-bottom: 80px;
+  animation: fadeIn .18s ease;
+}
+.screen.active { display: block; }
+.screen.fullscreen { padding-bottom: 0; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ===========================
+   TOP BAR
+=========================== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 58px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: -.5px;
+  color: #fff;
+  line-height: 1;
+}
+.logo .dot { color: var(--accent); }
+
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+
+.btn-entrar {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.btn-hamburger {
+  width: 44px;
+  height: 44px;
+  background: var(--accent);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.btn-hamburger span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
+
+/* ===========================
+   BOTTOM NAV
+=========================== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  z-index: 200;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  height: 68px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  transition: color .18s;
+  padding: 8px 2px 4px;
+}
+.nav-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+.nav-btn.active { color: var(--accent); }
+
+/* ===========================
+   HERO
+=========================== */
+.hero {
+  position: relative;
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, #080e1e 0%, #111828 45%, #180e0a 100%);
+}
+.hero-accent-line {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 45%;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  opacity: .55;
+  z-index: 2;
+}
+.hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(8,13,24,.97) 25%, rgba(8,13,24,.2) 65%, transparent 100%);
+}
+.hero-content {
+  position: relative;
+  z-index: 3;
+  padding: 24px 20px 30px;
+}
+.eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+.hero-h1 {
+  font-family: var(--font-display);
+  font-size: clamp(42px, 11vw, 56px);
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  line-height: .96;
+  letter-spacing: -.01em;
+  color: #fff;
+  margin-bottom: 14px;
+}
+.hero-h1 .ora { color: var(--accent); }
+.hero-sub {
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgba(255,255,255,.72);
+  max-width: 290px;
+  margin-bottom: 22px;
+}
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ===========================
+   BUTTONS
+=========================== */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border: none;
+  padding: 13px 20px;
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  border: 1px solid rgba(255,255,255,.35);
+  padding: 13px 20px;
+  border-radius: 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-full {
+  width: 100%;
+  padding: 15px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-full.primary { background: var(--accent); color: #fff; }
+.btn-full.outline { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+
+/* ===========================
+   STATS BAR
+=========================== */
+.stats-bar {
+  margin: 0 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 12px;
+  display: grid;
+  gap: 8px;
+}
+.stats-bar.cols5 { grid-template-columns: repeat(5, 1fr); }
+.stats-bar.cols4 { grid-template-columns: repeat(4, 1fr); }
+.stats-bar.cols3 { grid-template-columns: repeat(3, 1fr); }
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2px;
+}
+.stat-icon { color: var(--accent); margin-bottom: 3px; }
+.stat-num {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ===========================
+   SECTION HEADER
+=========================== */
+.sec-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  margin-bottom: 12px;
+}
+.sec-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--fg);
+}
+.sec-link {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* ===========================
+   SEARCH BAR
+=========================== */
+.search-wrap {
+  margin: 0 16px 20px;
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 13px 16px 13px 42px;
+  color: var(--fg);
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s;
+}
+.search-input:focus { border-color: var(--accent); }
+.search-input::placeholder { color: var(--muted); }
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+/* ===========================
+   CATEGORY ICON NAV
+=========================== */
+.cat-scroll {
+  display: flex;
+  gap: 18px;
+  padding: 0 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 20px;
+}
+.cat-scroll::-webkit-scrollbar { display: none; }
+.cat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cat-ico {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: all .2s;
+}
+.cat-item.on .cat-ico { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.cat-txt {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: center;
+}
+.cat-item.on .cat-txt { color: var(--accent); }
+
+/* ===========================
+   FEATURE GRID (2-col cards)
+=========================== */
+.feat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 0 16px;
+  margin-bottom: 24px;
+}
+.feat-card {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 158px;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.feat-bg {
+  position: absolute;
+  inset: 0;
+}
+.feat-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,.88) 0%, transparent 60%);
+}
+.feat-content {
+  position: relative;
+  z-index: 2;
+  padding: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.feat-tag {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+.feat-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+  text-transform: uppercase;
+  line-height: .95;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.feat-title .ora { color: var(--accent); }
+.feat-desc { font-size: 9.5px; line-height: 1.4; color: rgba(255,255,255,.6); }
+.badge-premium {
+  display: inline-flex;
+  background: var(--accent);
+  color: #fff;
+  font-size: 7.5px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  align-self: flex-start;
+}
+.live-chip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0,0,0,.55);
+  padding: 3px 8px;
+  border-radius: 100px;
+}
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: blink 1.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+
+/* ===========================
+   RANKINGS
+=========================== */
+.rank-card {
+  margin: 0 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rank-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.rank-hdr-title { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.rank-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.rank-row:last-child { border-bottom: none; }
+.rank-pos { font-size: 12px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rank-pos.top3 { color: var(--accent); }
+.rank-name { font-size: 13px; font-weight: 600; }
+.rank-pts { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ===========================
+   EVENTS LIST
+=========================== */
+.events-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.event-row { display: flex; gap: 12px; align-items: center; }
+.evt-date { width: 46px; flex-shrink: 0; text-align: center; }
+.evt-day { font-size: 22px; font-weight: 900; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.evt-mon { font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.evt-info { flex: 1; }
+.evt-lvl { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.evt-name { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.evt-loc { font-size: 11px; color: var(--muted); }
+
+/* ===========================
+   NEWS CARDS (list)
+=========================== */
+.news-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 24px;
+}
+.news-card {
+  display: flex;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  align-items: flex-start;
+}
+.news-card:last-child { border-bottom: none; }
+.news-thumb {
+  width: 80px;
+  height: 64px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.news-body { flex: 1; }
+.news-cat {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.news-title { font-size: 13.5px; font-weight: 700; line-height: 1.3; color: #fff; margin-bottom: 5px; }
+.news-excerpt { font-size: 11.5px; line-height: 1.4; color: var(--muted); margin-bottom: 5px; }
+.news-date { font-size: 10px; color: var(--muted); }
+
+/* ===========================
+   FEATURED NEWS (big card)
+=========================== */
+.featured-card {
+  margin: 0 16px 14px;
+  background: var(--surface);
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid var(--border);
+}
+.featured-img {
+  width: 100%;
+  height: 160px;
+  position: relative;
+  overflow: hidden;
+}
+.featured-body { padding: 14px; }
+.featured-cat { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+.featured-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  line-height: 1.05;
+  margin-bottom: 8px;
+}
+.featured-excerpt { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 10px; }
+.featured-footer { display: flex; align-items: center; justify-content: space-between; }
+
+/* ===========================
+   AI ANALYSIS CARD
+=========================== */
+.ai-card {
+  margin: 20px 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.ai-hdr {
+  background: linear-gradient(90deg, #0f1623, #1a1030);
+  padding: 11px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--accent);
+}
+.ai-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+.ai-hdr-title { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; }
+.ai-body { padding: 14px 16px; }
+.ai-headline { font-size: 15px; font-weight: 700; line-height: 1.35; color: #fff; margin-bottom: 8px; }
+.ai-summary { font-size: 12.5px; line-height: 1.6; color: rgba(255,255,255,.72); margin-bottom: 12px; }
+.ai-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.ai-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  color: var(--muted);
+}
+
+/* ===========================
+   PODCAST EPISODE CARDS
+=========================== */
+.ep-list {
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 24px;
+}
+.ep-card {
+  display: flex;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  align-items: center;
+}
+.ep-card:last-child { border-bottom: none; }
+.ep-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.ep-badge {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0,0,0,.72);
+  font-size: 7.5px;
+  font-weight: 900;
+  padding: 2px 5px;
+  border-radius: 2px;
+  color: var(--accent);
+  letter-spacing: .06em;
+}
+.ep-body { flex: 1; min-width: 0; }
+.ep-meta { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+.ep-title { font-size: 13px; font-weight: 700; line-height: 1.3; color: #fff; margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ep-guest { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.waveform { height: 18px; display: flex; align-items: center; gap: 1.5px; }
+.wbar { width: 2px; border-radius: 1px; flex-shrink: 0; }
+.ep-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* ===========================
+   TABS
+=========================== */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin: 0 16px 20px;
+}
+.tab {
+  flex: 1;
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .2s;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ===========================
+   VIDEO GRID
+=========================== */
+.video-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 0 16px;
+  margin-bottom: 24px;
+}
+.vid-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+}
+.vid-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vid-play {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0,0,0,.5);
+  border: 2px solid rgba(255,255,255,.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.vid-body { padding: 9px 10px; }
+.vid-cat { font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+.vid-title { font-size: 11.5px; font-weight: 700; line-height: 1.3; color: #fff; margin-bottom: 3px; }
+.vid-dur { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ===========================
+   CATEGORY PILLS
+=========================== */
+.pills {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-bottom: 24px;
+}
+.pills::-webkit-scrollbar { display: none; }
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: none;
+  transition: all .18s;
+}
+.pill.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* ===========================
+   CTA BANNER
+=========================== */
+.cta-banner {
+  margin: 0 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 15px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cta-ico {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.cta-text { flex: 1; min-width: 0; }
+.cta-title { font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 2px; }
+.cta-desc { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+.btn-cta {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 9px 12px;
+  cursor: pointer;
+  border-radius: 2px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ===========================
+   PARTNERS
+=========================== */
+.partners {
+  padding: 18px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.partner-name {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  color: rgba(255,255,255,.28);
+  text-transform: uppercase;
+}
+
+/* ===========================
+   ONBOARDING SCREEN
+=========================== */
+.ob-wrap { min-height: 100dvh; display: flex; flex-direction: column; }
+.ob-hero {
+  flex: 1;
+  position: relative;
+  min-height: 52dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+.ob-bg {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, #080d18 0%, #101828 30%, #1a1015 65%, #080d18 100%);
+}
+.ob-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 80% at 65% 25%, rgba(232,77,14,.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 60% at 30% 60%, rgba(20,40,80,.35) 0%, transparent 50%);
+}
+.ob-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--bg) 20%, transparent 70%);
+}
+.ob-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.ob-watermark-text {
+  font-family: var(--font-display);
+  font-size: clamp(72px, 18vw, 120px);
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.035);
+  letter-spacing: -3px;
+  white-space: nowrap;
+}
+.ob-logo-block {
+  position: relative;
+  z-index: 2;
+  padding: 28px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ob-logo {
+  font-family: var(--font-display);
+  font-size: 52px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.ob-logo .dot { color: var(--accent); }
+.ob-tagline {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  font-style: italic;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.6);
+  letter-spacing: .04em;
+}
+.login-form {
+  background: var(--bg);
+  padding: 26px 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-field { display: flex; flex-direction: column; }
+.form-label {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: block;
+}
+.form-input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 13px 16px;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+  transition: border-color .2s;
+}
+.form-input:focus { border-color: var(--accent); }
+.form-input::placeholder { color: var(--muted); }
+.form-forgot {
+  text-align: end;
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  margin-top: 6px;
+  font-weight: 600;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.signup-prompt { text-align: center; font-size: 12px; color: var(--muted); }
+.signup-link { color: var(--accent); cursor: pointer; font-weight: 700; }
+
+/* ===========================
+   LEILÃO SCREEN
+=========================== */
+.auction-live {
+  margin: 0 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.auction-live-hdr {
+  background: var(--accent);
+  padding: 9px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.live-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.lot-num { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.85); }
+.auction-body { padding: 16px; }
+.horse-name {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.horse-lineage { font-size: 11px; color: var(--muted); margin-bottom: 16px; line-height: 1.4; }
+.price-lbl { font-size: 9.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.price-val {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-bottom: 16px;
+}
+.price-currency { font-size: 22px; font-weight: 900; color: var(--accent); }
+.price-num { font-size: 38px; font-weight: 900; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1; }
+.auction-meta { display: flex; gap: 20px; margin-bottom: 16px; }
+.am-item { display: flex; flex-direction: column; gap: 2px; }
+.am-lbl { font-size: 8.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.am-val { font-size: 16px; font-weight: 800; color: #fff; font-variant-numeric: tabular-nums; }
+.am-val.warn { color: #ffb800; }
+.bid-row-input { display: flex; gap: 8px; margin-bottom: 10px; }
+.bid-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 11px 14px;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  outline: none;
+  font-variant-numeric: tabular-nums;
+  transition: border-color .2s;
+}
+.bid-input:focus { border-color: var(--accent); }
+.btn-bid {
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  border: none;
+  padding: 11px 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bid-increments { display: flex; gap: 6px; }
+.bid-chip {
+  flex: 1;
+  padding: 7px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  transition: all .15s;
+}
+.bid-chip:active { border-color: var(--accent); color: var(--accent); }
+
+.bid-history {
+  margin: 0 16px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.bid-history-hdr {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bid-hist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.bid-hist-row:last-child { border-bottom: none; }
+.bid-hist-row.current { background: rgba(232,77,14,.06); }
+.bhdr-left { display: flex; flex-direction: column; gap: 2px; }
+.bhdr-bidder { font-size: 12.5px; font-weight: 600; }
+.bhdr-bidder.anon { color: var(--muted); }
+.bhdr-time { font-size: 9.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bhdr-amt { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.bhdr-amt.current { color: var(--accent); }
+
+.upcoming-list { padding: 0 16px; margin-bottom: 24px; }
+.upcoming-item {
+  display: flex;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  align-items: center;
+}
+.upcoming-item:last-child { border-bottom: none; }
+.up-thumb {
+  width: 76px;
+  height: 62px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.up-body { flex: 1; }
+.up-tag { font-size: 8.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+.up-title { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+.up-desc { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+.up-meta { font-size: 10.5px; color: var(--muted); display: flex; gap: 12px; }
+.up-arrow {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.premium-promo {
+  margin: 0 16px 28px;
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(232,77,14,.05) 100%);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 20px 16px;
+  text-align: center;
+}
+.promo-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: #fff;
+}
+.promo-desc { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ============================================================
+     SCREEN: ONBOARDING / LOGIN
+============================================================ -->
+<div class="screen fullscreen active" id="scr-onboarding">
+  <div class="ob-wrap">
+    <div class="ob-hero">
+      <div class="ob-bg"></div>
+      <div class="ob-overlay"></div>
+      <div class="ob-watermark"><div class="ob-watermark-text">CAVALAR.IA</div></div>
+      <div style="position:absolute;top:0;left:50%;width:1px;height:42%;background:linear-gradient(to bottom,var(--accent),transparent);opacity:.55;z-index:2"></div>
+      <div class="ob-logo-block">
+        <div style="width:1px;height:32px;background:var(--accent);margin-bottom:14px;opacity:.6"></div>
+        <div class="ob-logo">CAVALAR<span class="dot">.</span>IA</div>
+        <div class="ob-tagline">The Future of Equine Intelligence</div>
+      </div>
+    </div>
+
+    <div class="login-form">
+      <div class="form-field">
+        <label class="form-label">E-mail</label>
+        <input class="form-input" type="email" placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <div class="form-field">
+        <label class="form-label">Senha</label>
+        <input class="form-input" type="password" placeholder="••••••••" autocomplete="current-password">
+        <button class="form-forgot">Esqueceu a senha?</button>
+      </div>
+      <button class="btn-full primary" onclick="nav('home')">
+        ENTRAR
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+      <div class="divider">ou</div>
+      <button class="btn-full outline" onclick="nav('home')">CONTINUAR SEM CONTA</button>
+      <p class="signup-prompt">Não tem conta? <span class="signup-link">Criar conta grátis →</span></p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: HOME
+============================================================ -->
+<div class="screen" id="scr-home">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <div class="topbar-right">
+      <button class="btn-entrar" onclick="nav('onboarding')">ENTRAR</button>
+      <button class="btn-hamburger"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-accent-line"></div>
+    <!-- Live score badge -->
+    <div style="position:absolute;top:16px;right:16px;z-index:3;background:rgba(8,13,24,.85);border:1px solid var(--border);border-radius:6px;padding:10px 14px;text-align:right">
+      <div style="font-size:8.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">ELITE SCORE</div>
+      <div style="font-size:34px;font-weight:900;color:var(--accent);font-variant-numeric:tabular-nums;line-height:1">94.2</div>
+      <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45)">/100</div>
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">O Futuro do Hipismo</div>
+      <h1 class="hero-h1">DADOS.<br>GENÉTICA.<br><span class="ora">DESEMPENHO.</span></h1>
+      <p class="hero-sub">A plataforma mais completa para o esporte, criação e negócios do cavalo de salto.</p>
+      <div class="btn-row">
+        <button class="btn-primary">
+          EXPLORAR
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <button class="btn-ghost" onclick="nav('noticias')">
+          <span class="live-dot" style="width:7px;height:7px"></span>
+          AO VIVO
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-bar cols5">
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <div class="stat-num">72.5K</div><div class="stat-lbl">Cavalos</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      <div class="stat-num">18.3K</div><div class="stat-lbl">Cavaleiros</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <div class="stat-num">5.842</div><div class="stat-lbl">Eventos</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <div class="stat-num">86</div><div class="stat-lbl">Países</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <div class="stat-num">2.145</div><div class="stat-lbl">Criadores</div>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="search-wrap">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input class="search-input" type="search" placeholder="Buscar cavalos, linhagens, criadores...">
+  </div>
+
+  <!-- CATEGORY NAV -->
+  <div class="cat-scroll">
+    <div class="cat-item on">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+      <span class="cat-txt">Matrizes</span>
+    </div>
+    <div class="cat-item">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M12 14v8"/><path d="M8 20h8"/></svg></div>
+      <span class="cat-txt">Garanhões</span>
+    </div>
+    <div class="cat-item">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+      <span class="cat-txt">Pedigree</span>
+    </div>
+    <div class="cat-item" onclick="nav('noticias')">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+      <span class="cat-txt">Resultados</span>
+    </div>
+    <div class="cat-item" onclick="nav('leilao')">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg></div>
+      <span class="cat-txt">Leilões</span>
+    </div>
+    <div class="cat-item">
+      <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
+      <span class="cat-txt">IA Cavalar</span>
+    </div>
+  </div>
+
+  <!-- FEATURE GRID -->
+  <div class="sec-hdr"><span class="sec-title">Em Destaque</span></div>
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-bg" style="background:linear-gradient(145deg,#0d1e35,#0a1420)"></div>
+      <div class="feat-overlay"></div>
+      <div class="live-chip">
+        <span class="live-dot"></span>
+        <span style="font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)">LIVE</span>
+      </div>
+      <div class="feat-content">
+        <div class="feat-tag">Resultados</div>
+        <div class="feat-title"><span class="ora">AO</span><br>VIVO</div>
+        <div class="feat-desc">Provas em tempo real</div>
+      </div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-bg" style="background:linear-gradient(145deg,#180e28,#0e0e1e)"></div>
+      <div class="feat-overlay"></div>
+      <div class="feat-content">
+        <div class="badge-premium">PREMIUM</div>
+        <div class="feat-title">IN<br>ÚTERO</div>
+        <div class="feat-desc">Melhores cruzamentos</div>
+      </div>
+    </div>
+    <div class="feat-card" onclick="nav('videoaulas')">
+      <div class="feat-bg" style="background:linear-gradient(145deg,#0a1820,#141008)"></div>
+      <div class="feat-overlay"></div>
+      <div class="feat-content">
+        <div class="feat-tag">Podcast</div>
+        <div class="feat-title">EP.<br><span class="ora">51</span></div>
+        <div class="feat-desc">Pedro Veniss · 58:27</div>
+      </div>
+    </div>
+    <div class="feat-card" onclick="nav('leilao')">
+      <div class="feat-bg" style="background:linear-gradient(145deg,#1e0e08,#0e1a18)"></div>
+      <div class="feat-overlay"></div>
+      <div class="feat-content">
+        <div class="feat-tag">Leilão</div>
+        <div class="feat-title">LOT<br><span class="ora">23</span></div>
+        <div class="feat-desc">Pregão · € 325k</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP RANKINGS -->
+  <div class="sec-hdr"><span class="sec-title">Top Rankings</span><button class="sec-link">VER TODOS →</button></div>
+  <div class="rank-card">
+    <div class="rank-hdr">
+      <span class="rank-hdr-title">Ranking Longines</span>
+      <span style="font-size:10px;color:var(--muted)">▼ Categoria</span>
+    </div>
+    <div class="rank-row"><span class="rank-pos top3">1</span><span class="rank-name">Henrik von Eckermann</span><span class="rank-pts">4312</span></div>
+    <div class="rank-row"><span class="rank-pos top3">2</span><span class="rank-name">Steve Guerdat</span><span class="rank-pts">3987</span></div>
+    <div class="rank-row"><span class="rank-pos top3">3</span><span class="rank-name">Julien Epaillard</span><span class="rank-pts">3754</span></div>
+    <div class="rank-row"><span class="rank-pos">4</span><span class="rank-name">Ben Maher</span><span class="rank-pts">3288</span></div>
+    <div class="rank-row"><span class="rank-pos">5</span><span class="rank-name">Peder Fredricson</span><span class="rank-pts">3190</span></div>
+  </div>
+
+  <!-- PRÓXIMOS EVENTOS -->
+  <div class="sec-hdr"><span class="sec-title">Próximos Eventos</span><button class="sec-link" onclick="nav('noticias')">VER CALENDÁRIO →</button></div>
+  <div class="events-list">
+    <div class="event-row">
+      <div class="evt-date"><div class="evt-day">24</div><div class="evt-mon">Mai</div></div>
+      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">Grand Prix Roma</div><div class="evt-loc">📍 Roma, ITA</div></div>
+      <span style="font-size:20px">🇮🇹</span>
+    </div>
+    <div class="event-row">
+      <div class="evt-date"><div class="evt-day">29</div><div class="evt-mon">Mai</div></div>
+      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">St. Gallen</div><div class="evt-loc">📍 St. Gallen, SUI</div></div>
+      <span style="font-size:20px">🇨🇭</span>
+    </div>
+    <div class="event-row">
+      <div class="evt-date"><div class="evt-day">05</div><div class="evt-mon">Jun</div></div>
+      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">Hamburgo Grand Prix</div><div class="evt-loc">📍 Hamburgo, GER</div></div>
+      <span style="font-size:20px">🇩🇪</span>
+    </div>
+  </div>
+
+  <!-- ÚLTIMAS NOTÍCIAS -->
+  <div class="sec-hdr"><span class="sec-title">Últimas Notícias</span><button class="sec-link" onclick="nav('noticias')">VER TODAS →</button></div>
+  <div class="news-list">
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1028,#2a1010)"></div>
+      <div class="news-body">
+        <div class="news-cat">CSIO5*</div>
+        <div class="news-title">Brasil conquista vitória no GP 1.60m em Rotterdam</div>
+        <div class="news-date">17 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#101828,#1a1028)"></div>
+      <div class="news-body">
+        <div class="news-cat">MERCADO</div>
+        <div class="news-title">Mercado de cavalos de esporte cresce 15% em 2024</div>
+        <div class="news-date">16 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1a08,#081828)"></div>
+      <div class="news-body">
+        <div class="news-cat">IA ANÁLISE</div>
+        <div class="news-title">IA Cavalar: nova geração de garanhões europeus avaliada</div>
+        <div class="news-date">15 MAI 2024</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARTNERS -->
+  <div class="partners">
+    <span class="partner-name">LONGINES</span>
+    <span class="partner-name">ROLEX</span>
+    <span class="partner-name">HERMÈS</span>
+    <span class="partner-name">EQUILINE</span>
+    <span class="partner-name">MARS</span>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: NOTÍCIAS + IA
+============================================================ -->
+<div class="screen" id="scr-noticias">
+  <div class="topbar">
+    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero" style="min-height:380px">
+    <div class="hero-bg" style="background:linear-gradient(150deg,#080e18,#120820,#0e1408)"></div>
+    <div class="hero-accent-line"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Notícias & Análise IA</div>
+      <h2 class="hero-h1">O HIPISMO<br>EM <span class="ora">MOVIMENTO.</span></h2>
+      <p class="hero-sub">Notícias, tendências, mercado e os bastidores das grandes competições.</p>
+      <button class="btn-primary">
+        VER TODAS AS NOTÍCIAS
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- AI ANALYSIS CARD -->
+  <div class="ai-card">
+    <div class="ai-hdr">
+      <div class="ai-badge">IA CAVALAR</div>
+      <div class="ai-hdr-title">Análise Semanal</div>
+      <span style="margin-left:auto;font-size:9.5px;color:rgba(255,255,255,.45)">19 MAI 2024</span>
+    </div>
+    <div class="ai-body">
+      <div class="ai-headline">Temporada europeia 2024: dominância técnica e o impacto das novas linhagens</div>
+      <div class="ai-summary">A IA Cavalar analisou 1.247 percursos nas últimas 4 semanas. O índice de falhas em obstáculos verticais caiu 12% entre cavalos com Cornet Obolensky na linhagem paterna. Cavalos com breeding value acima de 90 apresentaram 34% mais consistência em provas 5*.</div>
+      <div class="ai-tags">
+        <span class="ai-tag">Breeding Values</span>
+        <span class="ai-tag">CSIO5*</span>
+        <span class="ai-tag">Linhagens</span>
+        <span class="ai-tag">Temporada 2024</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- DESTAQUES -->
+  <div class="sec-hdr" style="margin-top:24px"><span class="sec-title">Destaques</span><button class="sec-link">VER TODOS →</button></div>
+
+  <!-- FEATURED CARD -->
+  <div class="featured-card">
+    <div class="featured-img" style="background:linear-gradient(135deg,#0f1a28,#2a1210,#1a0a0a)">
+      <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 55%)"></div>
+      <div style="position:absolute;bottom:10px;left:12px;font-family:var(--font-display);font-size:10px;font-weight:700;font-style:italic;text-transform:uppercase;color:rgba(255,255,255,.55)">CSIO5* · ROTTERDAM</div>
+    </div>
+    <div class="featured-body">
+      <div class="featured-cat">CSIO5* · RESULTADO</div>
+      <div class="featured-title">Brasil conquista vitória no GP 1.60m em Rotterdam</div>
+      <div class="featured-excerpt">Pedro Veniss garante o lugar mais alto do pódio com King of the Moors, marcando uma das melhores atuações da temporada europeia.</div>
+      <div class="featured-footer">
+        <span style="font-size:10.5px;color:var(--muted)">12 MAI 2024</span>
+        <span style="font-size:10.5px;color:var(--accent);font-weight:700">LER MAIS →</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- NEWS LIST -->
+  <div class="news-list">
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#101828,#1a1028)"></div>
+      <div class="news-body">
+        <div class="news-cat">MERCADO</div>
+        <div class="news-title">Mercado de cavalos de esporte cresce 15% em 2024</div>
+        <div class="news-excerpt">Levantamento aponta aumento na demanda por genética de elite.</div>
+        <div class="news-date">10 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#0a1420,#1a1028)"></div>
+      <div class="news-body">
+        <div class="news-cat">EVENTOS</div>
+        <div class="news-title">Longines Global Champions Tour confirma calendário 2024</div>
+        <div class="news-excerpt">Temporada passa por 16 cidades ao redor do mundo.</div>
+        <div class="news-date">08 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1a0a,#0a1420)"></div>
+      <div class="news-body">
+        <div class="news-cat">IA ANÁLISE</div>
+        <div class="news-title">Breeding values da nova geração de garanhões europeus</div>
+        <div class="news-excerpt">Análise comparativa de 234 garanhões aprovados em 2024.</div>
+        <div class="news-date">06 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#1a0a10,#101a28)"></div>
+      <div class="news-body">
+        <div class="news-cat">BRASIL</div>
+        <div class="news-title">Steve Guerdat: preparação e mentalidade vencedora</div>
+        <div class="news-excerpt">Entrevista exclusiva com o campeão olímpico de Londres 2012.</div>
+        <div class="news-date">05 MAI 2024</div>
+      </div>
+    </div>
+    <div class="news-card">
+      <div class="news-thumb" style="background:linear-gradient(135deg,#0a1820,#201008)"></div>
+      <div class="news-body">
+        <div class="news-cat">CRIAÇÃO</div>
+        <div class="news-title">Embriões de alta genética alcançam novo recorde em leilão europeu</div>
+        <div class="news-excerpt">Lote de embrião Cornet Obolensky × Chacco-Blue bate € 420.000.</div>
+        <div class="news-date">03 MAI 2024</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: VIDEOAULAS / PODCAST
+============================================================ -->
+<div class="screen" id="scr-videoaulas">
+  <div class="topbar">
+    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero" style="min-height:360px">
+    <div class="hero-bg" style="background:linear-gradient(150deg,#080d18,#0e0820,#18100a)"></div>
+    <div class="hero-accent-line"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Podcast</div>
+      <h2 class="hero-h1">HISTÓRIAS<br>QUE MOVEM<br><span class="ora">O HIPISMO.</span></h2>
+      <p class="hero-sub">Conversas com quem faz, decide e transforma o mundo dos cavalos.</p>
+      <button class="btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        OUVIR AGORA
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-bar cols3">
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      <div class="stat-num">50+</div><div class="stat-lbl">Episódios</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <div class="stat-num">30+</div><div class="stat-lbl">Convidados</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+      <div class="stat-num">100%</div><div class="stat-lbl">Hipismo</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" id="tab-pod" onclick="switchTab('pod')">Podcast</button>
+    <button class="tab" id="tab-vid" onclick="switchTab('vid')">Videoaulas</button>
+  </div>
+
+  <!-- PODCAST CONTENT -->
+  <div id="pod-content">
+    <div class="sec-hdr"><span class="sec-title">Episódios Recentes</span><button class="sec-link">VER TODOS →</button></div>
+    <div class="ep-list">
+      <div class="ep-card">
+        <div class="ep-thumb" style="background:linear-gradient(145deg,#1a1a2e,#2a1010)">
+          <div class="ep-badge">EP. 51</div>
+        </div>
+        <div class="ep-body">
+          <div class="ep-meta">EP. 51 · 58:27</div>
+          <div class="ep-title">Planejamento e disciplina: o caminho para o alto rendimento</div>
+          <div class="ep-guest">Com Pedro Veniss</div>
+          <div class="waveform" id="wv0"></div>
+        </div>
+        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
+      </div>
+      <div class="ep-card">
+        <div class="ep-thumb" style="background:linear-gradient(145deg,#2a1a10,#101a2e)">
+          <div class="ep-badge">EP. 50</div>
+        </div>
+        <div class="ep-body">
+          <div class="ep-meta">EP. 50 · 47:12</div>
+          <div class="ep-title">Genética, seleção e o futuro do esporte equestre</div>
+          <div class="ep-guest">Com Guilherme Foroni</div>
+          <div class="waveform" id="wv1"></div>
+        </div>
+        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
+      </div>
+      <div class="ep-card">
+        <div class="ep-thumb" style="background:linear-gradient(145deg,#1a1028,#2a1a10)">
+          <div class="ep-badge">EP. 49</div>
+        </div>
+        <div class="ep-body">
+          <div class="ep-meta">EP. 49 · 1:02:33</div>
+          <div class="ep-title">Mentalidade vencedora: dentro e fora da pista</div>
+          <div class="ep-guest">Com Doda Miranda</div>
+          <div class="waveform" id="wv2"></div>
+        </div>
+        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="sec-hdr"><span class="sec-title">Categorias</span></div>
+    <div class="pills">
+      <button class="pill active">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/></svg>
+        Entrevistas
+      </button>
+      <button class="pill">Genética</button>
+      <button class="pill">Gestão</button>
+      <button class="pill">Treinamento</button>
+      <button class="pill">Mercado</button>
+    </div>
+  </div>
+
+  <!-- VIDEOAULAS CONTENT -->
+  <div id="vid-content" style="display:none">
+    <div class="sec-hdr"><span class="sec-title">Videoaulas em Destaque</span></div>
+    <div class="video-grid">
+      <div class="vid-card">
+        <div class="vid-thumb" style="background:linear-gradient(135deg,#0f1a28,#1a0f0a)">
+          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+        <div class="vid-body">
+          <div class="vid-cat">Salto</div>
+          <div class="vid-title">Fundamentos do oxer perfeito</div>
+          <div class="vid-dur">18:32</div>
+        </div>
+      </div>
+      <div class="vid-card">
+        <div class="vid-thumb" style="background:linear-gradient(135deg,#1a1028,#0a1820)">
+          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+        <div class="vid-body">
+          <div class="vid-cat">Genética</div>
+          <div class="vid-title">Lendo um pedigree em 10 minutos</div>
+          <div class="vid-dur">24:15</div>
+        </div>
+      </div>
+      <div class="vid-card">
+        <div class="vid-thumb" style="background:linear-gradient(135deg,#1a1a0a,#101028)">
+          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+        <div class="vid-body">
+          <div class="vid-cat">Criação</div>
+          <div class="vid-title">Seleção de matrizes: critérios de elite</div>
+          <div class="vid-dur">31:08</div>
+        </div>
+      </div>
+      <div class="vid-card" style="position:relative">
+        <div style="position:absolute;top:6px;right:6px;z-index:3"><span class="badge-premium" style="margin-bottom:0">PREMIUM</span></div>
+        <div class="vid-thumb" style="background:linear-gradient(135deg,#180a28,#1a1a0a)">
+          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
+        </div>
+        <div class="vid-body">
+          <div class="vid-cat">Análise IA</div>
+          <div class="vid-title">Breeding values avançado</div>
+          <div class="vid-dur">45:00</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBSCRIBE CTA -->
+  <div class="cta-banner">
+    <div class="cta-ico">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+    </div>
+    <div class="cta-text">
+      <div class="cta-title">Novos episódios toda semana.</div>
+      <div class="cta-desc">Inscreva-se e não perca nenhuma conversa.</div>
+    </div>
+    <button class="btn-cta">ASSINAR →</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     SCREEN: LEILÃO / PREGÃO
+============================================================ -->
+<div class="screen" id="scr-leilao">
+  <div class="topbar">
+    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero" style="min-height:360px">
+    <div class="hero-bg" style="background:linear-gradient(150deg,#080d18,#0e0818,#1a1008)"></div>
+    <div class="hero-accent-line"></div>
+    <!-- Lot badge -->
+    <div style="position:absolute;top:16px;right:16px;z-index:3;background:rgba(8,13,24,.88);border:1px solid var(--accent);border-radius:6px;padding:10px 14px;text-align:center">
+      <div style="font-size:8.5px;font-weight:900;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:2px">LOT 23</div>
+      <div style="font-size:26px;font-weight:900;color:#fff;font-variant-numeric:tabular-nums;line-height:1">€ 325k</div>
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Leilões</div>
+      <h2 class="hero-h1">O PRÓXIMO<br><span class="ora">CAMPEÃO</span><br>ESTÁ AQUI.</h2>
+      <p class="hero-sub">Leilões de embriões, potros e matrizes com curadoria genética de elite.</p>
+      <button class="btn-primary">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
+        VER LEILÕES ATIVOS
+      </button>
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats-bar cols4">
+    <div class="stat">
+      <svg class="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
+      <div class="stat-num">150+</div><div class="stat-lbl">Leilões</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-4 0v2M8 7V5a2 2 0 0 0-4 0v2"/></svg>
+      <div class="stat-num">2.5K+</div><div class="stat-lbl">Lotes</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <div class="stat-num">20+</div><div class="stat-lbl">Países</div>
+    </div>
+    <div class="stat">
+      <svg class="stat-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17"/><polyline points="16,7 22,7 22,13"/></svg>
+      <div class="stat-num">87%</div><div class="stat-lbl">Sucesso</div>
+    </div>
+  </div>
+
+  <!-- LIVE AUCTION -->
+  <div class="sec-hdr">
+    <span class="sec-title">Pregão ao Vivo</span>
+    <div style="display:flex;align-items:center;gap:5px">
+      <span class="live-dot"></span>
+      <span style="font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)">AO VIVO</span>
+    </div>
+  </div>
+
+  <div class="auction-live">
+    <div class="auction-live-hdr">
+      <div class="live-label">
+        <span class="live-dot" style="background:#fff;width:7px;height:7px"></span>
+        PREGÃO ATIVO
+      </div>
+      <span class="lot-num">LOTE 23 de 40</span>
+    </div>
+    <div class="auction-body">
+      <div class="horse-name">Cornet Obolensky Z</div>
+      <div class="horse-lineage">Embrião · Cornet Obolensky × Chacco-Blue<br>Top Genética · Salto</div>
+      <div class="price-lbl">Lance atual</div>
+      <div class="price-val">
+        <span class="price-currency">€</span>
+        <span class="price-num" id="live-price">325.000</span>
+      </div>
+      <div class="auction-meta">
+        <div class="am-item">
+          <span class="am-lbl">Lances</span>
+          <span class="am-val" id="bid-count">14</span>
+        </div>
+        <div class="am-item">
+          <span class="am-lbl">Tempo restante</span>
+          <span class="am-val warn" id="timer-display">02:47</span>
+        </div>
+        <div class="am-item">
+          <span class="am-lbl">Participantes</span>
+          <span class="am-val">38</span>
+        </div>
+      </div>
+      <div class="bid-row-input">
+        <input class="bid-input" type="number" id="bid-val" value="330000" min="0">
+        <button class="btn-bid" onclick="placeBid()">DAR LANCE</button>
+      </div>
+      <div class="bid-increments">
+        <div class="bid-chip" onclick="addBid(5000)">+€5k</div>
+        <div class="bid-chip" onclick="addBid(10000)">+€10k</div>
+        <div class="bid-chip" onclick="addBid(25000)">+€25k</div>
+        <div class="bid-chip" onclick="addBid(50000)">+€50k</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BID HISTORY -->
+  <div class="bid-history">
+    <div class="bid-history-hdr">Histórico de Lances</div>
+    <div class="bid-hist-row current" id="bh0">
+      <div class="bhdr-left">
+        <div class="bhdr-bidder">Haras Vitória</div>
+        <div class="bhdr-time">Agora mesmo</div>
+      </div>
+      <span class="bhdr-amt current" id="bh0-amt">€ 325.000</span>
+    </div>
+    <div class="bid-hist-row">
+      <div class="bhdr-left">
+        <div class="bhdr-bidder anon">Comprador #7</div>
+        <div class="bhdr-time">1 min atrás</div>
+      </div>
+      <span class="bhdr-amt">€ 315.000</span>
+    </div>
+    <div class="bid-hist-row">
+      <div class="bhdr-left">
+        <div class="bhdr-bidder">Haras São João</div>
+        <div class="bhdr-time">3 min atrás</div>
+      </div>
+      <span class="bhdr-amt">€ 300.000</span>
+    </div>
+    <div class="bid-hist-row">
+      <div class="bhdr-left">
+        <div class="bhdr-bidder anon">Comprador #12</div>
+        <div class="bhdr-time">5 min atrás</div>
+      </div>
+      <span class="bhdr-amt">€ 285.000</span>
+    </div>
+  </div>
+
+  <!-- PRÓXIMOS LEILÕES -->
+  <div class="sec-hdr"><span class="sec-title">Próximos Leilões</span><button class="sec-link">VER TODOS →</button></div>
+  <div class="upcoming-list">
+    <div class="upcoming-item">
+      <div class="up-thumb" style="background:linear-gradient(135deg,#0f1a28,#2a1210)"></div>
+      <div class="up-body">
+        <div class="up-tag">LEILÃO</div>
+        <div class="up-title">Elite Foal Collection</div>
+        <div class="up-desc">Potros de salto com genética de altíssimo desempenho.</div>
+        <div class="up-meta"><span>📅 25 MAI 2024</span><span>📶 ONLINE</span></div>
+      </div>
+      <div class="up-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </div>
+    <div class="upcoming-item">
+      <div class="up-thumb" style="background:linear-gradient(135deg,#1a2814,#28100a)"></div>
+      <div class="up-body">
+        <div class="up-tag">LEILÃO</div>
+        <div class="up-title">Matrizes &amp; Embriões</div>
+        <div class="up-desc">Genética comprovada. Linhagens que produzem campeões.</div>
+        <div class="up-meta"><span>📅 15 JUN 2024</span><span>📍 PRESENCIAL</span></div>
+      </div>
+      <div class="up-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </div>
+    <div class="upcoming-item">
+      <div class="up-thumb" style="background:linear-gradient(135deg,#081820,#200810)"></div>
+      <div class="up-body">
+        <div class="up-tag">LEILÃO · 4º TRIMESTRE</div>
+        <div class="up-title">Galope da Vitória — Leilão Especial</div>
+        <div class="up-desc">40 lotes curados. Pregão bid online exclusivo para assinantes.</div>
+        <div class="up-meta"><span>📅 AGO 2024</span><span>🔒 PREMIUM</span></div>
+      </div>
+      <div class="up-arrow"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    </div>
+  </div>
+
+  <!-- PREMIUM CTA -->
+  <div class="premium-promo">
+    <div class="promo-title">ACESSO PREMIUM</div>
+    <div class="promo-desc">Assinatura mensal ou anual. Catálogo completo, leilões exclusivos e análises de IA em tempo real.</div>
+    <button class="btn-full primary">ASSINAR AGORA →</button>
+  </div>
+</div>
+
+<!-- ============================================================
+     BOTTOM NAV
+============================================================ -->
+<nav class="bottom-nav" id="bottom-nav">
+  <button class="nav-btn" id="nb-home" onclick="nav('home')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Início
+  </button>
+  <button class="nav-btn" id="nb-noticias" onclick="nav('noticias')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
+    Notícias
+  </button>
+  <button class="nav-btn" id="nb-videoaulas" onclick="nav('videoaulas')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+    Vídeos
+  </button>
+  <button class="nav-btn" id="nb-leilao" onclick="nav('leilao')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
+    Leilões
+  </button>
+  <button class="nav-btn" id="nb-perfil">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    Perfil
+  </button>
+</nav>
+
+</div><!-- end .app -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CAVALAR.IA — APP ENGINE
+// ═══════════════════════════════════════════════════════════════
+
+// ─── DATA STORE ──────────────────────────────────────────────
+const DATA = {
+  rankings: [
+    { pos: 1, name: 'Henrik von Eckermann', pts: 4312, flag: '🇸🇪' },
+    { pos: 2, name: 'Steve Guerdat',        pts: 3987, flag: '🇨🇭' },
+    { pos: 3, name: 'Julien Epaillard',     pts: 3754, flag: '🇫🇷' },
+    { pos: 4, name: 'Ben Maher',            pts: 3288, flag: '🇬🇧' },
+    { pos: 5, name: 'Peder Fredricson',     pts: 3190, flag: '🇸🇪' },
+    { pos: 6, name: 'Martin Fuchs',         pts: 3015, flag: '🇨🇭' },
+    { pos: 7, name: 'Kent Farrington',      pts: 2844, flag: '🇺🇸' },
+    { pos: 8, name: 'Scott Brash',          pts: 2710, flag: '🇬🇧' },
+  ],
+  categories: [
+    { id: 'matrizes',  label: 'Matrizes',   icon: 'home' },
+    { id: 'garanhoes', label: 'Garanhões',  icon: 'user' },
+    { id: 'pedigree',  label: 'Pedigree',   icon: 'activity' },
+    { id: 'resultados',label: 'Resultados', icon: 'clock' },
+    { id: 'leiloes',   label: 'Leilões',    icon: 'hammer' },
+    { id: 'ia-cavalar',label: 'IA Cavalar', icon: 'layers' },
+  ],
+  events: [
+    { day: 24, mon: 'Mai', level: 'CSIO5*', name: 'Grand Prix Roma',     loc: 'Roma, ITA',  flag: '🇮🇹' },
+    { day: 29, mon: 'Mai', level: 'CSIO5*', name: 'St. Gallen',          loc: 'St. Gallen, SUI', flag: '🇨🇭' },
+    { day: 5,  mon: 'Jun', level: 'CSIO5*', name: 'Hamburgo GP',         loc: 'Hamburgo, GER', flag: '🇩🇪' },
+    { day: 12, mon: 'Jun', level: 'CSI4*',  name: 'Cannes',              loc: 'Cannes, FRA', flag: '🇫🇷' },
+    { day: 20, mon: 'Jun', level: 'CSIO5*', name: 'Aachen',              loc: 'Aachen, GER', flag: '🇩🇪' },
+    { day: 10, mon: 'Jul', level: 'CSI5*',  name: 'Longines Paris Eiffel', loc: 'Paris, FRA', flag: '🇫🇷' },
+  ],
+  news: [
+    { cat: 'CSIO5*',   title: 'Brasil conquista vitória no GP 1.60m em Rotterdam',    date: '17 MAI 2024', thumb: 0 },
+    { cat: 'MERCADO',  title: 'Mercado de cavalos de esporte cresce 15% em 2024',     date: '16 MAI 2024', thumb: 1 },
+    { cat: 'IA ANÁLISE', title: 'IA Cavalar: nova geração de garanhões europeus avaliada', date: '15 MAI 2024', thumb: 2 },
+    { cat: 'EVENTOS',  title: 'Longines Global Champions Tour confirma calendário 2024', date: '08 MAI 2024', thumb: 3 },
+    { cat: 'BRASIL',   title: 'Steve Guerdat: preparação e mentalidade vencedora',    date: '05 MAI 2024', thumb: 4 },
+    { cat: 'CRIAÇÃO',  title: 'Embriões de alta genética alcançam novo recorde',      date: '03 MAI 2024', thumb: 0 },
+  ],
+  podcasts: [
+    { ep: 51, duration: '58:27', title: 'Planejamento e disciplina: o caminho para o alto rendimento', guest: 'Pedro Veniss', played: 14 },
+    { ep: 50, duration: '47:12', title: 'Genética, seleção e o futuro do esporte equestre',           guest: 'Guilherme Foroni', played: 22 },
+    { ep: 49, duration: '1:02:33', title: 'Mentalidade vencedora: dentro e fora da pista',              guest: 'Doda Miranda', played: 0 },
+    { ep: 48, duration: '42:15', title: 'O mercado de cavalos de salto no Brasil',                      guest: 'Césio H. Ribeiro', played: 8 },
+    { ep: 47, duration: '51:40', title: 'Treinamento de potros: do básico ao GP',                       guest: 'Rodrigo Pessoa', played: 5 },
+  ],
+  auctions: [
+    { lot: 23, total: 40, horse: 'Cornet Obolensky Z', lineage: 'Embrião · Cornet Obolensky × Chacco-Blue<br>Top Genética · Salto', price: 325000, bids: 14, bidders: 38, time: 167 },
+    { lot: 15, total: 40, horse: 'Chacco-Blue II',     lineage: 'Embrião · Chacco-Blue × Stakkato<br>Linhagem premium', price: 280000, bids: 9, bidders: 31, time: 300 },
+    { lot: 8,  total: 40, horse: 'Diamant de Semilly Z', lineage: 'Potro · Diamant de Semilly × Calvaro<br>Genética comprovada', price: 195000, bids: 6, bidders: 26, time: 540 },
+  ],
+  horses: [
+    { name: 'King of the Moors',    rider: 'Pedro Veniss',    breed: 'KWPN',  score: 94.2, price: '€ 1.2M' },
+    { name: 'Hello Sanctos',        rider: 'Scott Brash',     breed: 'SF',    score: 91.8, price: '€ 3.5M' },
+    { name: 'Pablo de Virton',      rider: 'Roger-Yves Bost', breed: 'BWP',   score: 90.5, price: '€ 2.8M' },
+    { name: 'Explosion W',          rider: 'Ben Maher',       breed: 'WESTF', score: 95.1, price: '€ 5.0M' },
+    { name: 'Tovek\'s Hidalgo',     rider: 'Henrik von Eckermann',breed: 'SWB', score: 92.3, price: '€ 1.8M' },
+    { name: 'Cornet Obolensky Z',   rider: '—',               breed: 'ZANG',  score: 89.7, price: '—' },
+  ],
+  aiAnalysis: {
+    headline: 'Temporada europeia 2024: dominância técnica e o impacto das novas linhagens',
+    summary: 'A IA Cavalar analisou 1.247 percursos nas últimas 4 semanas. O índice de falhas em obstáculos verticais caiu 12% entre cavalos com Cornet Obolensky na linhagem paterna. Cavalos com breeding value acima de 90 apresentaram 34% mais consistência em provas 5*.',
+    tags: ['Breeding Values', 'CSIO5*', 'Linhagens', 'Temporada 2024'],
+  },
+  thumbGradients: [
+    'linear-gradient(135deg,#1a1028,#2a1010)',
+    'linear-gradient(135deg,#101828,#1a1028)',
+    'linear-gradient(135deg,#1a1a08,#081828)',
+    'linear-gradient(135deg,#0a1420,#1a1028)',
+    'linear-gradient(135deg,#1a0a10,#101a28)',
+    'linear-gradient(135deg,#0a1820,#201008)',
+  ],
+};
+
+// ─── STATE ────────────────────────────────────────────────────
+const STATE = {
+  screen: 'onboarding',
+  user: null,
+  searchQuery: '',
+  activeCategory: 'matrizes',
+  podcastTab: 'pod',
+  podcastNow: null,      // index of currently playing episode
+  auctionIdx: 0,
+  auctionTimers: [],
+  notifications: [],
+};
+
+// ─── UTILITY FUNCTIONS ────────────────────────────────────────
+const Util = {
+  fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+  },
+  fmtPrice(n) {
+    return n.toLocaleString('de-DE');
+  },
+  fmtCurrency(n) {
+    return '€ ' + this.fmtPrice(n);
+  },
+  debounce(fn, ms) {
+    let t;
+    return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  },
+  random(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  },
+  pick(arr) {
+    return arr[Math.floor(Math.random() * arr.length)];
+  },
+};
+
+// ─── NAVIGATION ───────────────────────────────────────────────
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao'];
+
+function nav(id) {
+  SCREENS.forEach(s => {
+    const el = document.getElementById('scr-' + s);
+    if (el) el.classList.remove('active');
+  });
+  const target = document.getElementById('scr-' + id);
+  if (target) {
+    target.classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }
+  STATE.screen = id;
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const nb = document.getElementById('nb-' + id);
+  if (nb) nb.classList.add('active');
+  const bn = document.getElementById('bottom-nav');
+  bn.style.display = id === 'onboarding' ? 'none' : 'flex';
+  if (id === 'leilao') initAuction();
+  if (id === 'home') renderHomeContent();
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────
+function initAuth() {
+  const loginForm = document.querySelector('.login-form');
+  if (!loginForm) return;
+  const emailInput = loginForm.querySelector('input[type="email"]');
+  const passInput = loginForm.querySelector('input[type="password"]');
+  const entrarBtn = loginForm.querySelector('.btn-full.primary');
+  const skipBtn = loginForm.querySelector('.btn-full.outline');
+  const forgotBtn = loginForm.querySelector('.form-forgot');
+
+  entrarBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    const email = emailInput.value.trim();
+    const pass = passInput.value.trim();
+    if (!email) { shakeInput(emailInput); return; }
+    if (!pass || pass.length < 3) { shakeInput(passInput); return; }
+    STATE.user = { email, name: email.split('@')[0] };
+    showToast('Bem-vindo, ' + STATE.user.name + '!');
+    nav('home');
+  });
+
+  skipBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    STATE.user = { email: null, name: 'Convidado' };
+    nav('home');
+  });
+
+  forgotBtn.addEventListener('click', () => {
+    showToast('Enviaremos um link de recuperação para seu e-mail.');
+  });
+}
+
+function shakeInput(el) {
+  el.style.borderColor = '#ff4444';
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'shake .25s ease';
+  setTimeout(() => el.style.borderColor = '', 1200);
+}
+
+// ─── TOAST ────────────────────────────────────────────────────
+function showToast(msg, duration) {
+  duration = duration || 2800;
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = 'position:fixed;bottom:90px;left:50%;transform:translateX(-50%);z-index:999;background:var(--surface);border:1px solid var(--accent);color:#fff;font-size:13px;font-weight:600;padding:12px 20px;border-radius:6px;max-width:380px;text-align:center;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  t.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(t._hide);
+  t._hide = setTimeout(() => {
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(-50%) translateY(8px)';
+  }, duration);
+}
+
+// ─── SEARCH ───────────────────────────────────────────────────
+function initSearch() {
+  const input = document.querySelector('.search-input');
+  if (!input) return;
+  const wrap = input.closest('.search-wrap');
+
+  const resultsBox = document.createElement('div');
+  resultsBox.id = 'search-results';
+  resultsBox.style.cssText = 'position:absolute;top:100%;left:0;right:0;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:0 0 6px 6px;max-height:320px;overflow-y:auto;display:none;margin-top:2px';
+  wrap.appendChild(resultsBox);
+
+  input.addEventListener('input', Util.debounce(() => {
+    const q = input.value.trim().toLowerCase();
+    STATE.searchQuery = q;
+    if (q.length < 2) { resultsBox.style.display = 'none'; return; }
+    const results = DATA.horses.filter(h =>
+      h.name.toLowerCase().includes(q) ||
+      h.rider.toLowerCase().includes(q) ||
+      h.breed.toLowerCase().includes(q)
+    );
+    if (results.length === 0) {
+      resultsBox.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px;text-align:center">Nenhum resultado encontrado</div>';
+    } else {
+      resultsBox.innerHTML = results.map(h => `
+        <div onclick="nav('home');document.querySelector('.search-input').value='${h.name}';document.getElementById('search-results').style.display='none'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+          <div style="width:32px;height:32px;border-radius:4px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:var(--accent)">${h.name[0]}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;color:#fff">${h.name}</div>
+            <div style="font-size:10px;color:var(--muted)">${h.rider} · ${h.breed} · Score ${h.score}</div>
+          </div>
+          <div style="font-size:12px;font-weight:800;color:var(--accent)">${h.price}</div>
+        </div>
+      `).join('');
+    }
+    resultsBox.style.display = 'block';
+  }, 250));
+
+  document.addEventListener('click', (e) => {
+    if (!wrap.contains(e.target)) resultsBox.style.display = 'none';
+  });
+}
+
+// ─── CATEGORY NAV ─────────────────────────────────────────────
+function initCategories() {
+  document.querySelectorAll('.cat-item').forEach(el => {
+    el.addEventListener('click', function() {
+      document.querySelectorAll('.cat-item').forEach(c => c.classList.remove('on'));
+      this.classList.add('on');
+      STATE.activeCategory = this.querySelector('.cat-txt').textContent.trim().toLowerCase();
+      renderHomeContent();
+    });
+  });
+}
+
+// ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
+function renderHomeContent() {
+  renderNews();
+  renderRankings();
+  renderEvents();
+}
+
+function renderNews() {
+  const container = document.querySelector('.news-list');
+  if (!container) return;
+  container.innerHTML = DATA.news.slice(0, 3).map(n => `
+    <div class="news-card" onclick="showToast('Notícia completa em breve')">
+      <div class="news-thumb" style="background:${DATA.thumbGradients[n.thumb]}"></div>
+      <div class="news-body">
+        <div class="news-cat">${n.cat}</div>
+        <div class="news-title">${n.title}</div>
+        <div class="news-date">${n.date}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderRankings() {
+  const container = document.querySelector('.rank-card');
+  if (!container) return;
+  const rows = container.querySelectorAll('.rank-row');
+  DATA.rankings.slice(0, 5).forEach((r, i) => {
+    if (rows[i]) {
+      rows[i].innerHTML = `
+        <span class="rank-pos ${i < 3 ? 'top3' : ''}">${r.pos}</span>
+        <span class="rank-name">${r.flag} ${r.name}</span>
+        <span class="rank-pts">${r.pts}</span>
+      `;
+    }
+  });
+}
+
+function renderEvents() {
+  const container = document.querySelector('.events-list');
+  if (!container) return;
+  container.innerHTML = DATA.events.slice(0, 3).map(e => `
+    <div class="event-row">
+      <div class="evt-date"><div class="evt-day">${e.day}</div><div class="evt-mon">${e.mon}</div></div>
+      <div class="evt-info">
+        <div class="evt-lvl">${e.level}</div>
+        <div class="evt-name">${e.name}</div>
+        <div class="evt-loc">📍 ${e.loc}</div>
+      </div>
+      <span style="font-size:20px">${e.flag}</span>
+    </div>
+  `).join('');
+}
+
+// ─── TABS: PODCAST / VIDEOAULAS ──────────────────────────────
+function switchTab(t) {
+  STATE.podcastTab = t;
+  document.getElementById('tab-pod').classList.toggle('active', t === 'pod');
+  document.getElementById('tab-vid').classList.toggle('active', t === 'vid');
+  document.getElementById('pod-content').style.display = t === 'pod' ? 'block' : 'none';
+  document.getElementById('vid-content').style.display = t === 'vid' ? 'block' : 'none';
+}
+
+// ─── WAVEFORM GENERATOR ──────────────────────────────────────
+function genWave(id, played) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const h = [3,4,6,9,6,4,8,12,9,5,4,7,11,14,9,6,4,3,5,9,12,8,5,4,7,11,13,9,5,3,4,8,10,7,5,6,9,7,4,3];
+  el.innerHTML = h.map((v, i) =>
+    `<div class="wbar" style="height:${v}px;background:${i < played ? 'var(--accent)' : 'var(--border)'}"></div>`
+  ).join('');
+}
+
+// ─── PODCAST PLAYER ──────────────────────────────────────────
+let podcastAudio = null;
+
+function togglePodcast(idx) {
+  if (STATE.podcastNow === idx) {
+    STATE.podcastNow = null;
+    renderPodcasts();
+    return;
+  }
+  STATE.podcastNow = idx;
+  renderPodcasts();
+  showToast('▶ Tocando: ' + DATA.podcasts[idx].title);
+}
+
+function renderPodcasts() {
+  const list = document.querySelector('.ep-list');
+  if (!list) return;
+  list.innerHTML = DATA.podcasts.map((p, i) => {
+    const isPlaying = STATE.podcastNow === i;
+    const bars = DATA.podcasts[i];
+    return `
+      <div class="ep-card" onclick="togglePodcast(${i})">
+        <div class="ep-thumb" style="background:linear-gradient(145deg,${i % 2 === 0 ? '#1a1a2e,#2a1010' : '#2a1a10,#101a2e'})">
+          <div class="ep-badge">EP. ${p.ep}</div>
+        </div>
+        <div class="ep-body">
+          <div class="ep-meta">EP. ${p.ep} · ${p.duration}</div>
+          <div class="ep-title">${p.title}</div>
+          <div class="ep-guest">Com ${p.guest}</div>
+          <div class="waveform" id="wv${i}"></div>
+        </div>
+        <div class="ep-play" style="${isPlaying ? 'background:var(--accent);color:#fff' : ''}">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            ${isPlaying ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>' : '<polygon points="5,3 19,12 5,21"/>'}
+          </svg>
+        </div>
+      </div>
+    `;
+  });
+  DATA.podcasts.forEach((p, i) => genWave('wv' + i, STATE.podcastNow === i ? 30 : p.played));
+}
+
+// ─── PILLS / CATEGORY FILTER ─────────────────────────────────
+function initPills() {
+  document.querySelectorAll('.pill').forEach(p => {
+    p.addEventListener('click', function() {
+      this.closest('.pills').querySelectorAll('.pill').forEach(x => x.classList.remove('active'));
+      this.classList.add('active');
+    });
+  });
+}
+
+// ─── NEWS SCREEN: FEATURED + LIST ────────────────────────────
+function renderNewsScreen() {
+  const aiCard = document.querySelector('.ai-card .ai-body');
+  if (aiCard) {
+    const a = DATA.aiAnalysis;
+    aiCard.innerHTML = `
+      <div class="ai-headline">${a.headline}</div>
+      <div class="ai-summary">${a.summary}</div>
+      <div class="ai-tags">
+        ${a.tags.map(t => `<span class="ai-tag">${t}</span>`).join('')}
+      </div>
+    `;
+  }
+}
+
+// ─── AUCTION ENGINE ──────────────────────────────────────────
+let auctionIntervals = [];
+
+function initAuction() {
+  auctionIntervals.forEach(clearInterval);
+  auctionIntervals = [];
+  renderAuction(0);
+  startAuctionTimer(0);
+}
+
+function renderAuction(idx) {
+  const a = DATA.auctions[idx];
+  if (!a) return;
+  STATE.auctionIdx = idx;
+  const liveEl = document.querySelector('.auction-live');
+  if (!liveEl) return;
+
+  liveEl.querySelector('.horse-name').textContent = a.horse;
+  liveEl.querySelector('.horse-lineage').innerHTML = a.lineage;
+  liveEl.querySelector('.lot-num').textContent = `LOTE ${a.lot} de ${a.total}`;
+  liveEl.querySelector('.price-num').textContent = Util.fmtPrice(a.price);
+  liveEl.querySelector('#bid-count').textContent = a.bids;
+  liveEl.querySelector('#timer-display').textContent = Util.fmtTime(a.time);
+  liveEl.querySelector('.am-item:last-child .am-val').textContent = a.bidders;
+  document.getElementById('bid-val').value = a.price + 5000;
+  updateBidHistory(a);
+}
+
+function updateBidHistory(a) {
+  const container = document.querySelector('.bid-history');
+  if (!container) return;
+  const rows = container.querySelectorAll('.bid-hist-row');
+  if (rows[0]) {
+    rows[0].querySelector('.bhdr-bidder').textContent = 'Haras Vitória';
+    rows[0].querySelector('.bhdr-amt').textContent = Util.fmtCurrency(a.price);
+  }
+}
+
+function startAuctionTimer(idx) {
+  auctionIntervals.forEach(clearInterval);
+  auctionIntervals = [];
+  const a = DATA.auctions[idx];
+  if (!a) return;
+
+  const timer = setInterval(() => {
+    if (a.time > 0) {
+      a.time--;
+      const el = document.getElementById('timer-display');
+      if (el) {
+        el.textContent = Util.fmtTime(a.time);
+        el.style.color = a.time < 30 ? '#ff4444' : '#ffb800';
+      }
+    }
+  }, 1000);
+  auctionIntervals.push(timer);
+
+  const simBid = setInterval(() => {
+    if (Math.random() > 0.65 && a.time > 10 && document.getElementById('scr-leilao').classList.contains('active')) {
+      const inc = [5000, 10000, 15000][Util.random(0, 2)];
+      a.price += inc;
+      a.bids++;
+      a.time = Math.max(a.time, 90);
+      const priceEl = document.getElementById('live-price');
+      const countEl = document.getElementById('bid-count');
+      const bh0amt = document.getElementById('bh0-amt');
+      const inp = document.getElementById('bid-val');
+      if (priceEl) priceEl.textContent = Util.fmtPrice(a.price);
+      if (countEl) countEl.textContent = a.bids;
+      if (bh0amt) bh0amt.textContent = Util.fmtCurrency(a.price);
+      if (inp && parseInt(inp.value) <= a.price) inp.value = a.price + 5000;
+      flashBid();
+    }
+  }, 12000);
+  auctionIntervals.push(simBid);
+}
+
+function flashBid() {
+  const card = document.querySelector('.auction-live');
+  if (card) {
+    card.style.borderColor = '#fff';
+    setTimeout(() => card.style.borderColor = 'var(--accent)', 400);
+  }
+}
+
+function addBid(amount) {
+  const a = DATA.auctions[STATE.auctionIdx];
+  if (!a) return;
+  const inp = document.getElementById('bid-val');
+  if (inp) inp.value = a.price + amount;
+}
+
+function placeBid() {
+  const a = DATA.auctions[STATE.auctionIdx];
+  if (!a) return;
+  const inp = document.getElementById('bid-val');
+  if (!inp) return;
+  const val = parseInt(inp.value.replace(/[.]/g, ''), 10) || parseInt(inp.value, 10);
+  if (isNaN(val) || val <= a.price) {
+    inp.style.borderColor = '#ff4444';
+    setTimeout(() => inp.style.borderColor = '', 1000);
+    showToast('O lance deve ser maior que ' + Util.fmtCurrency(a.price));
+    return;
+  }
+  a.price = val;
+  a.bids++;
+  a.time = 120;
+
+  document.getElementById('live-price').textContent = Util.fmtPrice(a.price);
+  document.getElementById('bid-count').textContent = a.bids;
+  document.getElementById('bh0-amt').textContent = Util.fmtCurrency(a.price);
+  inp.value = a.price + 5000;
+  flashBid();
+  showToast('Lance de ' + Util.fmtCurrency(a.price) + ' registrado!');
+}
+
+// ─── NOTÍCIAS SCREEN INTERACTION ─────────────────────────────
+function initNoticias() {
+  renderNewsScreen();
+  document.querySelectorAll('.featured-card, .news-card').forEach(el => {
+    if (!el.hasClickListener) {
+      el.hasClickListener = true;
+      el.addEventListener('click', () => showToast('Notícia completa disponível em breve'));
+    }
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+function init() {
+  renderHomeContent();
+  renderPodcasts();
+  initAuth();
+  initSearch();
+  initCategories();
+  initPills();
+  initNoticias();
+  document.getElementById('bottom-nav').style.display = 'none';
+
+  // Add shake keyframe once
+  if (!document.getElementById('shake-style')) {
+    const s = document.createElement('style');
+    s.id = 'shake-style';
+    s.textContent = '@keyframes shake { 0%,100% { transform:translateX(0) } 25% { transform:translateX(-6px) } 75% { transform:translateX(6px) } }';
+    document.head.appendChild(s);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
