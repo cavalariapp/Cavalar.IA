@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cavalar.IA — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700;1,900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0b0f1a;
+  --surface: #111827;
+  --surface2: #1a2332;
+  --surface3: #243044;
+  --border: #1e2a3e;
+  --fg: #e8edf5;
+  --muted: #7a8ba8;
+  --accent: #e84d0e;
+  --accent-dim: rgba(232,77,14,.13);
+  --accent-hover: #ff5f1f;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #eab308;
+  --sidebar-w: 240px;
+  --header-h: 56px;
+  --font: 'Inter', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Impact', sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* LOGIN SCREEN */
+#login-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+#login-screen.hidden { display: none; }
+.login-box {
+  width: 380px; padding: 36px 32px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.login-logo {
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 900; font-style: italic;
+  text-transform: uppercase; text-align: center; margin-bottom: 4px;
+  color: #fff;
+}
+.login-logo .dot { color: var(--accent); }
+.login-sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+.form-group { margin-bottom: 16px; }
+.form-group label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 5px; }
+.form-group input {
+  width: 100%; padding: 11px 14px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--fg); font-size: 14px; outline: none;
+  transition: border .2s;
+}
+.form-group input:focus { border-color: var(--accent); }
+.btn-primary {
+  width: 100%; padding: 12px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background .2s;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.login-error { color: var(--red); font-size: 12px; text-align: center; margin-top: 12px; display: none; }
+
+/* ADMIN LAYOUT */
+#admin-layout { display: flex; height: 100vh; }
+#admin-layout.hidden { display: none; }
+
+/* SIDEBAR */
+.sidebar {
+  width: var(--sidebar-w); background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  flex-shrink: 0;
+}
+.sidebar-logo {
+  padding: 16px 18px;
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 900; font-style: italic;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  color: #fff;
+}
+.sidebar-logo .dot { color: var(--accent); }
+.sidebar-logo .badge {
+  font-family: var(--font); font-size: 8px; font-weight: 800;
+  background: var(--accent); color: #fff;
+  padding: 2px 6px; border-radius: 3px; margin-left: 6px;
+  text-transform: uppercase; font-style: normal;
+}
+.sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px; cursor: pointer;
+  color: var(--muted); font-size: 13px; font-weight: 500;
+  transition: all .15s; border-left: 3px solid transparent;
+}
+.nav-item:hover { color: var(--fg); background: rgba(255,255,255,.03); }
+.nav-item.active { color: var(--accent); background: var(--accent-dim); border-left-color: var(--accent); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.sidebar-footer { padding: 14px 18px; border-top: 1px solid var(--border); }
+.admin-user { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.btn-logout {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  padding: 6px 12px; border-radius: 4px; cursor: pointer;
+  font-size: 11px; font-weight: 600; width: 100%;
+  transition: all .15s;
+}
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+/* MAIN */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar {
+  height: var(--header-h); padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+  flex-shrink: 0;
+}
+.topbar h2 { font-size: 16px; font-weight: 700; }
+.topbar-actions { display: flex; gap: 8px; }
+.content { flex: 1; overflow-y: auto; padding: 24px; }
+
+/* CARDS */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 18px 16px;
+}
+.stat-card .num { font-size: 28px; font-weight: 800; color: #fff; }
+.stat-card .lbl { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+.stat-card .accent { color: var(--accent); }
+
+/* TABLES */
+.table-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; overflow: hidden;
+}
+.table-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--border);
+}
+.table-hdr h3 { font-size: 14px; font-weight: 700; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 10px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,.02); }
+td .actions { display: flex; gap: 6px; }
+.btn-icon {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--muted); cursor: pointer; transition: all .15s;
+}
+.btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+.btn-icon.danger:hover { border-color: var(--red); color: var(--red); }
+.empty-state { padding: 32px; text-align: center; color: var(--muted); font-size: 13px; }
+
+/* BUTTONS */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; border: none; transition: all .15s;
+}
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+.btn-accent { background: var(--accent); color: #fff; }
+.btn-accent:hover { background: var(--accent-hover); }
+.btn-outline { background: none; border: 1px solid var(--border); color: var(--muted); }
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: .85; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { opacity: .85; }
+
+/* MODAL */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,.65); display: none;
+  align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; width: 100%; max-width: 640px;
+  max-height: 90vh; overflow-y: auto;
+}
+.modal-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; border-bottom: 1px solid var(--border);
+}
+.modal-hdr h3 { font-size: 16px; font-weight: 700; }
+.btn-close {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  border-radius: 4px; font-size: 18px;
+}
+.btn-close:hover { background: var(--surface2); color: var(--fg); }
+.modal-body { padding: 20px; }
+.modal-footer { padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+
+/* FORM */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-row .full { grid-column: 1 / -1; }
+.form-field { margin-bottom: 14px; }
+.form-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 5px; }
+.form-field input, .form-field select, .form-field textarea {
+  width: 100%; padding: 10px 13px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 6px;
+  color: var(--fg); font-size: 13px; outline: none;
+  transition: border .2s; font-family: var(--font);
+}
+.form-field input:focus, .form-field select:focus, .form-field textarea:focus { border-color: var(--accent); }
+.form-field textarea { resize: vertical; min-height: 80px; }
+.form-field select { cursor: pointer; appearance: auto; }
+.form-field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.form-check { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+.form-check input { width: 16px; height: 16px; accent-color: var(--accent); }
+.form-check label { font-size: 13px; cursor: pointer; }
+
+/* STATUS BADGE */
+.badge {
+  display: inline-flex; padding: 2px 8px; border-radius: 100px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+}
+.badge-green { background: rgba(34,197,94,.15); color: var(--green); }
+.badge-yellow { background: rgba(234,179,8,.15); color: var(--yellow); }
+.badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+.badge-gray { background: rgba(122,139,168,.15); color: var(--muted); }
+
+/* TOAST */
+.toast {
+  position: fixed; bottom: 30px; right: 30px; z-index: 9999;
+  background: var(--surface); border: 1px solid var(--accent);
+  color: #fff; padding: 12px 20px; border-radius: 8px;
+  font-size: 13px; font-weight: 600;
+  opacity: 0; transform: translateY(10px);
+  transition: all .3s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* SEARCH */
+.search-input-wrap {
+  display: flex; gap: 8px; align-items: center;
+}
+.search-input-wrap input {
+  padding: 8px 12px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--fg); font-size: 13px; outline: none; width: 220px;
+  transition: border .2s;
+}
+.search-input-wrap input:focus { border-color: var(--accent); }
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .form-row { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .modal { max-width: 100%; margin: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN SCREEN ═══ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">CAVALAR<span class="dot">.</span>IA</div>
+    <div class="login-sub">Painel Administrativo</div>
+    <div id="login-form">
+      <div class="form-group">
+        <label>E-mail</label>
+        <input type="email" id="login-email" placeholder="admin@cavalaria.app" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label>Senha</label>
+        <input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="login-btn">ENTRAR</button>
+      <div class="login-error" id="login-error"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ADMIN LAYOUT ═══ -->
+<div id="admin-layout" class="hidden">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">CAVALAR<span class="dot">.</span>IA <span class="badge">Admin</span></div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-section="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-section="news">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
+        Notícias
+      </div>
+      <div class="nav-item" data-section="videos">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        Vídeos
+      </div>
+      <div class="nav-item" data-section="podcasts">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        Podcasts
+      </div>
+      <div class="nav-item" data-section="auctions">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
+        Leilões
+      </div>
+      <div class="nav-item" data-section="rankings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7"/><path d="M4 22h16"/><path d="M10 22V2h4v20"/></svg>
+        Rankings
+      </div>
+      <div class="nav-item" data-section="events">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Eventos
+      </div>
+      <div class="nav-item" data-section="horses">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M12 14v8"/><path d="M8 20h8"/></svg>
+        Cavalos
+      </div>
+      <div class="nav-item" data-section="settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Configurações
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="admin-user" id="admin-email">admin@cavalaria.app</div>
+      <button class="btn-logout" onclick="logout()">Sair</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <h2 id="page-title">Dashboard</h2>
+      <div class="topbar-actions" id="topbar-actions"></div>
+    </div>
+    <div class="content" id="page-content"></div>
+  </div>
+
+</div>
+
+<!-- ═══ MODAL ═══ -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h3 id="modal-title">Novo</h3>
+      <button class="btn-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-accent" id="modal-save" onclick="saveModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  CAVALAR.IA — ADMIN
+// ═══════════════════════════════════════════════════════════════
+
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── STATE ────────────────────────────────────────────────────
+let S = { session: null, section: 'dashboard', editId: null };
+
+// ─── UTILS ────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function toast(msg, color) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.style.borderColor = color || 'var(--accent)';
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function dateStr() {
+  return new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase().replace(/\./g,'');
+}
+
+// ─── AUTH ────────────────────────────────────────────────────
+$('login-btn').addEventListener('click', async () => {
+  const email = $('login-email').value.trim();
+  const pass = $('login-pass').value.trim();
+  const errEl = $('login-error');
+  if (!email || !pass) { errEl.textContent = 'Preencha e-mail e senha.'; errEl.style.display = 'block'; return; }
+  $('login-btn').disabled = true;
+  $('login-btn').textContent = 'Entrando...';
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  $('login-btn').disabled = false;
+  $('login-btn').textContent = 'ENTRAR';
+  if (error) {
+    errEl.textContent = error.message;
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  S.session = data.session;
+  initAdmin();
+});
+
+async function logout() {
+  await sb.auth.signOut();
+  S.session = null;
+  $('admin-layout').classList.add('hidden');
+  $('login-screen').classList.remove('hidden');
+}
+
+// Check existing session on load
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { S.session = session; initAdmin(); }
+})();
+
+// ─── ADMIN INIT ──────────────────────────────────────────────
+function initAdmin() {
+  $('login-screen').classList.add('hidden');
+  $('admin-layout').classList.remove('hidden');
+  $('admin-email').textContent = S.session.user.email;
+  navTo('dashboard');
+}
+
+// ─── NAV ──────────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => navTo(el.dataset.section));
+});
+
+function navTo(section) {
+  S.section = section;
+  S.editId = null;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === section));
+  const titles = { dashboard:'Dashboard', news:'Notícias', videos:'Vídeos', podcasts:'Podcasts', auctions:'Leilões', rankings:'Rankings', events:'Eventos', horses:'Cavalos', settings:'Configurações' };
+  $('page-title').textContent = titles[section] || 'Dashboard';
+  renderSection(section);
+}
+
+function renderSection(section) {
+  const c = $('page-content');
+  const a = $('topbar-actions');
+  a.innerHTML = '';
+  if (section === 'dashboard') renderDashboard();
+  else if (section === 'news') renderTable(c, a, 'news', 'Notícia');
+  else if (section === 'videos') renderTable(c, a, 'videos', 'Vídeo');
+  else if (section === 'podcasts') renderTable(c, a, 'podcasts', 'Episódio');
+  else if (section === 'auctions') renderTable(c, a, 'auctions', 'Lote');
+  else if (section === 'rankings') renderTable(c, a, 'rankings', 'Ranking');
+  else if (section === 'events') renderTable(c, a, 'events', 'Evento');
+  else if (section === 'horses') renderTable(c, a, 'horses', 'Cavalo');
+  else if (section === 'settings') renderSettings(c);
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+async function renderDashboard() {
+  const c = $('page-content');
+  const [news, videos, podcasts, auctions, rankings, events, horses] = await Promise.all([
+    sb.from('news').select('*', { count: 'exact', head: true }),
+    sb.from('videos').select('*', { count: 'exact', head: true }),
+    sb.from('podcasts').select('*', { count: 'exact', head: true }),
+    sb.from('auctions').select('*', { count: 'exact', head: true }),
+    sb.from('rankings').select('*', { count: 'exact', head: true }),
+    sb.from('events').select('*', { count: 'exact', head: true }),
+    sb.from('horses').select('*', { count: 'exact', head: true }),
+  ]);
+  c.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num accent">${news.count||0}</div><div class="lbl">Notícias</div></div>
+      <div class="stat-card"><div class="num accent">${videos.count||0}</div><div class="lbl">Vídeos</div></div>
+      <div class="stat-card"><div class="num accent">${podcasts.count||0}</div><div class="lbl">Podcasts</div></div>
+      <div class="stat-card"><div class="num accent">${auctions.count||0}</div><div class="lbl">Leilões</div></div>
+      <div class="stat-card"><div class="num accent">${rankings.count||0}</div><div class="lbl">Rankings</div></div>
+      <div class="stat-card"><div class="num accent">${events.count||0}</div><div class="lbl">Eventos</div></div>
+      <div class="stat-card"><div class="num accent">${horses.count||0}</div><div class="lbl">Cavalos</div></div>
+      <div class="stat-card"><div class="num" style="color:var(--yellow)">${S.session.user.email}</div><div class="lbl">Admin logado</div></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:10px">Links Rápidos</h3>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-accent" onclick="navTo('news');openNew('news','Notícia')">Nova Notícia</button>
+        <button class="btn btn-accent" onclick="navTo('videos');openNew('videos','Vídeo')">Novo Vídeo</button>
+        <button class="btn btn-accent" onclick="navTo('podcasts');openNew('podcasts','Episódio')">Novo Episódio</button>
+        <button class="btn btn-accent" onclick="navTo('auctions');openNew('auctions','Lote')">Novo Lote</button>
+      </div>
+    </div>
+    <div style="margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px">
+      <h3 style="font-size:15px;font-weight:700;margin-bottom:10px">App</h3>
+      <p style="color:var(--muted);font-size:13px">Site público: <a href="https://cavalariapp.github.io/Cavalar.IA/" target="_blank" style="color:var(--accent)">cavalariapp.github.io/Cavalar.IA</a></p>
+      <p style="color:var(--muted);font-size:13px;margin-top:4px">Admin: <a href="https://cavalariapp.github.io/Cavalar.IA/admin.html" target="_blank" style="color:var(--accent)">/admin.html</a></p>
+    </div>
+  `;
+}
+
+// ─── TABLE RENDERER ──────────────────────────────────────────
+const TABLE_CONFIG = {
+  news:     { fields: ['cat','title','date'],   headers: ['Categoria','Título','Data'], order: 'date', asc: false },
+  videos:   { fields: ['cat','title','duration'], headers: ['Categoria','Título','Duração'], order: 'id', asc: true },
+  podcasts: { fields: ['ep','title','guest','duration'], headers: ['EP','Título','Convidado','Duração'], order: 'ep', asc: false },
+  auctions: { fields: ['lot','horse','price','bids','status'], headers: ['Lote','Cavalo','Preço','Lances','Status'], order: 'lot', asc: true },
+  rankings: { fields: ['pos','name','pts','flag'], headers: ['Pos','Nome','Pontos','Bandeira'], order: 'pos', asc: true },
+  events:   { fields: ['day','mon','level','name','loc'], headers: ['Dia','Mês','Nível','Nome','Local'], order: 'day', asc: true },
+  horses:   { fields: ['name','rider','breed','score','price'], headers: ['Nome','Cavaleiro','Raça','Score','Preço'], order: 'score', asc: false },
+};
+
+async function renderTable(c, a, table, label) {
+  const cfg = TABLE_CONFIG[table];
+  const { data, error } = await sb.from(table).select('*').order(cfg.order, { ascending: cfg.asc });
+  if (error) { c.innerHTML = `<div class="empty-state">Erro: ${error.message}</div>`; return; }
+  a.innerHTML = `<button class="btn btn-accent" onclick="openNew('${table}','${label}')">+ Novo ${label}</button>`;
+  if (!data || data.length === 0) {
+    c.innerHTML = `<div class="table-wrap"><div class="empty-state">Nenhum registro encontrado. Clique em "+ Novo ${label}" para criar.</div></div>`;
+    return;
+  }
+  const cols = cfg.headers.map(h => `<th>${h}</th>`).join('') + '<th>Ações</th>';
+  const rows = data.map(row => {
+    const cells = cfg.fields.map(f => {
+      let v = row[f];
+      if (f === 'price') v = v ? '€ ' + Number(v).toLocaleString('de-DE') : '—';
+      if (f === 'status') v = statusBadge(v);
+      if (f === 'date') v = v || '—';
+      return `<td>${escHtml(v)}</td>`;
+    }).join('');
+    return `<tr>${cells}<td><div class="actions">
+      <button class="btn-icon" onclick="openEdit('${table}','${label}',${row.id})" title="Editar">✎</button>
+      <button class="btn-icon danger" onclick="confirmDelete('${table}',${row.id})" title="Excluir">✕</button>
+    </div></td></tr>`;
+  }).join('');
+  c.innerHTML = `<div class="table-wrap"><div class="table-scroll"><table><thead><tr>${cols}</tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+function statusBadge(v) {
+  if (v === 'live') return '<span class="badge badge-green">Ao Vivo</span>';
+  if (v === 'upcoming') return '<span class="badge badge-yellow">Agendado</span>';
+  if (v === 'done') return '<span class="badge badge-gray">Encerrado</span>';
+  return escHtml(v) || '<span class="badge badge-gray">—</span>';
+}
+
+// ─── MODAL: NEW / EDIT ──────────────────────────────────────
+let modalTable = null;
+
+function openNew(table, label) {
+  modalTable = table;
+  S.editId = null;
+  $('modal-title').textContent = `Novo ${label}`;
+  $('modal-body').innerHTML = buildForm(table, null);
+  $('modal-save').textContent = 'Criar';
+  $('modal').classList.add('open');
+}
+
+async function openEdit(table, label, id) {
+  modalTable = table;
+  S.editId = id;
+  const { data } = await sb.from(table).select('*').eq('id', id).single();
+  if (!data) { toast('Erro ao carregar'); return; }
+  $('modal-title').textContent = `Editar ${label}`;
+  $('modal-body').innerHTML = buildForm(table, data);
+  $('modal-save').textContent = 'Salvar';
+  $('modal').classList.add('open');
+}
+
+function closeModal() { $('modal').classList.remove('open'); modalTable = null; S.editId = null; }
+
+function buildForm(table, data) {
+  const v = (key) => data ? escHtml(data[key] ?? '') : '';
+  const sel = (key, val) => data && data[key] === val ? 'selected' : '';
+
+  switch (table) {
+    case 'news':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Título</label>
+            <input id="f-title" value="${v('title')}" placeholder="Título da notícia">
+          </div>
+          <div class="form-field">
+            <label>Categoria</label>
+            <select id="f-cat">
+              ${['CSIO5*','MERCADO','IA ANÁLISE','EVENTOS','BRASIL','CRIAÇÃO'].map(c => `<option ${sel('cat',c)}>${c}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-field full">
+          <label>Resumo</label>
+          <textarea id="f-excerpt" rows="3">${v('excerpt')}</textarea>
+        </div>
+        <div class="form-field full">
+          <label>Corpo (HTML)</label>
+          <textarea id="f-body" rows="6">${v('body')}</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Data</label>
+            <input id="f-date" value="${v('date') || dateStr()}">
+          </div>
+          <div class="form-field">
+            <label>URL da Imagem</label>
+            <input id="f-image_url" value="${v('image_url')}" placeholder="https://...">
+          </div>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="f-featured" ${data?.featured ? 'checked' : ''}>
+          <label for="f-featured">Destacar como principal</label>
+        </div>`;
+
+    case 'videos':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Título</label>
+            <input id="f-title" value="${v('title')}">
+          </div>
+          <div class="form-field">
+            <label>Categoria</label>
+            <select id="f-cat">
+              ${['Salto','Genética','Criação','Análise IA','Treinamento'].map(c => `<option ${sel('cat',c)}>${c}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Duração</label>
+            <input id="f-duration" value="${v('duration')}" placeholder="18:32">
+          </div>
+          <div class="form-field">
+            <label>URL do Vídeo</label>
+            <input id="f-video_url" value="${v('video_url')}" placeholder="https://...">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>URL da Thumbnail</label>
+          <input id="f-thumbnail_url" value="${v('thumbnail_url')}" placeholder="https://...">
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="f-premium" ${data?.premium ? 'checked' : ''}>
+          <label for="f-premium">Premium (assinantes apenas)</label>
+        </div>`;
+
+    case 'podcasts':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Episódio Nº</label>
+            <input type="number" id="f-ep" value="${v('ep')}" min="1">
+          </div>
+          <div class="form-field">
+            <label>Duração</label>
+            <input id="f-duration" value="${v('duration')}" placeholder="58:27">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Título</label>
+          <input id="f-title" value="${v('title')}">
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Convidado</label>
+            <input id="f-guest" value="${v('guest')}">
+          </div>
+          <div class="form-field">
+            <label>URL do Áudio</label>
+            <input id="f-audio_url" value="${v('audio_url')}" placeholder="https://...">
+          </div>
+        </div>`;
+
+    case 'auctions':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Lote Nº</label>
+            <input type="number" id="f-lot" value="${v('lot')}" min="1">
+          </div>
+          <div class="form-field">
+            <label>Total de Lotes</label>
+            <input type="number" id="f-total" value="${v('total') || '40'}" min="1">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Nome do Cavalo</label>
+          <input id="f-horse" value="${v('horse')}">
+        </div>
+        <div class="form-field">
+          <label>Linhagem</label>
+          <textarea id="f-lineage" rows="2">${v('lineage')}</textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Preço (€)</label>
+            <input type="number" id="f-price" value="${v('price')}">
+          </div>
+          <div class="form-field">
+            <label>Status</label>
+            <select id="f-status">
+              <option value="live" ${sel('status','live')}>Ao Vivo</option>
+              <option value="upcoming" ${sel('status','upcoming')}>Agendado</option>
+              <option value="done" ${sel('status','done')}>Encerrado</option>
+            </select>
+          </div>
+        </div>`;
+
+    case 'rankings':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Posição</label>
+            <input type="number" id="f-pos" value="${v('pos')}" min="1">
+          </div>
+          <div class="form-field">
+            <label>Pontos</label>
+            <input type="number" id="f-pts" value="${v('pts')}">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Nome</label>
+          <input id="f-name" value="${v('name')}">
+        </div>
+        <div class="form-field">
+          <label>Bandeira (emoji)</label>
+          <input id="f-flag" value="${v('flag')}" placeholder="🇸🇪">
+        </div>`;
+
+    case 'events':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Dia</label>
+            <input type="number" id="f-day" value="${v('day')}" min="1" max="31">
+          </div>
+          <div class="form-field">
+            <label>Mês (abreviado)</label>
+            <select id="f-mon">
+              ${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'].map(m => `<option ${sel('mon',m)}>${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Nível</label>
+            <input id="f-level" value="${v('level')}" placeholder="CSIO5*">
+          </div>
+          <div class="form-field">
+            <label>Nome do Evento</label>
+            <input id="f-name" value="${v('name')}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Local</label>
+            <input id="f-loc" value="${v('loc')}" placeholder="Roma, ITA">
+          </div>
+          <div class="form-field">
+            <label>Bandeira</label>
+            <input id="f-flag" value="${v('flag')}" placeholder="🇮🇹">
+          </div>
+        </div>`;
+
+    case 'horses':
+      return `
+        <div class="form-row">
+          <div class="form-field">
+            <label>Nome</label>
+            <input id="f-name" value="${v('name')}">
+          </div>
+          <div class="form-field">
+            <label>Cavaleiro</label>
+            <input id="f-rider" value="${v('rider')}">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label>Raça</label>
+            <input id="f-breed" value="${v('breed')}" placeholder="KWPN">
+          </div>
+          <div class="form-field">
+            <label>Score</label>
+            <input type="number" step="0.1" id="f-score" value="${v('score')}">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Preço</label>
+          <input id="f-price" value="${v('price')}" placeholder="€ 1.2M">
+        </div>
+        <div class="form-field">
+          <label>URL da Imagem</label>
+          <input id="f-image_url" value="${v('image_url')}" placeholder="https://...">
+        </div>`;
+
+    default:
+      return '<p>Formulário não encontrado</p>';
+  }
+}
+
+// ─── MODAL: SAVE ─────────────────────────────────────────────
+async function saveModal() {
+  const table = modalTable;
+  if (!table) return;
+  const get = id => document.getElementById(id);
+  const val = id => get(id)?.value ?? '';
+  const num = id => parseFloat(val(id)) || 0;
+  const bool = id => get(id)?.checked ?? false;
+
+  let payload;
+  switch (table) {
+    case 'news':
+      payload = { title: val('f-title'), cat: val('f-cat'), excerpt: val('f-excerpt'), body: val('f-body'), date: val('f-date') || dateStr(), image_url: val('f-image_url'), featured: bool('f-featured') };
+      break;
+    case 'videos':
+      payload = { title: val('f-title'), cat: val('f-cat'), duration: val('f-duration'), video_url: val('f-video_url'), thumbnail_url: val('f-thumbnail_url'), premium: bool('f-premium') };
+      break;
+    case 'podcasts':
+      payload = { ep: num('f-ep'), duration: val('f-duration'), title: val('f-title'), guest: val('f-guest'), audio_url: val('f-audio_url') };
+      break;
+    case 'auctions':
+      payload = { lot: num('f-lot'), total: num('f-total'), horse: val('f-horse'), lineage: val('f-lineage'), price: num('f-price'), status: val('f-status') };
+      break;
+    case 'rankings':
+      payload = { pos: num('f-pos'), pts: num('f-pts'), name: val('f-name'), flag: val('f-flag') };
+      break;
+    case 'events':
+      payload = { day: num('f-day'), mon: val('f-mon'), level: val('f-level'), name: val('f-name'), loc: val('f-loc'), flag: val('f-flag') };
+      break;
+    case 'horses':
+      payload = { name: val('f-name'), rider: val('f-rider'), breed: val('f-breed'), score: num('f-score'), price: val('f-price'), image_url: val('f-image_url') };
+      break;
+    default: return;
+  }
+
+  const saveBtn = $('modal-save');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Salvando...';
+
+  let error;
+  if (S.editId) {
+    ({ error } = await sb.from(table).update(payload).eq('id', S.editId));
+  } else {
+    ({ error } = await sb.from(table).insert(payload));
+  }
+
+  saveBtn.disabled = false;
+  saveBtn.textContent = S.editId ? 'Salvar' : 'Criar';
+
+  if (error) { toast('Erro: ' + error.message, 'var(--red)'); return; }
+  toast(S.editId ? 'Atualizado!' : 'Criado!');
+  closeModal();
+  renderSection(S.section);
+}
+
+// ─── DELETE ──────────────────────────────────────────────────
+async function confirmDelete(table, id) {
+  if (!confirm('Tem certeza que deseja excluir este registro?')) return;
+  const { error } = await sb.from(table).delete().eq('id', id);
+  if (error) { toast('Erro: ' + error.message, 'var(--red)'); return; }
+  toast('Excluído!');
+  renderSection(S.section);
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────
+async function renderSettings(c) {
+  const { data: aiData } = await sb.from('site_settings').select('value').eq('key', 'ai_analysis').single();
+  const { data: statsData } = await sb.from('site_settings').select('value').eq('key', 'stats').single();
+  const ai = aiData?.value || { headline: '', summary: '', tags: [] };
+  const stats = statsData?.value || {};
+
+  c.innerHTML = `
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Análise IA</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:24px">
+      <div class="form-field">
+        <label>Título</label>
+        <input id="ai-headline" value="${escHtml(ai.headline)}">
+      </div>
+      <div class="form-field">
+        <label>Resumo</label>
+        <textarea id="ai-summary" rows="4">${escHtml(ai.summary)}</textarea>
+      </div>
+      <div class="form-field">
+        <label>Tags (separadas por vírgula)</label>
+        <input id="ai-tags" value="${escHtml((ai.tags||[]).join(', '))}">
+      </div>
+      <button class="btn btn-accent" onclick="saveAIAnalysis()">Salvar Análise IA</button>
+    </div>
+
+    <h3 style="font-size:15px;font-weight:700;margin-bottom:16px">Estatísticas do App</h3>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:24px">
+      <div class="form-row">
+        <div class="form-field"><label>Cavalos</label><input id="s-horses" value="${escHtml(stats.horses||'')}"></div>
+        <div class="form-field"><label>Cavaleiros</label><input id="s-riders" value="${escHtml(stats.riders||'')}"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-field"><label>Eventos</label><input id="s-events" value="${escHtml(stats.events||'')}"></div>
+        <div class="form-field"><label>Países</label><input id="s-countries" value="${escHtml(stats.countries||'')}"></div>
+      </div>
+      <div class="form-field">
+        <label>Criadores</label>
+        <input id="s-breeders" value="${escHtml(stats.breeders||'')}">
+      </div>
+      <button class="btn btn-accent" onclick="saveStats()">Salvar Estatísticas</button>
+    </div>
+  `;
+}
+
+async function saveAIAnalysis() {
+  const value = {
+    headline: $('ai-headline').value,
+    summary: $('ai-summary').value,
+    tags: $('ai-tags').value.split(',').map(t => t.trim()).filter(Boolean),
+  };
+  const { error } = await sb.from('site_settings').upsert({ key: 'ai_analysis', value }, { onConflict: 'key' });
+  if (error) { toast('Erro: ' + error.message, 'var(--red)'); return; }
+  toast('Análise IA salva!');
+}
+
+async function saveStats() {
+  const value = {
+    horses: $('s-horses').value,
+    riders: $('s-riders').value,
+    events: $('s-events').value,
+    countries: $('s-countries').value,
+    breeders: $('s-breeders').value,
+  };
+  const { error } = await sb.from('site_settings').upsert({ key: 'stats', value }, { onConflict: 'key' });
+  if (error) { toast('Erro: ' + error.message, 'var(--red)'); return; }
+  toast('Estatísticas salvas!');
+}
+</script>
+</body>
+</html>

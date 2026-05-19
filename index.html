@@ -1972,16 +1972,18 @@ const THUMB_GRADIENTS = [
 // ─── DB LAYER ────────────────────────────────────────────────
 const DB = {
   _cache: {},
+  _ttl: 60000,
   async get(table, opts) {
     const key = table + (opts ? JSON.stringify(opts) : '');
-    if (this._cache[key]) return this._cache[key];
+    const entry = this._cache[key];
+    if (entry && Date.now() - entry.ts < this._ttl) return entry.data;
     let query = sb.from(table).select('*');
     if (opts?.order) query = query.order(opts.order, { ascending: opts.asc });
     if (opts?.limit) query = query.limit(opts.limit);
     if (opts?.eq)    query = query.eq(opts.eq[0], opts.eq[1]);
     const { data, error } = await query;
     if (error) { console.warn('DB:', error.message); return []; }
-    this._cache[key] = data;
+    this._cache[key] = { data, ts: Date.now() };
     return data;
   },
   async news()        { return this.get('news', { order: 'date', asc: false }); },
