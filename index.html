@@ -1950,80 +1950,55 @@ body {
 
 </div><!-- end .app -->
 
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
-//  CAVALAR.IA — APP ENGINE
+//  CAVALAR.IA — APP ENGINE (Supabase)
 // ═══════════════════════════════════════════════════════════════
 
-// ─── DATA STORE ──────────────────────────────────────────────
-const DATA = {
-  rankings: [
-    { pos: 1, name: 'Henrik von Eckermann', pts: 4312, flag: '🇸🇪' },
-    { pos: 2, name: 'Steve Guerdat',        pts: 3987, flag: '🇨🇭' },
-    { pos: 3, name: 'Julien Epaillard',     pts: 3754, flag: '🇫🇷' },
-    { pos: 4, name: 'Ben Maher',            pts: 3288, flag: '🇬🇧' },
-    { pos: 5, name: 'Peder Fredricson',     pts: 3190, flag: '🇸🇪' },
-    { pos: 6, name: 'Martin Fuchs',         pts: 3015, flag: '🇨🇭' },
-    { pos: 7, name: 'Kent Farrington',      pts: 2844, flag: '🇺🇸' },
-    { pos: 8, name: 'Scott Brash',          pts: 2710, flag: '🇬🇧' },
-  ],
-  categories: [
-    { id: 'matrizes',  label: 'Matrizes',   icon: 'home' },
-    { id: 'garanhoes', label: 'Garanhões',  icon: 'user' },
-    { id: 'pedigree',  label: 'Pedigree',   icon: 'activity' },
-    { id: 'resultados',label: 'Resultados', icon: 'clock' },
-    { id: 'leiloes',   label: 'Leilões',    icon: 'hammer' },
-    { id: 'ia-cavalar',label: 'IA Cavalar', icon: 'layers' },
-  ],
-  events: [
-    { day: 24, mon: 'Mai', level: 'CSIO5*', name: 'Grand Prix Roma',     loc: 'Roma, ITA',  flag: '🇮🇹' },
-    { day: 29, mon: 'Mai', level: 'CSIO5*', name: 'St. Gallen',          loc: 'St. Gallen, SUI', flag: '🇨🇭' },
-    { day: 5,  mon: 'Jun', level: 'CSIO5*', name: 'Hamburgo GP',         loc: 'Hamburgo, GER', flag: '🇩🇪' },
-    { day: 12, mon: 'Jun', level: 'CSI4*',  name: 'Cannes',              loc: 'Cannes, FRA', flag: '🇫🇷' },
-    { day: 20, mon: 'Jun', level: 'CSIO5*', name: 'Aachen',              loc: 'Aachen, GER', flag: '🇩🇪' },
-    { day: 10, mon: 'Jul', level: 'CSI5*',  name: 'Longines Paris Eiffel', loc: 'Paris, FRA', flag: '🇫🇷' },
-  ],
-  news: [
-    { cat: 'CSIO5*',   title: 'Brasil conquista vitória no GP 1.60m em Rotterdam',    date: '17 MAI 2024', thumb: 0 },
-    { cat: 'MERCADO',  title: 'Mercado de cavalos de esporte cresce 15% em 2024',     date: '16 MAI 2024', thumb: 1 },
-    { cat: 'IA ANÁLISE', title: 'IA Cavalar: nova geração de garanhões europeus avaliada', date: '15 MAI 2024', thumb: 2 },
-    { cat: 'EVENTOS',  title: 'Longines Global Champions Tour confirma calendário 2024', date: '08 MAI 2024', thumb: 3 },
-    { cat: 'BRASIL',   title: 'Steve Guerdat: preparação e mentalidade vencedora',    date: '05 MAI 2024', thumb: 4 },
-    { cat: 'CRIAÇÃO',  title: 'Embriões de alta genética alcançam novo recorde',      date: '03 MAI 2024', thumb: 0 },
-  ],
-  podcasts: [
-    { ep: 51, duration: '58:27', title: 'Planejamento e disciplina: o caminho para o alto rendimento', guest: 'Pedro Veniss', played: 14 },
-    { ep: 50, duration: '47:12', title: 'Genética, seleção e o futuro do esporte equestre',           guest: 'Guilherme Foroni', played: 22 },
-    { ep: 49, duration: '1:02:33', title: 'Mentalidade vencedora: dentro e fora da pista',              guest: 'Doda Miranda', played: 0 },
-    { ep: 48, duration: '42:15', title: 'O mercado de cavalos de salto no Brasil',                      guest: 'Césio H. Ribeiro', played: 8 },
-    { ep: 47, duration: '51:40', title: 'Treinamento de potros: do básico ao GP',                       guest: 'Rodrigo Pessoa', played: 5 },
-  ],
-  auctions: [
-    { lot: 23, total: 40, horse: 'Cornet Obolensky Z', lineage: 'Embrião · Cornet Obolensky × Chacco-Blue<br>Top Genética · Salto', price: 325000, bids: 14, bidders: 38, time: 167 },
-    { lot: 15, total: 40, horse: 'Chacco-Blue II',     lineage: 'Embrião · Chacco-Blue × Stakkato<br>Linhagem premium', price: 280000, bids: 9, bidders: 31, time: 300 },
-    { lot: 8,  total: 40, horse: 'Diamant de Semilly Z', lineage: 'Potro · Diamant de Semilly × Calvaro<br>Genética comprovada', price: 195000, bids: 6, bidders: 26, time: 540 },
-  ],
-  horses: [
-    { name: 'King of the Moors',    rider: 'Pedro Veniss',    breed: 'KWPN',  score: 94.2, price: '€ 1.2M' },
-    { name: 'Hello Sanctos',        rider: 'Scott Brash',     breed: 'SF',    score: 91.8, price: '€ 3.5M' },
-    { name: 'Pablo de Virton',      rider: 'Roger-Yves Bost', breed: 'BWP',   score: 90.5, price: '€ 2.8M' },
-    { name: 'Explosion W',          rider: 'Ben Maher',       breed: 'WESTF', score: 95.1, price: '€ 5.0M' },
-    { name: 'Tovek\'s Hidalgo',     rider: 'Henrik von Eckermann',breed: 'SWB', score: 92.3, price: '€ 1.8M' },
-    { name: 'Cornet Obolensky Z',   rider: '—',               breed: 'ZANG',  score: 89.7, price: '—' },
-  ],
-  aiAnalysis: {
-    headline: 'Temporada europeia 2024: dominância técnica e o impacto das novas linhagens',
-    summary: 'A IA Cavalar analisou 1.247 percursos nas últimas 4 semanas. O índice de falhas em obstáculos verticais caiu 12% entre cavalos com Cornet Obolensky na linhagem paterna. Cavalos com breeding value acima de 90 apresentaram 34% mais consistência em provas 5*.',
-    tags: ['Breeding Values', 'CSIO5*', 'Linhagens', 'Temporada 2024'],
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const THUMB_GRADIENTS = [
+  'linear-gradient(135deg,#1a1028,#2a1010)',
+  'linear-gradient(135deg,#101828,#1a1028)',
+  'linear-gradient(135deg,#1a1a08,#081828)',
+  'linear-gradient(135deg,#0a1420,#1a1028)',
+  'linear-gradient(135deg,#1a0a10,#101a28)',
+  'linear-gradient(135deg,#0a1820,#201008)',
+];
+
+// ─── DB LAYER ────────────────────────────────────────────────
+const DB = {
+  _cache: {},
+  async get(table, opts) {
+    const key = table + (opts ? JSON.stringify(opts) : '');
+    if (this._cache[key]) return this._cache[key];
+    let query = sb.from(table).select('*');
+    if (opts?.order) query = query.order(opts.order, { ascending: opts.asc });
+    if (opts?.limit) query = query.limit(opts.limit);
+    if (opts?.eq)    query = query.eq(opts.eq[0], opts.eq[1]);
+    const { data, error } = await query;
+    if (error) { console.warn('DB:', error.message); return []; }
+    this._cache[key] = data;
+    return data;
   },
-  thumbGradients: [
-    'linear-gradient(135deg,#1a1028,#2a1010)',
-    'linear-gradient(135deg,#101828,#1a1028)',
-    'linear-gradient(135deg,#1a1a08,#081828)',
-    'linear-gradient(135deg,#0a1420,#1a1028)',
-    'linear-gradient(135deg,#1a0a10,#101a28)',
-    'linear-gradient(135deg,#0a1820,#201008)',
-  ],
+  async news()        { return this.get('news', { order: 'date', asc: false }); },
+  async podcasts()    { return this.get('podcasts', { order: 'ep', asc: false }); },
+  async videos()      { return this.get('videos'); },
+  async rankings()    { return this.get('rankings', { order: 'pos', asc: true }); },
+  async events()      { return this.get('events', { order: 'day', asc: true }); },
+  async horses()      { return this.get('horses', { order: 'score', asc: false }); },
+  async auctions()    { return this.get('auctions', { order: 'lot', asc: true }); },
+  async aiAnalysis()  {
+    const { data } = await sb.from('site_settings').select('value').eq('key', 'ai_analysis').single();
+    return data?.value || { headline: '', summary: '', tags: [] };
+  },
+  async stats() {
+    const { data } = await sb.from('site_settings').select('value').eq('key', 'stats').single();
+    return data?.value || {};
+  },
 };
 
 // ─── STATE ────────────────────────────────────────────────────
@@ -2033,10 +2008,13 @@ const STATE = {
   searchQuery: '',
   activeCategory: 'matrizes',
   podcastTab: 'pod',
-  podcastNow: null,      // index of currently playing episode
+  podcastNow: null,
   auctionIdx: 0,
   auctionTimers: [],
-  notifications: [],
+  // local copies for real-time mutation
+  localAuctions: [],
+  localPodcasts: [],
+  localHorses: [],
 };
 
 // ─── UTILITY FUNCTIONS ────────────────────────────────────────
@@ -2064,6 +2042,9 @@ const Util = {
   },
 };
 
+// ─── RENDER HELPERS (async, fetch from Supabase) ────────────
+async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
+
 // ─── NAVIGATION ───────────────────────────────────────────────
 const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao'];
 
@@ -2083,8 +2064,8 @@ function nav(id) {
   if (nb) nb.classList.add('active');
   const bn = document.getElementById('bottom-nav');
   bn.style.display = id === 'onboarding' ? 'none' : 'flex';
-  if (id === 'leilao') initAuction();
-  if (id === 'home') renderHomeContent();
+  if (id === 'leilao') auto(initAuction);
+  if (id === 'home') auto(renderHomeContent);
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────
@@ -2162,22 +2143,23 @@ function initSearch() {
     const q = input.value.trim().toLowerCase();
     STATE.searchQuery = q;
     if (q.length < 2) { resultsBox.style.display = 'none'; return; }
-    const results = DATA.horses.filter(h =>
-      h.name.toLowerCase().includes(q) ||
-      h.rider.toLowerCase().includes(q) ||
-      h.breed.toLowerCase().includes(q)
+    const horses = STATE.localHorses;
+    const results = horses.filter(h =>
+      (h.name || '').toLowerCase().includes(q) ||
+      (h.rider || '').toLowerCase().includes(q) ||
+      (h.breed || '').toLowerCase().includes(q)
     );
     if (results.length === 0) {
       resultsBox.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:12px;text-align:center">Nenhum resultado encontrado</div>';
     } else {
       resultsBox.innerHTML = results.map(h => `
         <div onclick="nav('home');document.querySelector('.search-input').value='${h.name}';document.getElementById('search-results').style.display='none'" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-          <div style="width:32px;height:32px;border-radius:4px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:var(--accent)">${h.name[0]}</div>
+          <div style="width:32px;height:32px;border-radius:4px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;color:var(--accent)">${(h.name||'')[0]}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:700;color:#fff">${h.name}</div>
             <div style="font-size:10px;color:var(--muted)">${h.rider} · ${h.breed} · Score ${h.score}</div>
           </div>
-          <div style="font-size:12px;font-weight:800;color:var(--accent)">${h.price}</div>
+          <div style="font-size:12px;font-weight:800;color:var(--accent)">${h.price||'—'}</div>
         </div>
       `).join('');
     }
@@ -2196,24 +2178,21 @@ function initCategories() {
       document.querySelectorAll('.cat-item').forEach(c => c.classList.remove('on'));
       this.classList.add('on');
       STATE.activeCategory = this.querySelector('.cat-txt').textContent.trim().toLowerCase();
-      renderHomeContent();
+      auto(renderHomeContent);
     });
   });
 }
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
-function renderHomeContent() {
-  renderNews();
-  renderRankings();
-  renderEvents();
-}
+async function renderHomeContent() { await Promise.all([renderNews(), renderRankings(), renderEvents()]); }
 
-function renderNews() {
+async function renderNews() {
   const container = document.querySelector('.news-list');
   if (!container) return;
-  container.innerHTML = DATA.news.slice(0, 3).map(n => `
+  const items = await DB.news();
+  container.innerHTML = items.slice(0, 3).map((n, i) => `
     <div class="news-card" onclick="showToast('Notícia completa em breve')">
-      <div class="news-thumb" style="background:${DATA.thumbGradients[n.thumb]}"></div>
+      <div class="news-thumb" style="background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}"></div>
       <div class="news-body">
         <div class="news-cat">${n.cat}</div>
         <div class="news-title">${n.title}</div>
@@ -2223,25 +2202,27 @@ function renderNews() {
   `).join('');
 }
 
-function renderRankings() {
+async function renderRankings() {
   const container = document.querySelector('.rank-card');
   if (!container) return;
+  const items = await DB.rankings();
   const rows = container.querySelectorAll('.rank-row');
-  DATA.rankings.slice(0, 5).forEach((r, i) => {
+  items.slice(0, 5).forEach((r, i) => {
     if (rows[i]) {
       rows[i].innerHTML = `
         <span class="rank-pos ${i < 3 ? 'top3' : ''}">${r.pos}</span>
-        <span class="rank-name">${r.flag} ${r.name}</span>
+        <span class="rank-name">${r.flag||''} ${r.name}</span>
         <span class="rank-pts">${r.pts}</span>
       `;
     }
   });
 }
 
-function renderEvents() {
+async function renderEvents() {
   const container = document.querySelector('.events-list');
   if (!container) return;
-  container.innerHTML = DATA.events.slice(0, 3).map(e => `
+  const items = await DB.events();
+  container.innerHTML = items.slice(0, 3).map(e => `
     <div class="event-row">
       <div class="evt-date"><div class="evt-day">${e.day}</div><div class="evt-mon">${e.mon}</div></div>
       <div class="evt-info">
@@ -2249,7 +2230,7 @@ function renderEvents() {
         <div class="evt-name">${e.name}</div>
         <div class="evt-loc">📍 ${e.loc}</div>
       </div>
-      <span style="font-size:20px">${e.flag}</span>
+      <span style="font-size:20px">${e.flag||''}</span>
     </div>
   `).join('');
 }
@@ -2274,8 +2255,6 @@ function genWave(id, played) {
 }
 
 // ─── PODCAST PLAYER ──────────────────────────────────────────
-let podcastAudio = null;
-
 function togglePodcast(idx) {
   if (STATE.podcastNow === idx) {
     STATE.podcastNow = null;
@@ -2284,15 +2263,16 @@ function togglePodcast(idx) {
   }
   STATE.podcastNow = idx;
   renderPodcasts();
-  showToast('▶ Tocando: ' + DATA.podcasts[idx].title);
+  const p = STATE.localPodcasts[idx];
+  if (p) showToast('▶ Tocando: ' + p.title);
 }
 
 function renderPodcasts() {
   const list = document.querySelector('.ep-list');
   if (!list) return;
-  list.innerHTML = DATA.podcasts.map((p, i) => {
+  const items = STATE.localPodcasts;
+  list.innerHTML = items.map((p, i) => {
     const isPlaying = STATE.podcastNow === i;
-    const bars = DATA.podcasts[i];
     return `
       <div class="ep-card" onclick="togglePodcast(${i})">
         <div class="ep-thumb" style="background:linear-gradient(145deg,${i % 2 === 0 ? '#1a1a2e,#2a1010' : '#2a1a10,#101a2e'})">
@@ -2312,7 +2292,7 @@ function renderPodcasts() {
       </div>
     `;
   });
-  DATA.podcasts.forEach((p, i) => genWave('wv' + i, STATE.podcastNow === i ? 30 : p.played));
+  items.forEach((p, i) => genWave('wv' + i, STATE.podcastNow === i ? 30 : (p.played || 0)));
 }
 
 // ─── PILLS / CATEGORY FILTER ─────────────────────────────────
@@ -2325,33 +2305,45 @@ function initPills() {
   });
 }
 
-// ─── NEWS SCREEN: FEATURED + LIST ────────────────────────────
-function renderNewsScreen() {
+// ─── NEWS SCREEN ─────────────────────────────────────────────
+async function renderNewsScreen() {
   const aiCard = document.querySelector('.ai-card .ai-body');
   if (aiCard) {
-    const a = DATA.aiAnalysis;
+    const a = await DB.aiAnalysis();
     aiCard.innerHTML = `
-      <div class="ai-headline">${a.headline}</div>
-      <div class="ai-summary">${a.summary}</div>
+      <div class="ai-headline">${a.headline||''}</div>
+      <div class="ai-summary">${a.summary||''}</div>
       <div class="ai-tags">
-        ${a.tags.map(t => `<span class="ai-tag">${t}</span>`).join('')}
+        ${(a.tags||[]).map(t => `<span class="ai-tag">${t}</span>`).join('')}
       </div>
     `;
   }
 }
 
+async function initNoticias() {
+  await renderNewsScreen();
+  document.querySelectorAll('.featured-card, .news-card').forEach(el => {
+    if (!el.hasClickListener) {
+      el.hasClickListener = true;
+      el.addEventListener('click', () => showToast('Notícia completa disponível em breve'));
+    }
+  });
+}
+
 // ─── AUCTION ENGINE ──────────────────────────────────────────
 let auctionIntervals = [];
 
-function initAuction() {
+async function initAuction() {
   auctionIntervals.forEach(clearInterval);
   auctionIntervals = [];
+  const auctions = await DB.auctions();
+  STATE.localAuctions = auctions.map(a => ({ ...a }));
   renderAuction(0);
   startAuctionTimer(0);
 }
 
 function renderAuction(idx) {
-  const a = DATA.auctions[idx];
+  const a = STATE.localAuctions[idx];
   if (!a) return;
   STATE.auctionIdx = idx;
   const liveEl = document.querySelector('.auction-live');
@@ -2362,7 +2354,7 @@ function renderAuction(idx) {
   liveEl.querySelector('.lot-num').textContent = `LOTE ${a.lot} de ${a.total}`;
   liveEl.querySelector('.price-num').textContent = Util.fmtPrice(a.price);
   liveEl.querySelector('#bid-count').textContent = a.bids;
-  liveEl.querySelector('#timer-display').textContent = Util.fmtTime(a.time);
+  liveEl.querySelector('#timer-display').textContent = Util.fmtTime(a.time_remaining);
   liveEl.querySelector('.am-item:last-child .am-val').textContent = a.bidders;
   document.getElementById('bid-val').value = a.price + 5000;
   updateBidHistory(a);
@@ -2381,27 +2373,27 @@ function updateBidHistory(a) {
 function startAuctionTimer(idx) {
   auctionIntervals.forEach(clearInterval);
   auctionIntervals = [];
-  const a = DATA.auctions[idx];
+  const a = STATE.localAuctions[idx];
   if (!a) return;
 
   const timer = setInterval(() => {
-    if (a.time > 0) {
-      a.time--;
+    if (a.time_remaining > 0) {
+      a.time_remaining--;
       const el = document.getElementById('timer-display');
       if (el) {
-        el.textContent = Util.fmtTime(a.time);
-        el.style.color = a.time < 30 ? '#ff4444' : '#ffb800';
+        el.textContent = Util.fmtTime(a.time_remaining);
+        el.style.color = a.time_remaining < 30 ? '#ff4444' : '#ffb800';
       }
     }
   }, 1000);
   auctionIntervals.push(timer);
 
   const simBid = setInterval(() => {
-    if (Math.random() > 0.65 && a.time > 10 && document.getElementById('scr-leilao').classList.contains('active')) {
+    if (Math.random() > 0.65 && a.time_remaining > 10 && document.getElementById('scr-leilao').classList.contains('active')) {
       const inc = [5000, 10000, 15000][Util.random(0, 2)];
       a.price += inc;
       a.bids++;
-      a.time = Math.max(a.time, 90);
+      a.time_remaining = Math.max(a.time_remaining, 90);
       const priceEl = document.getElementById('live-price');
       const countEl = document.getElementById('bid-count');
       const bh0amt = document.getElementById('bh0-amt');
@@ -2425,14 +2417,14 @@ function flashBid() {
 }
 
 function addBid(amount) {
-  const a = DATA.auctions[STATE.auctionIdx];
+  const a = STATE.localAuctions[STATE.auctionIdx];
   if (!a) return;
   const inp = document.getElementById('bid-val');
   if (inp) inp.value = a.price + amount;
 }
 
 function placeBid() {
-  const a = DATA.auctions[STATE.auctionIdx];
+  const a = STATE.localAuctions[STATE.auctionIdx];
   if (!a) return;
   const inp = document.getElementById('bid-val');
   if (!inp) return;
@@ -2445,7 +2437,7 @@ function placeBid() {
   }
   a.price = val;
   a.bids++;
-  a.time = 120;
+  a.time_remaining = 120;
 
   document.getElementById('live-price').textContent = Util.fmtPrice(a.price);
   document.getElementById('bid-count').textContent = a.bids;
@@ -2455,20 +2447,16 @@ function placeBid() {
   showToast('Lance de ' + Util.fmtCurrency(a.price) + ' registrado!');
 }
 
-// ─── NOTÍCIAS SCREEN INTERACTION ─────────────────────────────
-function initNoticias() {
-  renderNewsScreen();
-  document.querySelectorAll('.featured-card, .news-card').forEach(el => {
-    if (!el.hasClickListener) {
-      el.hasClickListener = true;
-      el.addEventListener('click', () => showToast('Notícia completa disponível em breve'));
-    }
-  });
-}
-
 // ─── INIT ─────────────────────────────────────────────────────
-function init() {
-  renderHomeContent();
+async function init() {
+  // Load all data into local state
+  STATE.localPodcasts = await DB.podcasts();
+  STATE.localHorses = await DB.horses();
+  await Promise.all([
+    renderNews(),
+    renderRankings(),
+    renderEvents(),
+  ]);
   renderPodcasts();
   initAuth();
   initSearch();
@@ -2477,7 +2465,6 @@ function init() {
   initNoticias();
   document.getElementById('bottom-nav').style.display = 'none';
 
-  // Add shake keyframe once
   if (!document.getElementById('shake-style')) {
     const s = document.createElement('style');
     s.id = 'shake-style';
@@ -2486,7 +2473,7 @@ function init() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => auto(init));
 </script>
 </body>
 </html>
