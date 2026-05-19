@@ -612,8 +612,9 @@ function buildForm(table, data) {
           <textarea id="f-excerpt" rows="3">${v('excerpt')}</textarea>
         </div>
         <div class="form-field full">
-          <label>Corpo (HTML)</label>
-          <textarea id="f-body" rows="6">${v('body')}</textarea>
+          <label>Corpo do texto</label>
+          <textarea id="f-body" rows="6" placeholder="Escreva o texto da notícia aqui...">${data ? (data.body_raw || stripHtml(data.body||'')) : ''}</textarea>
+          <div class="hint">O texto será convertido automaticamente para HTML. Parágrafos separados por linha em branco.</div>
         </div>
         <div class="form-row">
           <div class="form-field">
@@ -817,6 +818,24 @@ function buildForm(table, data) {
   }
 }
 
+// ─── TEXT TO HTML ────────────────────────────────────────────
+function stripHtml(html) {
+  if (!html) return '';
+  return html.replace(/<br\s*\/?>/gi, '\n').replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/\n{3,}/g, '\n\n').trim();
+}
+function textToHtml(text) {
+  if (!text) return '';
+  return text
+    .split(/\n\s*\n/)
+    .map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length === 0) return '';
+      return '<p>' + lines.map(l => escHtml(l)).join('<br>') + '</p>';
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
 // ─── MODAL: SAVE ─────────────────────────────────────────────
 async function saveModal() {
   const table = modalTable;
@@ -829,7 +848,11 @@ async function saveModal() {
   let payload;
   switch (table) {
     case 'news':
-      payload = { title: val('f-title'), cat: val('f-cat'), excerpt: val('f-excerpt'), body: val('f-body'), date: val('f-date') || dateStr(), image_url: val('f-image_url'), featured: bool('f-featured') };
+      const raw = val('f-body');
+      const imgUrl = val('f-image_url');
+      let bodyHtml = textToHtml(raw);
+      if (imgUrl) bodyHtml = '<p><img src="' + escHtml(imgUrl) + '" alt="" style="width:100%;max-width:100%;border-radius:6px;margin-bottom:16px"></p>\n' + bodyHtml;
+      payload = { title: val('f-title'), cat: val('f-cat'), excerpt: val('f-excerpt'), body: bodyHtml, body_raw: raw, date: val('f-date') || dateStr(), image_url: imgUrl, featured: bool('f-featured') };
       break;
     case 'videos':
       payload = { title: val('f-title'), cat: val('f-cat'), duration: val('f-duration'), video_url: val('f-video_url'), thumbnail_url: val('f-thumbnail_url'), premium: bool('f-premium') };
