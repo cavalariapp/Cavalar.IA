@@ -1206,6 +1206,75 @@ body {
   color: #fff;
 }
 .promo-desc { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+
+/* ─── NEWS MODAL ──────────────────────────────────────────── */
+.news-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #000;
+  z-index: 9000;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.news-modal-overlay.open { display: block; }
+.news-modal {
+  background: var(--card);
+  margin: 0 auto;
+  max-width: 480px;
+  min-height: 100vh;
+  padding: 0 0 80px;
+}
+.news-modal-header {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  z-index: 1;
+}
+.news-modal-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.news-modal-thumb {
+  width: 100%;
+  height: 200px;
+}
+.news-modal-body { padding: 20px 16px; }
+.news-modal-cat {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.news-modal-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.2;
+  margin-bottom: 10px;
+}
+.news-modal-date { font-size: 11px; color: var(--muted); margin-bottom: 18px; }
+.news-modal-text {
+  font-size: 14px;
+  color: rgba(255,255,255,.82);
+  line-height: 1.7;
+}
+.news-modal-text p { margin: 0 0 14px; }
 </style>
 </head>
 <body>
@@ -1429,7 +1498,7 @@ body {
 
   <!-- ÚLTIMAS NOTÍCIAS -->
   <div class="sec-hdr"><span class="sec-title">Últimas Notícias</span><button class="sec-link" onclick="nav('noticias')">VER TODAS →</button></div>
-  <div class="news-list">
+  <div class="news-list" id="home-news-list">
     <div class="news-card">
       <div class="news-thumb" style="background:linear-gradient(135deg,#1a1028,#2a1010)"></div>
       <div class="news-body">
@@ -1531,53 +1600,7 @@ body {
   </div>
 
   <!-- NEWS LIST -->
-  <div class="news-list">
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#101828,#1a1028)"></div>
-      <div class="news-body">
-        <div class="news-cat">MERCADO</div>
-        <div class="news-title">Mercado de cavalos de esporte cresce 15% em 2024</div>
-        <div class="news-excerpt">Levantamento aponta aumento na demanda por genética de elite.</div>
-        <div class="news-date">10 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#0a1420,#1a1028)"></div>
-      <div class="news-body">
-        <div class="news-cat">EVENTOS</div>
-        <div class="news-title">Longines Global Champions Tour confirma calendário 2024</div>
-        <div class="news-excerpt">Temporada passa por 16 cidades ao redor do mundo.</div>
-        <div class="news-date">08 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1a0a,#0a1420)"></div>
-      <div class="news-body">
-        <div class="news-cat">IA ANÁLISE</div>
-        <div class="news-title">Breeding values da nova geração de garanhões europeus</div>
-        <div class="news-excerpt">Análise comparativa de 234 garanhões aprovados em 2024.</div>
-        <div class="news-date">06 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#1a0a10,#101a28)"></div>
-      <div class="news-body">
-        <div class="news-cat">BRASIL</div>
-        <div class="news-title">Steve Guerdat: preparação e mentalidade vencedora</div>
-        <div class="news-excerpt">Entrevista exclusiva com o campeão olímpico de Londres 2012.</div>
-        <div class="news-date">05 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#0a1820,#201008)"></div>
-      <div class="news-body">
-        <div class="news-cat">CRIAÇÃO</div>
-        <div class="news-title">Embriões de alta genética alcançam novo recorde em leilão europeu</div>
-        <div class="news-excerpt">Lote de embrião Cornet Obolensky × Chacco-Blue bate € 420.000.</div>
-        <div class="news-date">03 MAI 2024</div>
-      </div>
-    </div>
-  </div>
+  <div class="news-list" id="noticias-news-list"></div>
 </div>
 
 <!-- ============================================================
@@ -1948,6 +1971,23 @@ body {
   </button>
 </nav>
 
+<!-- ─── NEWS DETAIL MODAL ───────────────────────────────────── -->
+<div class="news-modal-overlay" id="news-modal-overlay" onclick="closeNewsModal(event)">
+  <div class="news-modal" id="news-modal">
+    <div class="news-modal-header">
+      <span style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase">Notícia</span>
+      <button class="news-modal-close" onclick="closeNewsModal()">✕</button>
+    </div>
+    <div class="news-modal-thumb" id="news-modal-thumb"></div>
+    <div class="news-modal-body">
+      <div class="news-modal-cat" id="news-modal-cat"></div>
+      <div class="news-modal-title" id="news-modal-title"></div>
+      <div class="news-modal-date" id="news-modal-date"></div>
+      <div class="news-modal-text" id="news-modal-text"></div>
+    </div>
+  </div>
+</div>
+
 </div><!-- end .app -->
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
@@ -2068,6 +2108,7 @@ function nav(id) {
   bn.style.display = id === 'onboarding' ? 'none' : 'flex';
   if (id === 'leilao') auto(initAuction);
   if (id === 'home') auto(renderHomeContent);
+  if (id === 'noticias') auto(initNoticias);
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────
@@ -2189,16 +2230,18 @@ function initCategories() {
 async function renderHomeContent() { await Promise.all([renderNews(), renderRankings(), renderEvents()]); }
 
 async function renderNews() {
-  const container = document.querySelector('.news-list');
+  const container = document.getElementById('home-news-list');
   if (!container) return;
   const items = await DB.news();
+  if (!items.length) return;
+  _newsCache = items;
   container.innerHTML = items.slice(0, 3).map((n, i) => `
-    <div class="news-card" onclick="showToast('Notícia completa em breve')">
-      <div class="news-thumb" style="background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}"></div>
+    <div class="news-card" onclick="openNews(${n.id})">
+      <div class="news-thumb" style="background:${n.image_url ? '' : THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]};${n.image_url ? `background-image:url('${n.image_url}');background-size:cover;background-position:center` : ''}"></div>
       <div class="news-body">
-        <div class="news-cat">${n.cat}</div>
-        <div class="news-title">${n.title}</div>
-        <div class="news-date">${n.date}</div>
+        <div class="news-cat">${n.cat || ''}</div>
+        <div class="news-title">${n.title || ''}</div>
+        <div class="news-date">${n.date || ''}</div>
       </div>
     </div>
   `).join('');
@@ -2308,6 +2351,9 @@ function initPills() {
 }
 
 // ─── NEWS SCREEN ─────────────────────────────────────────────
+// Cache de notícias para openNews() acessar por ID
+let _newsCache = [];
+
 async function renderNewsScreen() {
   const aiCard = document.querySelector('.ai-card .ai-body');
   if (aiCard) {
@@ -2322,14 +2368,55 @@ async function renderNewsScreen() {
   }
 }
 
+async function renderNoticiasScreenList() {
+  const container = document.getElementById('noticias-news-list');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Carregando notícias...</div>';
+  const items = await DB.news();
+  _newsCache = items;
+  if (!items.length) {
+    container.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Nenhuma notícia disponível.</div>';
+    return;
+  }
+  container.innerHTML = items.map((n, i) => `
+    <div class="news-card" onclick="openNews(${n.id})">
+      <div class="news-thumb" style="${n.image_url ? `background-image:url('${n.image_url}');background-size:cover;background-position:center` : `background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}`}"></div>
+      <div class="news-body">
+        <div class="news-cat">${n.cat || ''}</div>
+        <div class="news-title">${n.title || ''}</div>
+        ${n.excerpt ? `<div class="news-excerpt">${n.excerpt}</div>` : ''}
+        <div class="news-date">${n.date || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openNews(id) {
+  const n = _newsCache.find(x => x.id === id);
+  if (!n) return;
+  const overlay = document.getElementById('news-modal-overlay');
+  document.getElementById('news-modal-cat').textContent = n.cat || '';
+  document.getElementById('news-modal-title').textContent = n.title || '';
+  document.getElementById('news-modal-date').textContent = n.date || '';
+  const thumb = document.getElementById('news-modal-thumb');
+  thumb.style.cssText = n.image_url
+    ? `background-image:url('${n.image_url}');background-size:cover;background-position:center`
+    : `background:${THUMB_GRADIENTS[0]}`;
+  const bodyText = n.body || n.body_raw || n.excerpt || '';
+  document.getElementById('news-modal-text').innerHTML = bodyText
+    .split(/\n\n+/).map(p => `<p>${p.replace(/\n/g,'<br>')}</p>`).join('');
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeNewsModal(e) {
+  if (e && e.target !== document.getElementById('news-modal-overlay')) return;
+  document.getElementById('news-modal-overlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
 async function initNoticias() {
-  await renderNewsScreen();
-  document.querySelectorAll('.featured-card, .news-card').forEach(el => {
-    if (!el.hasClickListener) {
-      el.hasClickListener = true;
-      el.addEventListener('click', () => showToast('Notícia completa disponível em breve'));
-    }
-  });
+  await Promise.all([renderNewsScreen(), renderNoticiasScreenList()]);
 }
 
 // ─── AUCTION ENGINE ──────────────────────────────────────────
