@@ -93,7 +93,10 @@ body {
 .logo-img {
   height: 26px;
   width: auto;
+  max-width: 220px;
   display: block;
+  flex-shrink: 1;
+  filter: brightness(0) invert(1);
 }
 
 .topbar-right { display: flex; align-items: center; gap: 10px; }
@@ -970,10 +973,11 @@ body {
 }
 .ob-logo .dot { color: var(--accent); }
 .ob-logo-img {
-  height: 72px;
+  height: 38px;
   width: auto;
   display: block;
-  margin-bottom: 8px;
+  margin: 0 auto 12px;
+  filter: brightness(0) invert(1);
 }
 .ob-tagline {
   font-family: var(--font-display);
@@ -1303,7 +1307,7 @@ body {
       <div style="position:absolute;top:0;left:50%;width:1px;height:42%;background:linear-gradient(to bottom,var(--accent),transparent);opacity:.55;z-index:2"></div>
       <div class="ob-logo-block">
         <div style="width:1px;height:32px;background:var(--accent);margin-bottom:14px;opacity:.6"></div>
-        <img src="logo.png" class="ob-logo-img" alt="CAVALAR.IA">
+        <svg class="ob-logo-img" viewBox="300 770 3390 370" height="38" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg>
         <div class="ob-tagline">The Future of Equine Intelligence</div>
       </div>
     </div>
@@ -1335,7 +1339,7 @@ body {
 <div class="screen" id="scr-home">
   <!-- TOP BAR -->
   <div class="topbar">
-    <img src="logo.png" class="logo-img" alt="CAVALAR.IA">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="26" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg>
     <div class="topbar-right">
       <button class="btn-entrar" onclick="nav('onboarding')">ENTRAR</button>
       <button class="btn-hamburger"><span></span><span></span><span></span></button>
@@ -1551,7 +1555,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-noticias">
   <div class="topbar">
-    <img src="logo.png" class="logo-img" alt="CAVALAR.IA">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="26" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg>
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
@@ -1619,7 +1623,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-videoaulas">
   <div class="topbar">
-    <img src="logo.png" class="logo-img" alt="CAVALAR.IA">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="26" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg>
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
@@ -1783,7 +1787,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-leilao">
   <div class="topbar">
-    <img src="logo.png" class="logo-img" alt="CAVALAR.IA">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="26" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg>
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
