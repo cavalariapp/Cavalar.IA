@@ -54,8 +54,13 @@ body {
   font-size: 28px; font-weight: 900; font-style: italic;
   text-transform: uppercase; text-align: center; margin-bottom: 4px;
   color: #fff;
+  display: flex; justify-content: center;
 }
 .login-logo .dot { color: var(--accent); }
+.login-logo-img {
+  height: 40px; width: auto;
+  filter: invert(1); mix-blend-mode: screen;
+}
 .login-sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 28px; }
 .form-group { margin-bottom: 16px; }
 .form-group label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 5px; }
@@ -95,8 +100,13 @@ body {
   text-transform: uppercase;
   border-bottom: 1px solid var(--border);
   color: #fff;
+  display: flex; align-items: center; gap: 8px;
 }
 .sidebar-logo .dot { color: var(--accent); }
+.sidebar-logo-img {
+  height: 22px; width: auto;
+  filter: invert(1); mix-blend-mode: screen;
+}
 .sidebar-logo .badge {
   font-family: var(--font); font-size: 8px; font-weight: 800;
   background: var(--accent); color: #fff;
@@ -279,7 +289,7 @@ td .actions { display: flex; gap: 6px; }
 <!-- ═══ LOGIN SCREEN ═══ -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo">CAVALAR<span class="dot">.</span>IA</div>
+    <div class="login-logo"><img src="logo.jpg" class="login-logo-img" alt="CAVALAR.IA"></div>
     <div class="login-sub">Painel Administrativo</div>
     <div id="login-form">
       <div class="form-group">
@@ -301,7 +311,7 @@ td .actions { display: flex; gap: 6px; }
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo">CAVALAR<span class="dot">.</span>IA <span class="badge">Admin</span></div>
+    <div class="sidebar-logo"><img src="logo.jpg" class="sidebar-logo-img" alt="CAVALAR.IA"> <span class="badge">Admin</span></div>
     <nav class="sidebar-nav">
       <div class="nav-item active" data-section="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>

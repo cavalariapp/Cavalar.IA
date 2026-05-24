@@ -90,6 +90,13 @@ body {
   line-height: 1;
 }
 .logo .dot { color: var(--accent); }
+.logo-img {
+  height: 26px;
+  width: auto;
+  display: block;
+  filter: invert(1);
+  mix-blend-mode: screen;
+}
 
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 
@@ -964,6 +971,14 @@ body {
   margin-bottom: 8px;
 }
 .ob-logo .dot { color: var(--accent); }
+.ob-logo-img {
+  height: 72px;
+  width: auto;
+  display: block;
+  filter: invert(1);
+  mix-blend-mode: screen;
+  margin-bottom: 8px;
+}
 .ob-tagline {
   font-family: var(--font-display);
   font-size: 16px;
@@ -1292,7 +1307,7 @@ body {
       <div style="position:absolute;top:0;left:50%;width:1px;height:42%;background:linear-gradient(to bottom,var(--accent),transparent);opacity:.55;z-index:2"></div>
       <div class="ob-logo-block">
         <div style="width:1px;height:32px;background:var(--accent);margin-bottom:14px;opacity:.6"></div>
-        <div class="ob-logo">CAVALAR<span class="dot">.</span>IA</div>
+        <img src="logo.jpg" class="ob-logo-img" alt="CAVALAR.IA">
         <div class="ob-tagline">The Future of Equine Intelligence</div>
       </div>
     </div>
@@ -1324,7 +1339,7 @@ body {
 <div class="screen" id="scr-home">
   <!-- TOP BAR -->
   <div class="topbar">
-    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <img src="logo.jpg" class="logo-img" alt="CAVALAR.IA">
     <div class="topbar-right">
       <button class="btn-entrar" onclick="nav('onboarding')">ENTRAR</button>
       <button class="btn-hamburger"><span></span><span></span><span></span></button>
@@ -1540,7 +1555,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-noticias">
   <div class="topbar">
-    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <img src="logo.jpg" class="logo-img" alt="CAVALAR.IA">
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
@@ -1608,7 +1623,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-videoaulas">
   <div class="topbar">
-    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <img src="logo.jpg" class="logo-img" alt="CAVALAR.IA">
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
@@ -1772,7 +1787,7 @@ body {
 ============================================================ -->
 <div class="screen" id="scr-leilao">
   <div class="topbar">
-    <div class="logo">CAVALAR<span class="dot">.IA</span></div>
+    <img src="logo.jpg" class="logo-img" alt="CAVALAR.IA">
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
