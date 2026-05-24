@@ -967,11 +967,16 @@ body {
   margin-bottom: 8px;
 }
 .ob-logo .dot { color: var(--accent); }
+.ob-logo-wrap {
+  width: 72vw;
+  max-width: 300px;
+  margin: 0 auto 12px;
+  overflow: hidden;
+}
 .ob-logo-img {
-  width: min(320px, 80vw);
+  width: 100%;
   height: auto;
   display: block;
-  margin: 0 auto 12px;
 }
 .ob-tagline {
   font-family: var(--font-display);
@@ -1301,7 +1306,7 @@ body {
       <div style="position:absolute;top:0;left:50%;width:1px;height:42%;background:linear-gradient(to bottom,var(--accent),transparent);opacity:.55;z-index:2"></div>
       <div class="ob-logo-block">
         <div style="width:1px;height:32px;background:var(--accent);margin-bottom:14px;opacity:.6"></div>
-        <svg class="ob-logo-img" viewBox="200 760 3700 400" height="36" style="" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
+        <div class="ob-logo-wrap"><svg class="ob-logo-img" viewBox="200 760 3700 400" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg></div>
         <div class="ob-tagline">The Future of Equine Intelligence</div>
       </div>
     </div>
