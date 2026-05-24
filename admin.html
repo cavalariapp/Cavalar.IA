@@ -58,7 +58,7 @@ body {
 }
 .login-logo .dot { color: var(--accent); }
 .login-logo-img {
-  height: 40px; width: auto;
+  height: 32px; width: auto; filter: invert(1) hue-rotate(180deg);
 }
 .login-sub { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 28px; }
 .form-group { margin-bottom: 16px; }
@@ -103,7 +103,7 @@ body {
 }
 .sidebar-logo .dot { color: var(--accent); }
 .sidebar-logo-img {
-  height: 22px; width: auto;
+  height: 22px; width: auto; filter: invert(1) hue-rotate(180deg);
 }
 .sidebar-logo .badge {
   font-family: var(--font); font-size: 8px; font-weight: 800;
@@ -287,7 +287,7 @@ td .actions { display: flex; gap: 6px; }
 <!-- ═══ LOGIN SCREEN ═══ -->
 <div id="login-screen">
   <div class="login-box">
-    <div class="login-logo"><img src="logo.png" class="login-logo-img" alt="CAVALAR.IA"></div>
+    <div class="login-logo"><svg class="login-logo-img" viewBox="300 770 3390 370" height="32" style="filter:invert(1) hue-rotate(180deg)" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg></div>
     <div class="login-sub">Painel Administrativo</div>
     <div id="login-form">
       <div class="form-group">
@@ -309,7 +309,7 @@ td .actions { display: flex; gap: 6px; }
 
   <!-- SIDEBAR -->
   <aside class="sidebar">
-    <div class="sidebar-logo"><img src="logo.png" class="sidebar-logo-img" alt="CAVALAR.IA"> <span class="badge">Admin</span></div>
+    <div class="sidebar-logo"><svg class="sidebar-logo-img" viewBox="300 770 3390 370" height="22" style="filter:invert(1) hue-rotate(180deg)" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo.png" width="4000" height="2000"/></svg> <span class="badge">Admin</span></div>
     <nav class="sidebar-nav">
       <div class="nav-item active" data-section="dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
