@@ -1613,6 +1613,13 @@ body {
     </div>
   </div>
 
+  <!-- SEARCH NOTÍCIAS -->
+  <div class="search-wrap" style="margin-top:8px">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input class="search-input" type="search" id="noticias-search" placeholder="Buscar nas notícias (cavaleiro, prova, concurso...)" autocomplete="off">
+  </div>
+  <div id="noticias-search-meta" style="margin:0 16px 12px;font-size:11px;color:var(--muted);display:none"></div>
+
   <!-- NEWS LIST -->
   <div class="news-list" id="noticias-news-list"></div>
 </div>
@@ -2382,6 +2389,56 @@ async function renderNewsScreen() {
   }
 }
 
+let _newsQuery = '';
+
+function _filterNewsItems() {
+  const q = _newsQuery.trim().toLowerCase();
+  if (!q) return _newsCache;
+  return _newsCache.filter(n => {
+    const blob = `${n.title || ''}\n${n.excerpt || ''}\n${n.body || ''}\n${n.cat || ''}`.toLowerCase();
+    return blob.includes(q);
+  });
+}
+
+function _highlightTerm(text, term) {
+  if (!term || !text) return text || '';
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text).replace(new RegExp(`(${esc})`, 'gi'), '<mark style="background:var(--accent-dim);color:var(--accent);border-radius:2px;padding:0 2px">$1</mark>');
+}
+
+function _renderNoticiasFiltered() {
+  const container = document.getElementById('noticias-news-list');
+  const meta = document.getElementById('noticias-search-meta');
+  if (!container) return;
+
+  const filtered = _filterNewsItems();
+  const q = _newsQuery.trim();
+
+  if (q) {
+    meta.style.display = 'block';
+    meta.innerHTML = `<strong style="color:var(--accent)">${filtered.length}</strong> resultado${filtered.length !== 1 ? 's' : ''} para "${q}"`;
+  } else {
+    meta.style.display = 'none';
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">${q ? 'Nada encontrado para "' + q + '".' : 'Nenhuma notícia disponível.'}</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map((n, i) => `
+    <div class="news-card" onclick="openNews(${n.id})">
+      <div class="news-thumb" style="${n.image_url ? `background-image:url('${n.image_url}');background-size:cover;background-position:center` : `background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}`}"></div>
+      <div class="news-body">
+        <div class="news-cat">${n.cat || ''}</div>
+        <div class="news-title">${_highlightTerm(n.title, q)}</div>
+        ${n.excerpt ? `<div class="news-excerpt">${_highlightTerm(n.excerpt, q)}</div>` : ''}
+        <div class="news-date">${n.date || ''}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 async function renderNoticiasScreenList() {
   const container = document.getElementById('noticias-news-list');
   if (!container) return;
@@ -2392,17 +2449,21 @@ async function renderNoticiasScreenList() {
     container.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Nenhuma notícia disponível.</div>';
     return;
   }
-  container.innerHTML = items.map((n, i) => `
-    <div class="news-card" onclick="openNews(${n.id})">
-      <div class="news-thumb" style="${n.image_url ? `background-image:url('${n.image_url}');background-size:cover;background-position:center` : `background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}`}"></div>
-      <div class="news-body">
-        <div class="news-cat">${n.cat || ''}</div>
-        <div class="news-title">${n.title || ''}</div>
-        ${n.excerpt ? `<div class="news-excerpt">${n.excerpt}</div>` : ''}
-        <div class="news-date">${n.date || ''}</div>
-      </div>
-    </div>
-  `).join('');
+  _renderNoticiasFiltered();
+
+  // Listener do campo de busca (uma vez só)
+  const input = document.getElementById('noticias-search');
+  if (input && !input._wired) {
+    let debounce;
+    input.addEventListener('input', () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        _newsQuery = input.value;
+        _renderNoticiasFiltered();
+      }, 200);
+    });
+    input._wired = true;
+  }
 }
 
 function openNews(id) {
