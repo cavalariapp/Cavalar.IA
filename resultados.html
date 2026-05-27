@@ -969,9 +969,10 @@ async function buscaGlobal({ cavaleiro, cavalo, fonte, ano, mes }) {
   let q = sb
     .from('resultados')
     .select(`
-      id, colocacao, cavaleiro_nome, cavalo_nome, penalidade, tempo, pontos, prova_id,
+      id, colocacao, cavaleiro_nome, cavalo_nome,
+      penalidade, tempo, pontos, penalidade_2, tempo_2, prova_id,
       provas!inner (
-        id, nome, numero, descricao, categorias, torneio_id,
+        id, nome, numero, descricao, categorias, tipo_prova, torneio_id,
         torneios!inner ( id, nome, fonte, data_inicio )
       )
     `, { count: 'estimated' })
@@ -1185,7 +1186,7 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
       </div>
     </div>
     <div class="prova-body">
-      ${buildResultsTable(resultados, cavaleiro, cavalo)}
+      ${buildResultsTable(prova, resultados, cavaleiro, cavalo)}
     </div>
   `;
 
@@ -1193,25 +1194,62 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
 }
 
 // ─── Tabela de resultados ─────────────────────────────────────
-function buildResultsTable(resultados, cavaleiro, cavalo) {
+// Define colunas dependendo do tipo da prova
+function colunasParaTipo(tipo) {
+  switch (tipo) {
+    case 'Duas Fases':
+      return [
+        { label: 'Pen.', key: 'penalidade', cls: 'col-num' },
+        { label: 'T 1ª', key: 'tempo',      cls: 'col-num' },
+        { label: 'T 2ª', key: 'tempo_2',    cls: 'col-num accent' },
+      ];
+    case 'Desempate':
+    case 'Duas Voltas':
+      return [
+        { label: 'Pen 1ª', key: 'penalidade',   cls: 'col-num' },
+        { label: 'T 1ª',   key: 'tempo',        cls: 'col-num' },
+        { label: 'Pen 2ª', key: 'penalidade_2', cls: 'col-num' },
+        { label: 'T 2ª',   key: 'tempo_2',      cls: 'col-num accent' },
+      ];
+    default: // Tabela A / Tempo Ideal / Cronometro / Outro
+      return [
+        { label: 'Tempo', key: 'tempo',      cls: 'col-num' },
+        { label: 'Pen.',  key: 'penalidade', cls: 'col-num' },
+        { label: 'Pontos',key: 'pontos',     cls: 'col-num accent' },
+      ];
+  }
+}
+
+function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
   if (resultados.length === 0) {
     return `<div class="table-empty">Nenhum resultado para os filtros aplicados.</div>`;
   }
 
+  const cols = colunasParaTipo(prova.tipo_prova);
+
   const rows = resultados.map(r => {
-    const penClass = (r.penalidade === '0' || r.penalidade === '0.0' || r.penalidade === '0,0') ? 'penalty-zero' : '';
+    const cells = cols.map(c => {
+      const v = r[c.key];
+      let extraCls = '';
+      if (c.key === 'penalidade' && (v === '0' || v === '0.0' || v === '0,0')) extraCls = ' penalty-zero';
+      return `<td class="${c.cls}${extraCls}">${escHtml(v)}</td>`;
+    }).join('');
     return `
       <tr>
         <td><span class="${posClass(r.colocacao)}">${escHtml(r.colocacao)}</span></td>
         <td class="col-rider">${highlight(nomeCavaleiro(r.cavaleiro_nome), cavaleiro)}</td>
         <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return highlight(c.nome, cavalo) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
-        <td class="col-num">${escHtml(r.tempo)}</td>
-        <td class="col-num ${penClass}">${escHtml(r.penalidade)}</td>
-        <td class="col-num accent">${escHtml(r.pontos)}</td>
+        ${cells}
       </tr>`;
   }).join('');
 
+  const headerCells = cols.map(c => `<th>${escHtml(c.label)}</th>`).join('');
+  const tipoLabel = prova.tipo_prova && prova.tipo_prova !== 'Outro'
+    ? `<div style="padding:6px 12px;background:var(--surface2);font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Tipo: ${escHtml(prova.tipo_prova)}</div>`
+    : '';
+
   return `
+    ${tipoLabel}
     <div class="table-scroll">
       <table>
         <thead>
@@ -1219,9 +1257,7 @@ function buildResultsTable(resultados, cavaleiro, cavalo) {
             <th>#</th>
             <th>Cavaleiro</th>
             <th>Cavalo</th>
-            <th>Tempo</th>
-            <th>Pen.</th>
-            <th>Pontos</th>
+            ${headerCells}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
