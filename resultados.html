@@ -1,0 +1,1117 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Resultados de Provas — Cavalar.IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,700;0,900;1,700;1,900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<style>
+/* ===========================
+   BRAND TOKENS
+=========================== */
+:root {
+  --bg:          #080d18;
+  --surface:     #0f1623;
+  --surface2:    #141e2e;
+  --fg:          #ffffff;
+  --muted:       #7a8ba8;
+  --border:      #1c2840;
+  --accent:      #e84d0e;
+  --accent-dim:  rgba(232,77,14,.13);
+  --accent-glow: rgba(232,77,14,.28);
+  --green:       #22c55e;
+  --font-display:'Barlow Condensed','Impact','Arial Narrow',Arial,sans-serif;
+  --font-body:   -apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-tap-highlight-color: transparent; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
+/* ===========================
+   LAYOUT SHELL
+=========================== */
+.page {
+  max-width: 700px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+/* ===========================
+   TOP BAR
+=========================== */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  height: 58px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.logo-img {
+  height: 32px;
+  width: auto;
+  max-width: 200px;
+  display: block;
+}
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: none;
+  transition: color .18s;
+}
+.btn-back:hover { color: var(--fg); }
+.btn-back svg { width: 16px; height: 16px; }
+
+/* ===========================
+   PAGE HEADER
+=========================== */
+.page-header {
+  padding: 28px 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.page-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.page-title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 8vw, 42px);
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  line-height: .96;
+  letter-spacing: -.01em;
+  color: #fff;
+  margin-bottom: 8px;
+}
+.page-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.page-meta-item svg { width: 13px; height: 13px; color: var(--accent); }
+
+/* ===========================
+   FILTERS
+=========================== */
+.filters-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.filters-title {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.filters-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.filter-field.wide {
+  grid-column: 1 / -1;
+}
+.filter-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.filter-select,
+.filter-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: var(--fg);
+  font-size: 13px;
+  font-family: var(--font-body);
+  outline: none;
+  transition: border-color .2s;
+  appearance: auto;
+}
+.filter-select:focus,
+.filter-input:focus { border-color: var(--accent); }
+.filter-select option { background: var(--surface); }
+.filter-input::placeholder { color: var(--muted); }
+
+.filters-actions {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.results-summary {
+  font-size: 11px;
+  color: var(--muted);
+}
+.results-summary strong { color: var(--accent); }
+.btn-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  padding: 0;
+  display: none;
+}
+.btn-clear.visible { display: inline; }
+.btn-clear:hover { color: var(--accent); }
+
+/* ===========================
+   LOADING / ERROR / EMPTY
+=========================== */
+.state-msg {
+  padding: 60px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+.state-msg .icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+  opacity: .5;
+}
+.state-msg h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg);
+  margin-bottom: 6px;
+}
+
+/* ─── Skeleton shimmer ─── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 3px;
+}
+
+.skeleton-block {
+  margin: 16px 16px 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.skeleton-header {
+  height: 44px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.skeleton-row {
+  height: 40px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.skeleton-row:last-child { border-bottom: none; }
+.sk-pill { height: 12px; border-radius: 6px; }
+
+/* ===========================
+   PROVA CARD
+=========================== */
+.prova-block {
+  margin: 16px 16px 0;
+}
+.prova-block:last-child { margin-bottom: 0; }
+
+.prova-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid var(--accent);
+  cursor: pointer;
+  user-select: none;
+  transition: background .15s;
+}
+.prova-hdr:hover { background: var(--surface2); }
+.prova-hdr-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+.prova-hdr-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.prova-badge {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.prova-desc {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+.prova-cats {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.prova-hdr-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.prova-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  letter-spacing: .06em;
+}
+.prova-toggle {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  transition: transform .2s;
+}
+.prova-block.open .prova-toggle { transform: rotate(180deg); }
+
+.prova-body {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
+}
+.prova-block.open .prova-body { display: block; }
+
+/* ===========================
+   RESULTS TABLE
+=========================== */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 420px;
+}
+thead th {
+  text-align: left;
+  padding: 9px 12px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--surface2);
+}
+tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .12s;
+}
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,.025); }
+tbody td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+/* Colocação column */
+.col-pos {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 32px;
+}
+.col-pos.top1 { color: #fbbf24; }  /* gold */
+.col-pos.top2 { color: #94a3b8; }  /* silver */
+.col-pos.top3 { color: #cd7c2f; }  /* bronze */
+
+/* Cavaleiro column */
+.col-rider {
+  font-weight: 600;
+  color: var(--fg);
+  min-width: 120px;
+}
+.col-rider small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* Cavalo column */
+.col-horse {
+  font-weight: 600;
+  color: var(--fg);
+  min-width: 140px;
+  font-style: italic;
+}
+.col-horse small {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 400;
+  font-style: normal;
+  color: var(--muted);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Numeric columns */
+.col-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.col-num.accent { color: var(--accent); }
+
+/* Zero penalty highlight */
+.penalty-zero { color: var(--green); font-weight: 700; }
+
+/* No results */
+.table-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ===========================
+   HIGHLIGHT on search
+=========================== */
+mark {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* ===========================
+   RESPONSIVE
+=========================== */
+
+/* Mobile: tabela compacta */
+@media (max-width: 559px) {
+  table {
+    font-size: 11.5px;
+    min-width: unset;
+    width: 100%;
+  }
+  thead th,
+  tbody td {
+    padding: 8px 8px;
+  }
+  .col-rider, .col-horse { min-width: 80px; }
+  .prova-hdr { padding: 10px 12px; }
+  /* Esconde coluna Pontos no mobile — menos relevante */
+  th:last-child, td:last-child { display: none; }
+}
+
+@media (min-width: 560px) {
+  .filters-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <svg class="logo-img" viewBox="300 770 3390 370" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img">
+      <image href="logo-white.png" width="4000" height="2000"/>
+    </svg>
+    <a class="btn-back" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+      Voltar
+    </a>
+  </div>
+
+  <!-- PAGE HEADER (preenchido por JS) -->
+  <div class="page-header" id="page-header">
+    <div class="page-eyebrow">Resultados de Provas</div>
+    <div class="page-title" id="torneio-nome">Carregando...</div>
+    <div class="page-meta" id="torneio-meta"></div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters-section">
+    <div class="filters-title">Filtros</div>
+    <div class="filters-grid">
+      <div class="filter-field">
+        <label class="filter-label">Federação</label>
+        <select class="filter-select" id="filter-fonte">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Ano</label>
+        <select class="filter-select" id="filter-ano">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="filter-field wide">
+        <label class="filter-label">Torneio</label>
+        <select class="filter-select" id="filter-torneio">
+          <option value="">Carregando torneios...</option>
+        </select>
+      </div>
+      <div class="filter-field wide">
+        <label class="filter-label">Buscar torneio</label>
+        <input class="filter-input" id="filter-torneio-search" type="text" placeholder="Digite parte do nome do torneio..." autocomplete="off">
+      </div>
+      <div class="filter-field wide">
+        <label class="filter-label">Prova</label>
+        <select class="filter-select" id="filter-prova">
+          <option value="">Todas as provas</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Cavaleiro</label>
+        <input class="filter-input" id="filter-cavaleiro" type="text" placeholder="Buscar cavaleiro..." autocomplete="off">
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Cavalo</label>
+        <input class="filter-input" id="filter-cavalo" type="text" placeholder="Buscar cavalo..." autocomplete="off">
+      </div>
+    </div>
+    <div class="filters-actions">
+      <div class="results-summary" id="results-summary"></div>
+      <button class="btn-clear" id="btn-clear" onclick="clearFilters()">Limpar filtros ✕</button>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO DINÂMICO -->
+  <div id="content">
+    <!-- Skeleton de carregamento -->
+    <div id="skeleton">
+      <div class="skeleton-block">
+        <div class="skeleton-header">
+          <div class="skeleton sk-pill" style="width:56px"></div>
+          <div class="skeleton sk-pill" style="width:140px"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton sk-pill" style="width:24px"></div>
+          <div class="skeleton sk-pill" style="width:130px"></div>
+          <div class="skeleton sk-pill" style="width:110px"></div>
+          <div class="skeleton sk-pill" style="width:60px"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton sk-pill" style="width:24px"></div>
+          <div class="skeleton sk-pill" style="width:115px"></div>
+          <div class="skeleton sk-pill" style="width:100px"></div>
+          <div class="skeleton sk-pill" style="width:60px"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton sk-pill" style="width:24px"></div>
+          <div class="skeleton sk-pill" style="width:125px"></div>
+          <div class="skeleton sk-pill" style="width:90px"></div>
+          <div class="skeleton sk-pill" style="width:60px"></div>
+        </div>
+      </div>
+      <div class="skeleton-block" style="margin-top:12px">
+        <div class="skeleton-header">
+          <div class="skeleton sk-pill" style="width:56px"></div>
+          <div class="skeleton sk-pill" style="width:120px"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton sk-pill" style="width:24px"></div>
+          <div class="skeleton sk-pill" style="width:140px"></div>
+          <div class="skeleton sk-pill" style="width:105px"></div>
+          <div class="skeleton sk-pill" style="width:60px"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skeleton sk-pill" style="width:24px"></div>
+          <div class="skeleton sk-pill" style="width:108px"></div>
+          <div class="skeleton sk-pill" style="width:120px"></div>
+          <div class="skeleton sk-pill" style="width:60px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mensagem de erro -->
+    <div id="error-msg" style="display:none" class="state-msg">
+      <div class="icon">⚠️</div>
+      <h3>Falha ao carregar dados</h3>
+      <p id="error-text">Verifique sua conexão e tente novamente.</p>
+      <button onclick="loadData()" style="margin-top:16px;background:var(--accent);border:none;color:#fff;padding:10px 22px;border-radius:4px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;cursor:pointer">TENTAR NOVAMENTE</button>
+    </div>
+
+    <!-- Resultados (injetado por JS) -->
+    <div id="provas-container" style="padding-bottom:24px"></div>
+  </div>
+
+</div><!-- /.page -->
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CAVALAR.IA — RESULTADOS DE PROVAS
+// ══════════════════════════════════════════════════════════════
+
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ─── Estado ──────────────────────────────────────────────────
+let allTorneios   = [];  // [{ id, nome, fonte, ano }] (ano extraído do nome)
+let allProvas     = [];  // [{ id, nome, torneio_id }]
+let allResultados = [];  // [{ id, colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade, pontos, prova_id }]
+
+// Extrai ano (4 dígitos começando com 20) do nome do torneio
+function extrairAno(nome) {
+  if (!nome) return null;
+  const m = nome.match(/\b(20\d{2})\b/);
+  return m ? parseInt(m[1]) : null;
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+const $id = id => document.getElementById(id);
+
+function escHtml(s) {
+  if (s == null) return '—';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+
+// Extrai nome do cavaleiro (antes da federação/quebra de linha)
+function nomeCavaleiro(s) {
+  if (!s) return '';
+  return s.split(/\n/)[0].split(/\s*\|\s*/)[0].trim();
+}
+
+// Separa nome do cavalo da genealogia
+// Formatos possíveis:
+//   "NOME CAVALO\n29/11/2021 | M | BH | HARAS | PAI | MÃE"  (2 linhas)
+//   "NOME CAVALO 29/11/2021 | M | BH | ..."                  (1 linha com data)
+//   "NOME CAVALO | M | BH | ..."                              (1 linha com |)
+function parseCavalo(s) {
+  if (!s) return { nome: '—', genealogia: null };
+  const linhas = s.split(/\n/);
+  const nome = linhas[0].trim();
+  // Genealogia na segunda linha (formato mais comum no banco)
+  if (linhas.length > 1 && linhas[1].trim()) {
+    return { nome, genealogia: linhas[1].trim() };
+  }
+  // Genealogia na mesma linha após a data
+  const dataMatch = nome.match(/^(.+?)\s+(\d{2}\/\d{2}\/\d{4}.*)$/);
+  if (dataMatch) {
+    return { nome: dataMatch[1].trim(), genealogia: dataMatch[2].trim() };
+  }
+  // Genealogia separada por " | "
+  const partes = nome.split(/\s*\|\s*/);
+  if (partes.length > 1) {
+    return { nome: partes[0].trim(), genealogia: partes.slice(1).join(' | ').trim() };
+  }
+  return { nome, genealogia: null };
+}
+
+// Envolve ocorrências de `term` com <mark> para highlight
+function highlight(text, term) {
+  if (!term) return escHtml(text);
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escaped})`, 'gi');
+  return escHtml(text).replace(re, '<mark>$1</mark>');
+}
+
+// Classe de cor para a colocação
+function posClass(pos) {
+  const n = parseInt(pos, 10);
+  if (n === 1) return 'col-pos top1';
+  if (n === 2) return 'col-pos top2';
+  if (n === 3) return 'col-pos top3';
+  return 'col-pos';
+}
+
+// ─── Carregar lista de torneios ──────────────────────────────
+async function loadData() {
+  $id('skeleton').style.display  = 'block';
+  $id('error-msg').style.display = 'none';
+  $id('provas-container').innerHTML = '';
+
+  try {
+    const { data: torneios, error: errT } = await sb
+      .from('torneios')
+      .select('id, nome, fonte')
+      .order('id', { ascending: false });
+
+    if (errT) throw errT;
+    if (!torneios || torneios.length === 0) {
+      showEmpty('Nenhum torneio encontrado no banco.');
+      return;
+    }
+
+    // Enriquece com ano e mantém em allTorneios para filtragem
+    allTorneios = torneios.map(t => ({
+      ...t,
+      ano: extrairAno(t.nome),
+    }));
+
+    // Popula filtros de fonte e ano (a partir do que existe no banco)
+    populateFonteFilter();
+    populateAnoFilter();
+
+    // Popula a lista inicial de torneios (sem filtros = tudo)
+    populateTorneioFilter();
+
+    // Carrega o primeiro torneio visível
+    const primeiro = $id('filter-torneio').options[0];
+    if (primeiro && primeiro.value) {
+      await loadTorneio(Number(primeiro.value));
+    } else {
+      showEmpty('Nenhum torneio combina com os filtros.');
+    }
+
+  } catch (err) {
+    $id('skeleton').style.display  = 'none';
+    $id('error-msg').style.display = 'block';
+    $id('error-text').textContent  = err.message || 'Erro desconhecido.';
+  }
+}
+
+// ─── Filtros de fonte e ano ──────────────────────────────────
+function populateFonteFilter() {
+  const sel = $id('filter-fonte');
+  const fontes = [...new Set(allTorneios.map(t => t.fonte).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">Todas</option>';
+  fontes.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    sel.appendChild(opt);
+  });
+}
+
+function populateAnoFilter() {
+  const sel = $id('filter-ano');
+  const anos = [...new Set(allTorneios.map(t => t.ano).filter(Boolean))].sort((a, b) => b - a);
+  sel.innerHTML = '<option value="">Todos</option>';
+  anos.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    sel.appendChild(opt);
+  });
+}
+
+// Popula o dropdown de torneios respeitando filtros fonte/ano/busca
+function populateTorneioFilter() {
+  const fonte = $id('filter-fonte').value;
+  const ano = $id('filter-ano').value;
+  const busca = ($id('filter-torneio-search').value || '').trim().toLowerCase();
+
+  const filtrados = allTorneios.filter(t => {
+    if (fonte && t.fonte !== fonte) return false;
+    if (ano && String(t.ano) !== ano) return false;
+    if (busca && !(t.nome || '').toLowerCase().includes(busca)) return false;
+    return true;
+  });
+
+  const sel = $id('filter-torneio');
+  sel.innerHTML = '';
+
+  if (filtrados.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Nenhum torneio com esses filtros';
+    sel.appendChild(opt);
+    return;
+  }
+
+  filtrados.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = `[${t.fonte || '?'}] ${t.nome}`;
+    sel.appendChild(opt);
+  });
+}
+
+// ─── Carregar provas e resultados de um torneio ───────────────
+async function loadTorneio(torneioId) {
+  $id('skeleton').style.display     = 'block';
+  $id('error-msg').style.display    = 'none';
+  $id('provas-container').innerHTML = '';
+  $id('filter-prova').innerHTML     = '<option value="">Todas as provas</option>';
+
+  try {
+    // 1. Torneio
+    const { data: torneios, error: errT } = await sb
+      .from('torneios').select('*').eq('id', torneioId).limit(1);
+    if (errT) throw errT;
+    renderTorneioHeader(torneios[0] || {});
+
+    // 2. Provas ordenadas por numero (se preenchido) ou id
+    const { data: provas, error: errP } = await sb
+      .from('provas')
+      .select('*')
+      .eq('torneio_id', torneioId)
+      .order('numero', { ascending: true, nullsFirst: false });
+    if (errP) throw errP;
+    allProvas = provas || [];
+
+    // 3. Resultados apenas das provas deste torneio
+    if (allProvas.length > 0) {
+      const provaIds = allProvas.map(p => p.id);
+      const { data: resultados, error: errR } = await sb
+        .from('resultados')
+        .select('*')
+        .in('prova_id', provaIds)
+        .order('prova_id', { ascending: true })
+        .order('id',       { ascending: true });
+      if (errR) throw errR;
+      allResultados = resultados || [];
+    } else {
+      allResultados = [];
+    }
+
+    populateProvaFilter();
+    renderAll();
+
+  } catch (err) {
+    $id('skeleton').style.display  = 'none';
+    $id('error-msg').style.display = 'block';
+    $id('error-text').textContent  = err.message || 'Erro desconhecido.';
+  }
+}
+
+// ─── Header do torneio ───────────────────────────────────────
+function renderTorneioHeader(torneio) {
+  $id('torneio-nome').textContent = torneio.nome || 'Torneio';
+
+  const metaEl = $id('torneio-meta');
+  const items = [];
+
+  if (torneio.data) {
+    items.push(`
+      <span class="page-meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        ${escHtml(torneio.data)}
+      </span>`);
+  }
+
+  metaEl.innerHTML = items.join('');
+}
+
+// ─── Dropdown de provas ──────────────────────────────────────
+function populateProvaFilter() {
+  const sel = $id('filter-prova');
+  while (sel.options.length > 1) sel.remove(1);
+
+  allProvas.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    const numLabel = p.numero != null
+      ? `PR. ${String(p.numero).padStart(2, '0')} — `
+      : '';
+    opt.textContent = numLabel + (p.descricao || p.nome || `Prova ${p.id}`);
+    sel.appendChild(opt);
+  });
+}
+
+// ─── Leitura dos filtros ─────────────────────────────────────
+function getFilters() {
+  return {
+    provaId:   $id('filter-prova').value,
+    cavaleiro: $id('filter-cavaleiro').value.trim().toLowerCase(),
+    cavalo:    $id('filter-cavalo').value.trim().toLowerCase(),
+  };
+}
+
+// ─── Renderização principal ──────────────────────────────────
+function renderAll() {
+  $id('skeleton').style.display = 'none';
+
+  const { provaId, cavaleiro, cavalo } = getFilters();
+  const hasFilters = provaId || cavaleiro || cavalo;
+
+  // Mostra / esconde botão de limpar
+  $id('btn-clear').classList.toggle('visible', !!hasFilters);
+
+  // Provas a exibir
+  const provasFiltradas = provaId
+    ? allProvas.filter(p => String(p.id) === provaId)
+    : allProvas;
+
+  const container = $id('provas-container');
+  container.innerHTML = '';
+
+  let totalVisiveis = 0;
+
+  provasFiltradas.forEach((prova, idx) => {
+    // Resultados da prova, com filtro de texto
+    const resultados = allResultados.filter(r => {
+      if (r.prova_id !== prova.id) return false;
+      if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
+      if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
+      return true;
+    });
+
+    totalVisiveis += resultados.length;
+    container.appendChild(buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo));
+  });
+
+  // Resumo de resultados
+  const sumEl = $id('results-summary');
+  if (hasFilters) {
+    sumEl.innerHTML = `<strong>${totalVisiveis}</strong> resultado${totalVisiveis !== 1 ? 's' : ''} encontrado${totalVisiveis !== 1 ? 's' : ''}`;
+  } else {
+    sumEl.innerHTML = `<strong>${allResultados.length}</strong> resultados em <strong>${allProvas.length}</strong> prova${allProvas.length !== 1 ? 's' : ''}`;
+  }
+
+  if (provasFiltradas.length === 0) {
+    container.innerHTML = `<div class="state-msg"><div class="icon">🏇</div><h3>Nenhuma prova encontrada</h3><p>Tente ajustar os filtros.</p></div>`;
+  }
+}
+
+// ─── Bloco de uma prova ──────────────────────────────────────
+function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'prova-block' + (idx === 0 ? ' open' : '');
+  wrapper.id = `prova-${prova.id}`;
+
+  const countText = `${resultados.length} resultado${resultados.length !== 1 ? 's' : ''}`;
+
+  // Número formatado: "PR. 01" quando coluna preenchida, ou "PROVA" como fallback
+  const numBadge = prova.numero != null
+    ? `PR. ${String(prova.numero).padStart(2, '0')}`
+    : 'PROVA';
+
+  // Descrição principal: usa descricao, cai para nome
+  const descricao = prova.descricao || prova.nome || '—';
+
+  // Chips de categorias: split por "/" em "CN4/HC" → ["CN4", "HC"]
+  const cats = prova.categorias
+    ? prova.categorias.split('/').map(c => c.trim()).filter(Boolean)
+    : [];
+  const catsHtml = cats.length
+    ? `<div class="prova-cats">${cats.map(c => `<span class="cat-chip">${escHtml(c)}</span>`).join('')}</div>`
+    : '';
+
+  wrapper.innerHTML = `
+    <div class="prova-hdr" onclick="toggleProva(${prova.id})">
+      <div class="prova-hdr-left">
+        <div class="prova-hdr-top">
+          <span class="prova-badge">${escHtml(numBadge)}</span>
+          <span class="prova-desc">${escHtml(descricao)}</span>
+        </div>
+        ${catsHtml}
+      </div>
+      <div class="prova-hdr-right">
+        <span class="prova-count">${countText}</span>
+        <span class="prova-toggle">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </span>
+      </div>
+    </div>
+    <div class="prova-body">
+      ${buildResultsTable(resultados, cavaleiro, cavalo)}
+    </div>
+  `;
+
+  return wrapper;
+}
+
+// ─── Tabela de resultados ─────────────────────────────────────
+function buildResultsTable(resultados, cavaleiro, cavalo) {
+  if (resultados.length === 0) {
+    return `<div class="table-empty">Nenhum resultado para os filtros aplicados.</div>`;
+  }
+
+  const rows = resultados.map(r => {
+    const penClass = (r.penalidade === '0' || r.penalidade === '0.0' || r.penalidade === '0,0') ? 'penalty-zero' : '';
+    return `
+      <tr>
+        <td><span class="${posClass(r.colocacao)}">${escHtml(r.colocacao)}</span></td>
+        <td class="col-rider">${highlight(nomeCavaleiro(r.cavaleiro_nome), cavaleiro)}</td>
+        <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return highlight(c.nome, cavalo) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
+        <td class="col-num">${escHtml(r.tempo)}</td>
+        <td class="col-num ${penClass}">${escHtml(r.penalidade)}</td>
+        <td class="col-num accent">${escHtml(r.pontos)}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Cavaleiro</th>
+            <th>Cavalo</th>
+            <th>Tempo</th>
+            <th>Pen.</th>
+            <th>Pontos</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ─── Toggle prova ─────────────────────────────────────────────
+function toggleProva(provaId) {
+  const el = $id(`prova-${provaId}`);
+  if (el) el.classList.toggle('open');
+}
+
+// ─── Limpar filtros ───────────────────────────────────────────
+function clearFilters() {
+  $id('filter-fonte').value         = '';
+  $id('filter-ano').value            = '';
+  $id('filter-torneio-search').value = '';
+  $id('filter-prova').value          = '';
+  $id('filter-cavaleiro').value      = '';
+  $id('filter-cavalo').value         = '';
+  onTorneioListChange();
+}
+
+// ─── Estado vazio ─────────────────────────────────────────────
+function showEmpty(msg) {
+  $id('skeleton').style.display = 'none';
+  $id('provas-container').innerHTML = `
+    <div class="state-msg">
+      <div class="icon">🏇</div>
+      <h3>Sem dados</h3>
+      <p>${escHtml(msg)}</p>
+    </div>`;
+}
+
+// ─── Event listeners dos filtros ─────────────────────────────
+
+// Quando fonte/ano/busca muda → repopula lista de torneios + carrega o primeiro
+function onTorneioListChange() {
+  populateTorneioFilter();
+  const sel = $id('filter-torneio');
+  if (sel.options.length > 0 && sel.options[0].value) {
+    loadTorneio(Number(sel.options[0].value));
+  } else {
+    allProvas = [];
+    allResultados = [];
+    renderAll();
+  }
+}
+$id('filter-fonte').addEventListener('change', onTorneioListChange);
+$id('filter-ano').addEventListener('change', onTorneioListChange);
+
+let buscaTimer;
+$id('filter-torneio-search').addEventListener('input', () => {
+  clearTimeout(buscaTimer);
+  buscaTimer = setTimeout(onTorneioListChange, 250);
+});
+
+$id('filter-torneio').addEventListener('change', () => {
+  const id = $id('filter-torneio').value;
+  if (id) loadTorneio(Number(id));
+});
+
+$id('filter-prova').addEventListener('change', renderAll);
+
+let debounceTimer;
+function onTextFilter() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(renderAll, 280);
+}
+$id('filter-cavaleiro').addEventListener('input', onTextFilter);
+$id('filter-cavalo').addEventListener('input', onTextFilter);
+
+// ─── Inicializa ───────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
