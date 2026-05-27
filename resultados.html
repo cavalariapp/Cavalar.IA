@@ -656,6 +656,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 let allTorneios   = [];  // [{ id, nome, fonte, ano }] (ano extraído do nome)
 let allProvas     = [];  // [{ id, nome, torneio_id }]
 let allResultados = [];  // [{ id, colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade, pontos, prova_id }]
+let globalMode    = false; // true quando há busca por cavaleiro/cavalo (resultados de todos os torneios)
+let provaMetaByID = {};  // { provaId: { ...prova, torneio: { nome, fonte, data_inicio } } }
 
 // Extrai ano (4 dígitos começando com 20) do nome do torneio
 function extrairAno(nome) {
@@ -953,20 +955,76 @@ function getFilters() {
     provaId:   $id('filter-prova').value,
     cavaleiro: $id('filter-cavaleiro').value.trim().toLowerCase(),
     cavalo:    $id('filter-cavalo').value.trim().toLowerCase(),
+    fonte:     $id('filter-fonte').value,
+    ano:       $id('filter-ano').value,
+    mes:       $id('filter-mes').value,
   };
+}
+
+// ─── Busca global por cavaleiro ou cavalo ───────────────────
+// Faz JOIN entre resultados, provas e torneios.
+// Respeita filtros fonte/ano/mes.
+const GLOBAL_SEARCH_LIMIT = 500;
+async function buscaGlobal({ cavaleiro, cavalo, fonte, ano, mes }) {
+  let q = sb
+    .from('resultados')
+    .select(`
+      id, colocacao, cavaleiro_nome, cavalo_nome, penalidade, tempo, pontos, prova_id,
+      provas!inner (
+        id, nome, numero, descricao, categorias, torneio_id,
+        torneios!inner ( id, nome, fonte, data_inicio )
+      )
+    `, { count: 'estimated' })
+    .limit(GLOBAL_SEARCH_LIMIT);
+
+  if (cavaleiro) q = q.ilike('cavaleiro_nome', `%${cavaleiro}%`);
+  if (cavalo)    q = q.ilike('cavalo_nome',    `%${cavalo}%`);
+
+  // Filtros transitivos via referenced table
+  if (fonte) q = q.eq('provas.torneios.fonte', fonte);
+  if (ano) {
+    const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
+    q = q.gte('provas.torneios.data_inicio', ini).lte('provas.torneios.data_inicio', fim);
+  }
+  if (mes) {
+    // PostgREST não suporta extract; vamos filtrar mes client-side
+  }
+
+  const { data, error } = await q;
+  if (error) throw error;
+  let resultados = data || [];
+
+  // Filtro mês aplicado client-side
+  if (mes) {
+    resultados = resultados.filter(r => {
+      const d = r.provas?.torneios?.data_inicio;
+      return d && parseInt(d.substring(5, 7)) === parseInt(mes);
+    });
+  }
+  // Filtros transitivos do PostgREST aplicam mas só ao registro referenciado —
+  // garantir também client-side (caso registros sem torneios? defesa em profundidade)
+  if (fonte) resultados = resultados.filter(r => r.provas?.torneios?.fonte === fonte);
+
+  return resultados;
 }
 
 // ─── Renderização principal ──────────────────────────────────
 function renderAll() {
   $id('skeleton').style.display = 'none';
 
-  const { provaId, cavaleiro, cavalo } = getFilters();
+  const filters = getFilters();
+  const { provaId, cavaleiro, cavalo } = filters;
   const hasFilters = provaId || cavaleiro || cavalo;
 
   // Mostra / esconde botão de limpar
   $id('btn-clear').classList.toggle('visible', !!hasFilters);
 
-  // Provas a exibir
+  if (globalMode) {
+    renderGlobalSearch(cavaleiro, cavalo);
+    return;
+  }
+
+  // Modo torneio: mesma lógica de antes
   const provasFiltradas = provaId
     ? allProvas.filter(p => String(p.id) === provaId)
     : allProvas;
@@ -977,19 +1035,16 @@ function renderAll() {
   let totalVisiveis = 0;
 
   provasFiltradas.forEach((prova, idx) => {
-    // Resultados da prova, com filtro de texto
     const resultados = allResultados.filter(r => {
       if (r.prova_id !== prova.id) return false;
       if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
       if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
       return true;
     });
-
     totalVisiveis += resultados.length;
     container.appendChild(buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo));
   });
 
-  // Resumo de resultados
   const sumEl = $id('results-summary');
   if (hasFilters) {
     sumEl.innerHTML = `<strong>${totalVisiveis}</strong> resultado${totalVisiveis !== 1 ? 's' : ''} encontrado${totalVisiveis !== 1 ? 's' : ''}`;
@@ -1000,6 +1055,93 @@ function renderAll() {
   if (provasFiltradas.length === 0) {
     container.innerHTML = `<div class="state-msg"><div class="icon">🏇</div><h3>Nenhuma prova encontrada</h3><p>Tente ajustar os filtros.</p></div>`;
   }
+}
+
+// ─── Renderização em modo busca global ──────────────────────
+async function renderGlobalSearch(cavaleiro, cavalo) {
+  const container = $id('provas-container');
+  container.innerHTML = `<div class="state-msg"><div class="icon">🔎</div><h3>Buscando...</h3></div>`;
+
+  const sumEl = $id('results-summary');
+  sumEl.innerHTML = `Procurando ${cavaleiro ? '"' + cavaleiro + '"' : ''}${cavaleiro && cavalo ? ' + ' : ''}${cavalo ? '"' + cavalo + '"' : ''}...`;
+
+  let resultados;
+  try {
+    resultados = await buscaGlobal(getFilters());
+  } catch (err) {
+    container.innerHTML = `<div class="state-msg"><div class="icon">⚠️</div><h3>Erro na busca</h3><p>${escHtml(err.message)}</p></div>`;
+    return;
+  }
+
+  // Atualiza título da página
+  const termo = cavaleiro || cavalo;
+  $id('torneio-nome').textContent = `Buscar: "${termo}"`;
+  $id('torneio-meta').innerHTML = '';
+
+  if (resultados.length === 0) {
+    container.innerHTML = `<div class="state-msg"><div class="icon">🏇</div><h3>Nada encontrado</h3><p>Tente ajustar os termos ou os filtros.</p></div>`;
+    sumEl.innerHTML = `<strong>0</strong> resultados`;
+    return;
+  }
+
+  // Agrupar por torneio → prova
+  const porTorneio = new Map();
+  for (const r of resultados) {
+    const t = r.provas?.torneios;
+    if (!t) continue;
+    const tKey = t.id;
+    if (!porTorneio.has(tKey)) {
+      porTorneio.set(tKey, { torneio: t, provas: new Map() });
+    }
+    const provaKey = r.provas.id;
+    if (!porTorneio.get(tKey).provas.has(provaKey)) {
+      porTorneio.get(tKey).provas.set(provaKey, { prova: r.provas, resultados: [] });
+    }
+    porTorneio.get(tKey).provas.get(provaKey).resultados.push(r);
+  }
+
+  // Ordena torneios por data DESC
+  const torneiosOrdenados = [...porTorneio.values()].sort((a, b) => {
+    const da = a.torneio.data_inicio || '';
+    const db = b.torneio.data_inicio || '';
+    return db.localeCompare(da);
+  });
+
+  container.innerHTML = '';
+  torneiosOrdenados.forEach((grupo, gi) => {
+    const wrapTorneio = document.createElement('div');
+    wrapTorneio.className = 'prova-block open';
+    wrapTorneio.style.marginTop = '16px';
+
+    const dataStr = grupo.torneio.data_inicio
+      ? `${grupo.torneio.data_inicio.substring(8,10)}/${grupo.torneio.data_inicio.substring(5,7)}/${grupo.torneio.data_inicio.substring(0,4)}`
+      : '';
+
+    // Cabeçalho do torneio
+    const hdr = `
+      <div class="prova-hdr" style="background:var(--surface2)">
+        <div class="prova-hdr-left">
+          <div class="prova-hdr-top">
+            <span class="prova-badge" style="background:var(--accent);color:#fff">[${escHtml(grupo.torneio.fonte || '?')}]</span>
+            <span class="prova-desc">${escHtml(grupo.torneio.nome || '')}</span>
+          </div>
+          ${dataStr ? `<div class="prova-cats"><span class="cat-chip">${dataStr}</span></div>` : ''}
+        </div>
+      </div>
+    `;
+
+    const provasOrdenadas = [...grupo.provas.values()].sort((a, b) =>
+      (a.prova.numero || 999) - (b.prova.numero || 999));
+
+    const corpoProvas = provasOrdenadas.map((g, idx) =>
+      buildProvaBlock(g.prova, g.resultados, idx, cavaleiro, cavalo).outerHTML
+    ).join('');
+
+    wrapTorneio.innerHTML = hdr + `<div style="padding-left:8px">${corpoProvas}</div>`;
+    container.appendChild(wrapTorneio);
+  });
+
+  sumEl.innerHTML = `<strong>${resultados.length}</strong> resultado${resultados.length !== 1 ? 's' : ''} em <strong>${torneiosOrdenados.length}</strong> torneio${torneiosOrdenados.length !== 1 ? 's' : ''}${resultados.length >= GLOBAL_SEARCH_LIMIT ? ' (mostrando os ' + GLOBAL_SEARCH_LIMIT + ' mais recentes)' : ''}`;
 }
 
 // ─── Bloco de uma prova ──────────────────────────────────────
@@ -1102,6 +1244,10 @@ function clearFilters() {
   $id('filter-prova').value           = '';
   $id('filter-cavaleiro').value       = '';
   $id('filter-cavalo').value          = '';
+  globalMode = false;
+  $id('filter-torneio').disabled       = false;
+  $id('filter-prova').disabled         = false;
+  $id('filter-torneio-search').disabled = false;
   onTorneioListChange();
 }
 
@@ -1130,9 +1276,16 @@ function onTorneioListChange() {
     renderAll();
   }
 }
-$id('filter-fonte').addEventListener('change', onTorneioListChange);
-$id('filter-ano').addEventListener('change', onTorneioListChange);
-$id('filter-mes').addEventListener('change', onTorneioListChange);
+function onFontAnoMesChange() {
+  if (globalMode) {
+    renderAll();   // re-dispara busca global com novos filtros
+  } else {
+    onTorneioListChange(); // repopula dropdown de torneio
+  }
+}
+$id('filter-fonte').addEventListener('change', onFontAnoMesChange);
+$id('filter-ano').addEventListener('change', onFontAnoMesChange);
+$id('filter-mes').addEventListener('change', onFontAnoMesChange);
 
 let buscaTimer;
 $id('filter-torneio-search').addEventListener('input', () => {
@@ -1150,7 +1303,33 @@ $id('filter-prova').addEventListener('change', renderAll);
 let debounceTimer;
 function onTextFilter() {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(renderAll, 280);
+  debounceTimer = setTimeout(() => {
+    // Se digitou cavaleiro ou cavalo → ativa modo global
+    const cav = $id('filter-cavaleiro').value.trim();
+    const cvl = $id('filter-cavalo').value.trim();
+    const wasGlobal = globalMode;
+    globalMode = (cav.length >= 2) || (cvl.length >= 2);
+
+    if (globalMode) {
+      // Em modo global, alguns controles ficam irrelevantes — destacar visualmente
+      $id('filter-torneio').disabled = true;
+      $id('filter-prova').disabled = true;
+      $id('filter-torneio-search').disabled = true;
+    } else {
+      $id('filter-torneio').disabled = false;
+      $id('filter-prova').disabled = false;
+      $id('filter-torneio-search').disabled = false;
+    }
+
+    // Se acabou de SAIR do modo global → recarrega torneio selecionado
+    if (wasGlobal && !globalMode) {
+      const id = $id('filter-torneio').value;
+      if (id) loadTorneio(Number(id));
+      return;
+    }
+
+    renderAll();
+  }, 320);
 }
 $id('filter-cavaleiro').addEventListener('input', onTextFilter);
 $id('filter-cavalo').addEventListener('input', onTextFilter);
