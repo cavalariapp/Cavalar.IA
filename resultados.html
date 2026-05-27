@@ -479,6 +479,70 @@ mark {
 }
 
 /* ===========================
+   STATS DASHBOARD (busca global)
+=========================== */
+.stats-card {
+  margin: 16px;
+  padding: 18px 16px;
+  background: linear-gradient(135deg, rgba(232,77,14,.08), var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
+.stats-eyebrow {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.stats-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 6vw, 28px);
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  line-height: 1.04;
+  letter-spacing: -.01em;
+  color: #fff;
+  margin-bottom: 14px;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.stat-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.stat-value {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 6vw, 32px);
+  font-weight: 900;
+  font-style: italic;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  line-height: 1.2;
+}
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stats-card { padding: 14px 12px; }
+}
+
+/* ===========================
    RESPONSIVE
 =========================== */
 
@@ -1058,6 +1122,108 @@ function renderAll() {
   }
 }
 
+// ─── Estatísticas para o dashboard de cavaleiro/cavalo ──────
+// Retorna { totalProvas, totalEntradas, zerados, vitorias, top6 } e os respectivos %
+function calcularEstatisticas(resultados) {
+  const totalEntradas = resultados.length;
+  const provaIds = new Set(resultados.map(r => r.prova_id));
+  const totalProvas = provaIds.size;
+
+  // Critério "percurso zerado": penalidade total começa com 0 (e não 0X, 01 etc)
+  // Aceita "0", "0,0", "0\n(0+0)", "0 (0+0)"
+  const zerados = resultados.filter(r => {
+    const p = (r.penalidade || '').trim();
+    return /^0([\s\n(,]|$)/.test(p);
+  }).length;
+
+  // Vitória: classificação "1º"
+  const vitorias = resultados.filter(r => (r.colocacao || '').trim() === '1º').length;
+
+  // Top 6: 1º a 6º
+  const top6 = resultados.filter(r => /^[1-6]º$/.test((r.colocacao || '').trim())).length;
+
+  const pct = (n) => totalEntradas > 0 ? Math.round((n / totalEntradas) * 100) : 0;
+  return {
+    totalProvas, totalEntradas,
+    zerados, vitorias, top6,
+    pctZerados:  pct(zerados),
+    pctVitorias: pct(vitorias),
+    pctTop6:     pct(top6),
+  };
+}
+
+// Conta resultados por nome (primeira linha) — usa nomeCavaleiro / parseCavalo
+function agruparPorNome(resultados, qual /* 'cavaleiro' | 'cavalo' */) {
+  const counts = {};
+  for (const r of resultados) {
+    const n = qual === 'cavaleiro'
+      ? nomeCavaleiro(r.cavaleiro_nome)
+      : parseCavalo(r.cavalo_nome).nome;
+    if (!n) continue;
+    counts[n] = (counts[n] || 0) + 1;
+  }
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+}
+
+function buildStatsCard(todosResultados, cavaleiroQuery, cavaloQuery) {
+  // Determina o "alvo" do dashboard: o nome mais frequente que casou com a busca
+  let alvo, eyebrow, ranking;
+  if (cavaleiroQuery && cavaloQuery) {
+    eyebrow = 'Combinação Cavaleiro + Cavalo';
+    alvo = `${cavaleiroQuery.toUpperCase()} + ${cavaloQuery.toUpperCase()}`;
+    ranking = [];
+  } else if (cavaleiroQuery) {
+    eyebrow = 'Resumo do cavaleiro';
+    ranking = agruparPorNome(todosResultados, 'cavaleiro');
+    alvo = ranking[0] ? ranking[0][0] : cavaleiroQuery.toUpperCase();
+  } else {
+    eyebrow = 'Resumo do cavalo';
+    ranking = agruparPorNome(todosResultados, 'cavalo');
+    alvo = ranking[0] ? ranking[0][0] : cavaloQuery.toUpperCase();
+  }
+
+  // Filtra resultados para apenas o alvo (estatística específica, não agregada)
+  const resultadosDoAlvo = (cavaleiroQuery && cavaloQuery)
+    ? todosResultados
+    : todosResultados.filter(r => {
+        if (cavaleiroQuery) return nomeCavaleiro(r.cavaleiro_nome) === alvo;
+        return parseCavalo(r.cavalo_nome).nome === alvo;
+      });
+
+  const stats = calcularEstatisticas(resultadosDoAlvo);
+
+  // Aviso quando a busca casou com mais de 1 nome distinto
+  const outros = ranking.length > 1
+    ? `<div style="margin-top:10px;font-size:10.5px;color:var(--muted);line-height:1.4">Sua busca casou com <strong style="color:var(--accent)">${ranking.length}</strong> ${cavaleiroQuery ? 'cavaleiros' : 'cavalos'}. Estatísticas acima são apenas de <strong>${escHtml(alvo)}</strong>. Refine a busca para ver outros (ex: ${ranking.slice(1, 3).map(r => `<em>${escHtml(r[0])}</em>`).join(', ')}).</div>`
+    : '';
+
+  return `
+    <div class="stats-card">
+      <div class="stats-eyebrow">${escHtml(eyebrow)}</div>
+      <div class="stats-title">${escHtml(alvo)}</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value">${stats.totalEntradas}</div>
+          <div class="stat-label">Participações<br>(${stats.totalProvas} provas)</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${stats.pctZerados}%</div>
+          <div class="stat-label">Percursos<br>Zero (${stats.zerados})</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${stats.pctVitorias}%</div>
+          <div class="stat-label">Vitórias<br>(${stats.vitorias})</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${stats.pctTop6}%</div>
+          <div class="stat-label">Top 6<br>(${stats.top6})</div>
+        </div>
+      </div>
+      ${outros}
+    </div>
+  `;
+}
+
 // ─── Renderização em modo busca global ──────────────────────
 async function renderGlobalSearch(cavaleiro, cavalo) {
   const container = $id('provas-container');
@@ -1108,7 +1274,9 @@ async function renderGlobalSearch(cavaleiro, cavalo) {
     return db.localeCompare(da);
   });
 
-  container.innerHTML = '';
+  // Dashboard de estatísticas no topo (só em modo busca global)
+  container.innerHTML = buildStatsCard(resultados, cavaleiro, cavalo);
+
   torneiosOrdenados.forEach((grupo, gi) => {
     const wrapTorneio = document.createElement('div');
     wrapTorneio.className = 'prova-block open';
