@@ -532,7 +532,7 @@ mark {
   <div class="filters-section">
     <div class="filters-title">Filtros</div>
     <div class="filters-grid">
-      <div class="filter-field">
+      <div class="filter-field wide">
         <label class="filter-label">Federação</label>
         <select class="filter-select" id="filter-fonte">
           <option value="">Todas</option>
@@ -541,6 +541,12 @@ mark {
       <div class="filter-field">
         <label class="filter-label">Ano</label>
         <select class="filter-select" id="filter-ano">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="filter-field">
+        <label class="filter-label">Mês</label>
+        <select class="filter-select" id="filter-mes">
           <option value="">Todos</option>
         </select>
       </div>
@@ -658,6 +664,20 @@ function extrairAno(nome) {
   return m ? parseInt(m[1]) : null;
 }
 
+const NOMES_MESES = ['—','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// Pega o ano efetivo: data_inicio se existir, senão do nome
+function anoDoTorneio(t) {
+  if (t.data_inicio) return parseInt(t.data_inicio.substring(0, 4));
+  return t.ano;
+}
+
+// Mês a partir de data_inicio (1..12) ou null
+function mesDoTorneio(t) {
+  if (!t.data_inicio) return null;
+  return parseInt(t.data_inicio.substring(5, 7));
+}
+
 // ─── Helpers ─────────────────────────────────────────────────
 const $id = id => document.getElementById(id);
 
@@ -728,7 +748,8 @@ async function loadData() {
   try {
     const { data: torneios, error: errT } = await sb
       .from('torneios')
-      .select('id, nome, fonte')
+      .select('id, nome, fonte, data_inicio, data_fim')
+      .order('data_inicio', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false });
 
     if (errT) throw errT;
@@ -737,17 +758,18 @@ async function loadData() {
       return;
     }
 
-    // Enriquece com ano e mantém em allTorneios para filtragem
+    // Enriquece com ano (data_inicio se houver, senão do nome)
     allTorneios = torneios.map(t => ({
       ...t,
-      ano: extrairAno(t.nome),
+      ano: t.data_inicio ? parseInt(t.data_inicio.substring(0, 4)) : extrairAno(t.nome),
     }));
 
-    // Popula filtros de fonte e ano (a partir do que existe no banco)
+    // Popula filtros de fonte, ano e mês
     populateFonteFilter();
     populateAnoFilter();
+    populateMesFilter();
 
-    // Popula a lista inicial de torneios (sem filtros = tudo)
+    // Popula a lista inicial de torneios (sem filtros = tudo, já ordenada por data DESC)
     populateTorneioFilter();
 
     // Carrega o primeiro torneio visível
@@ -790,15 +812,33 @@ function populateAnoFilter() {
   });
 }
 
-// Popula o dropdown de torneios respeitando filtros fonte/ano/busca
+function populateMesFilter() {
+  const sel = $id('filter-mes');
+  // Lista todos os meses 1-12; idealmente filtrar pelos que têm dados, mas isso depende do Ano selecionado
+  sel.innerHTML = '<option value="">Todos</option>';
+  for (let m = 1; m <= 12; m++) {
+    const opt = document.createElement('option');
+    opt.value = m;
+    opt.textContent = NOMES_MESES[m];
+    sel.appendChild(opt);
+  }
+}
+
+// Popula o dropdown de torneios respeitando filtros fonte/ano/mes/busca
+// (já ordenado por data DESC vindo da query Supabase)
 function populateTorneioFilter() {
   const fonte = $id('filter-fonte').value;
   const ano = $id('filter-ano').value;
+  const mes = $id('filter-mes').value;
   const busca = ($id('filter-torneio-search').value || '').trim().toLowerCase();
 
   const filtrados = allTorneios.filter(t => {
     if (fonte && t.fonte !== fonte) return false;
     if (ano && String(t.ano) !== ano) return false;
+    if (mes) {
+      const tMes = mesDoTorneio(t);
+      if (!tMes || String(tMes) !== mes) return false;
+    }
     if (busca && !(t.nome || '').toLowerCase().includes(busca)) return false;
     return true;
   });
@@ -817,7 +857,10 @@ function populateTorneioFilter() {
   filtrados.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id;
-    opt.textContent = `[${t.fonte || '?'}] ${t.nome}`;
+    const dataLabel = t.data_inicio
+      ? `${t.data_inicio.substring(8,10)}/${t.data_inicio.substring(5,7)}/${t.data_inicio.substring(2,4)} · `
+      : '';
+    opt.textContent = `${dataLabel}[${t.fonte || '?'}] ${t.nome}`;
     sel.appendChild(opt);
   });
 }
@@ -1052,12 +1095,13 @@ function toggleProva(provaId) {
 
 // ─── Limpar filtros ───────────────────────────────────────────
 function clearFilters() {
-  $id('filter-fonte').value         = '';
-  $id('filter-ano').value            = '';
-  $id('filter-torneio-search').value = '';
-  $id('filter-prova').value          = '';
-  $id('filter-cavaleiro').value      = '';
-  $id('filter-cavalo').value         = '';
+  $id('filter-fonte').value          = '';
+  $id('filter-ano').value             = '';
+  $id('filter-mes').value             = '';
+  $id('filter-torneio-search').value  = '';
+  $id('filter-prova').value           = '';
+  $id('filter-cavaleiro').value       = '';
+  $id('filter-cavalo').value          = '';
   onTorneioListChange();
 }
 
@@ -1088,6 +1132,7 @@ function onTorneioListChange() {
 }
 $id('filter-fonte').addEventListener('change', onTorneioListChange);
 $id('filter-ano').addEventListener('change', onTorneioListChange);
+$id('filter-mes').addEventListener('change', onTorneioListChange);
 
 let buscaTimer;
 $id('filter-torneio-search').addEventListener('input', () => {
