@@ -687,6 +687,43 @@ body {
 .evt-lvl { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
 .evt-name { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px; }
 .evt-loc { font-size: 11px; color: var(--muted); }
+.evt-tag {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255,255,255,.04);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.evt-tag.cbh { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+.evt-tag.past { opacity: .45; }
+.evt-row-past { opacity: .55; }
+.evt-divider {
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+.evt-nav-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 900;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+}
+.evt-nav-btn:hover { background: var(--surface2); }
 
 /* ===========================
    NEWS CARDS (list)
@@ -1612,23 +1649,15 @@ body {
   </div>
 
   <!-- PRÓXIMOS EVENTOS -->
-  <div class="sec-hdr"><span class="sec-title">Próximos Eventos</span><button class="sec-link" onclick="nav('noticias')">VER CALENDÁRIO →</button></div>
-  <div class="events-list">
-    <div class="event-row">
-      <div class="evt-date"><div class="evt-day">24</div><div class="evt-mon">Mai</div></div>
-      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">Grand Prix Roma</div><div class="evt-loc">📍 Roma, ITA</div></div>
-      <span style="font-size:20px">🇮🇹</span>
+  <div class="sec-hdr">
+    <span class="sec-title">Calendário · <span id="evt-mes-label">…</span></span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="evt-nav-btn" onclick="navMesCalendario(-1)" aria-label="Mês anterior">‹</button>
+      <button class="evt-nav-btn" onclick="navMesCalendario(+1)" aria-label="Próximo mês">›</button>
     </div>
-    <div class="event-row">
-      <div class="evt-date"><div class="evt-day">29</div><div class="evt-mon">Mai</div></div>
-      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">St. Gallen</div><div class="evt-loc">📍 St. Gallen, SUI</div></div>
-      <span style="font-size:20px">🇨🇭</span>
-    </div>
-    <div class="event-row">
-      <div class="evt-date"><div class="evt-day">05</div><div class="evt-mon">Jun</div></div>
-      <div class="evt-info"><div class="evt-lvl">CSIO5*</div><div class="evt-name">Hamburgo Grand Prix</div><div class="evt-loc">📍 Hamburgo, GER</div></div>
-      <span style="font-size:20px">🇩🇪</span>
-    </div>
+  </div>
+  <div class="events-list" id="events-list">
+    <div style="padding:24px 16px;color:var(--muted);font-size:13px;text-align:center">Carregando eventos…</div>
   </div>
 
   <!-- ÚLTIMAS NOTÍCIAS -->
@@ -2608,21 +2637,151 @@ function setZrEntity(entity) {
   renderRankings();
 }
 
-async function renderEvents() {
-  const container = document.querySelector('.events-list');
-  if (!container) return;
-  const items = await DB.events();
-  container.innerHTML = items.slice(0, 3).map(e => `
-    <div class="event-row">
-      <div class="evt-date"><div class="evt-day">${e.day}</div><div class="evt-mon">${e.mon}</div></div>
-      <div class="evt-info">
-        <div class="evt-lvl">${e.level}</div>
-        <div class="evt-name">${e.name}</div>
-        <div class="evt-loc">📍 ${e.loc}</div>
+// ═══════════════════════════════════════════════════════════════
+// CALENDÁRIO — Próximos Eventos
+//
+// Combina torneios (federações já scrapeadas) + eventos_cbh (PDF CBH).
+// Navega por mês com ‹ ›. Default = mês corrente.
+// Eventos passados aparecem em opacidade reduzida; futuros em destaque.
+// ═══════════════════════════════════════════════════════════════
+
+const MESES_ABREV = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const MESES_LONG  = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+let _evtMes = new Date().getMonth();   // 0..11
+let _evtAno = new Date().getFullYear();
+let _evtCache = null;                   // { torneios:[], cbh:[] }
+
+async function _evtFetchData(ano) {
+  if (_evtCache && _evtCache.ano === ano) return _evtCache;
+  const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
+  const [tor, cbh] = await Promise.all([
+    sb.from('torneios').select('id, nome, fonte, data_inicio, data_fim, fingerprint')
+      .gte('data_inicio', ini).lte('data_inicio', fim)
+      .order('data_inicio', { ascending: true }),
+    sb.from('eventos_cbh').select('id, evento, tipo, estado, federacao, local, data_inicio, data_fim, fingerprint')
+      .gte('data_inicio', ini).lte('data_inicio', fim)
+      .order('data_inicio', { ascending: true }),
+  ]);
+  _evtCache = { ano, torneios: tor.data || [], cbh: cbh.data || [] };
+  return _evtCache;
+}
+
+// Junta torneios + cbh, dedup por fingerprint (já temos torneios.fingerprint
+// e eventos_cbh.fingerprint; se baterem, prioriza torneio = dado real)
+function _evtMerge(torneios, cbhEventos, mes) {
+  const m1 = String(mes + 1).padStart(2, '0');
+  // Filtra ambos pelo mês
+  const tt = torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
+  const cc = cbhEventos.filter(c => (c.data_inicio || '').substring(5, 7) === m1);
+
+  // Set de fingerprints de torneios — exclui cbh duplicados
+  const torneioFps = new Set();
+  for (const t of tt) {
+    // torneio.fingerprint não selecionei mas a tabela tem; vou criar um aqui
+    if (t.fingerprint) torneioFps.add(t.fingerprint);
+  }
+  const cbhFiltrado = cc.filter(c => !torneioFps.has(c.fingerprint));
+
+  // Normaliza pra estrutura única
+  const events = [
+    ...tt.map(t => ({
+      id: `t-${t.id}`,
+      data_inicio: t.data_inicio,
+      data_fim: t.data_fim,
+      nome: t.nome,
+      tipo: null,
+      estado: null,
+      federacao: t.fonte,
+      local: null,
+      source: 'torneio',
+    })),
+    ...cbhFiltrado.map(c => ({
+      id: `c-${c.id}`,
+      data_inicio: c.data_inicio,
+      data_fim: c.data_fim,
+      nome: c.evento,
+      tipo: c.tipo,
+      estado: c.estado,
+      federacao: c.federacao,
+      local: c.local,
+      source: 'cbh',
+    })),
+  ];
+
+  // Ordena por data ASC
+  events.sort((a, b) => (a.data_inicio || '').localeCompare(b.data_inicio || ''));
+  return events;
+}
+
+function _evtFormatDate(iso) {
+  if (!iso) return { day: '--', mon: '---' };
+  const [, m, d] = iso.split('-');
+  return { day: d, mon: MESES_ABREV[parseInt(m) - 1] };
+}
+
+function _evtIsPast(iso) {
+  if (!iso) return false;
+  const today = new Date().toISOString().substring(0, 10);
+  return iso < today;
+}
+
+function _evtBuildRow(e) {
+  const d = _evtFormatDate(e.data_inicio);
+  const past = _evtIsPast(e.data_fim || e.data_inicio);
+  const tag = e.source === 'cbh'
+    ? `<span class="evt-tag cbh">CBH</span>`
+    : `<span class="evt-tag">${escHtml(e.federacao || '?')}</span>`;
+  const loc = [e.local, e.estado].filter(Boolean).join(' · ');
+  const nomeFirstLine = (e.nome || '').split(/\n/)[0];
+  const nomeExtras = (e.nome || '').split(/\n/).slice(1).filter(Boolean).join(' · ');
+  return `
+    <div class="event-row ${past ? 'evt-row-past' : ''}">
+      <div class="evt-date">
+        <div class="evt-day">${d.day}</div>
+        <div class="evt-mon">${d.mon}</div>
       </div>
-      <span style="font-size:20px">${e.flag||''}</span>
+      <div class="evt-info">
+        <div class="evt-lvl">${escHtml(e.tipo || 'TORNEIO')}${tag}</div>
+        <div class="evt-name">${escHtml(nomeFirstLine)}</div>
+        ${nomeExtras ? `<div class="evt-loc" style="font-size:10.5px">${escHtml(nomeExtras)}</div>` : ''}
+        ${loc ? `<div class="evt-loc">📍 ${escHtml(loc)}</div>` : ''}
+      </div>
     </div>
-  `).join('');
+  `;
+}
+
+async function renderEvents() {
+  const container = document.getElementById('events-list');
+  const label = document.getElementById('evt-mes-label');
+  if (!container) return;
+
+  label.textContent = `${MESES_LONG[_evtMes]} ${_evtAno}`;
+
+  let data;
+  try {
+    data = await _evtFetchData(_evtAno);
+  } catch (e) {
+    container.innerHTML = `<div style="padding:24px 16px;color:var(--muted);font-size:13px;text-align:center">Erro carregando: ${escHtml(e.message)}</div>`;
+    return;
+  }
+
+  const events = _evtMerge(data.torneios, data.cbh, _evtMes);
+
+  if (!events.length) {
+    container.innerHTML = `<div style="padding:24px 16px;color:var(--muted);font-size:13px;text-align:center">Sem eventos cadastrados em ${MESES_LONG[_evtMes]}.</div>`;
+    return;
+  }
+
+  container.innerHTML = events.map(_evtBuildRow).join('');
+}
+
+function navMesCalendario(delta) {
+  _evtMes += delta;
+  if (_evtMes < 0) { _evtMes = 11; _evtAno--; _evtCache = null; }
+  if (_evtMes > 11) { _evtMes = 0; _evtAno++; _evtCache = null; }
+  renderEvents();
 }
 
 // ─── TABS: PODCAST / VIDEOAULAS ──────────────────────────────
