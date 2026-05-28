@@ -91,6 +91,20 @@ const TOOLS = [
       query: { type: "string", description: "Palavra-chave ou frase a buscar (ex: 'premiação', 'juiz', 'desenhador', 'horário da copa ouro')" },
       tipo_doc: { type: "string", enum: ["programa", "adendo", "horarios", "outros"], description: "Filtrar por tipo (opcional)" },
     }, required: ["torneio_termo", "query"] } },
+  // ───────────────── DOCS ESTRUTURADOS (JSONB) ──────────────────
+  { name: "programa_torneio", description: "Retorna o PROGRAMA OFICIAL estruturado de um torneio: oficiais (juiz presidente, desenhador, etc), lista de provas com altura/tabela/categoria/data/horário/premiação, regulamento resumido. Use quando o usuário pergunta sobre detalhes do programa: 'quem é o juiz', 'qual a premiação da PR.04', 'que dia é a Copa Ouro', etc.",
+    input_schema: { type: "object", properties: {
+      torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
+    }, required: ["torneio_termo"] } },
+  { name: "horarios_torneio", description: "Retorna o QUADRO DE HORÁRIOS estruturado de um torneio: dias com lista de horas+provas. Use quando o usuário pergunta 'que horas começa', 'qual o horário da prova X', 'agenda do dia tal'. Sempre usa a versão MAIS RECENTE do quadro.",
+    input_schema: { type: "object", properties: {
+      torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
+      data: { type: "string", description: "Filtrar por data específica (formato DD/MM ou DD/MM/AAAA). Opcional." },
+    }, required: ["torneio_termo"] } },
+  { name: "adendos_torneio", description: "Retorna os ADENDOS publicados de um torneio: lista de mudanças (alteração de prova, horário, premiação, regulamento) + resumo executivo. Use quando o usuário pergunta 'teve adendo?', 'mudou algo?', 'última atualização do programa', 'qual a versão atual'.",
+    input_schema: { type: "object", properties: {
+      torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
+    }, required: ["torneio_termo"] } },
 ];
 
 // ─── EXECUTORES ─────────────────────────────────────────────────────
@@ -413,6 +427,84 @@ async function tool_buscar_em_documentos({ torneio_termo, query, tipo_doc }: any
   };
 }
 
+// ─── DOCS ESTRUTURADOS (lê do JSONB conteudo_estruturado) ─────────
+async function _buscaDocsEstruturados(torneio_termo: string, tipo: string) {
+  const matched = await buscarTorneiosSmart(torneio_termo);
+  if (!matched.length) return { erro: `Nenhum torneio achado com "${torneio_termo}"` };
+  const t: any = matched[0];
+  const { data } = await sb.from("torneio_documentos")
+    .select("id, tipo, titulo, data_publicacao, url_pdf, conteudo_estruturado")
+    .eq("torneio_id", t.id).eq("tipo", tipo)
+    .not("conteudo_estruturado", "is", null)
+    .order("data_publicacao", { ascending: false });
+  return { torneio: t, docs: data || [] };
+}
+
+async function tool_programa_torneio({ torneio_termo }: any) {
+  const r = await _buscaDocsEstruturados(torneio_termo, "programa");
+  if ((r as any).erro) return r;
+  const { torneio, docs } = r as any;
+  if (!docs.length) {
+    return { torneio: torneio.nome, erro: "Sem programa estruturado disponível pra esse torneio." };
+  }
+  // Pega o mais recente
+  return {
+    torneio: torneio.nome,
+    fonte: torneio.fonte,
+    publicado_em: docs[0].data_publicacao,
+    url_pdf: docs[0].url_pdf,
+    programa: docs[0].conteudo_estruturado,
+  };
+}
+
+async function tool_horarios_torneio({ torneio_termo, data }: any) {
+  const r = await _buscaDocsEstruturados(torneio_termo, "horarios");
+  if ((r as any).erro) return r;
+  const { torneio, docs } = r as any;
+  if (!docs.length) {
+    return { torneio: torneio.nome, erro: "Sem quadro de horários estruturado pra esse torneio." };
+  }
+  const maisRecente = docs[0];
+  const estrut = maisRecente.conteudo_estruturado as any;
+  let dias = estrut?.dias || [];
+
+  // Filtra por data se passado
+  if (data && Array.isArray(dias)) {
+    const norm = data.replace(/\D/g, "");
+    dias = dias.filter((d: any) => {
+      const dn = String(d.data || "").replace(/\D/g, "");
+      return dn.includes(norm) || norm.includes(dn.substring(0, 4));
+    });
+  }
+
+  return {
+    torneio: torneio.nome,
+    versao_publicada_em: maisRecente.data_publicacao,
+    validade_do_quadro: estrut?.validade,
+    url_pdf: maisRecente.url_pdf,
+    dias,
+  };
+}
+
+async function tool_adendos_torneio({ torneio_termo }: any) {
+  const r = await _buscaDocsEstruturados(torneio_termo, "adendo");
+  if ((r as any).erro) return r;
+  const { torneio, docs } = r as any;
+  if (!docs.length) {
+    return { torneio: torneio.nome, adendos: [], info: "Nenhum adendo publicado pra esse torneio até o momento." };
+  }
+  return {
+    torneio: torneio.nome,
+    total_adendos: docs.length,
+    adendos: docs.map((d: any) => ({
+      titulo: d.titulo,
+      publicado_em: d.data_publicacao,
+      url_pdf: d.url_pdf,
+      ...d.conteudo_estruturado,
+    })),
+  };
+}
+
 const TOOLS_MAP: Record<string, (input: any) => Promise<any>> = {
   buscar_cavaleiro: tool_buscar_cavaleiro,
   buscar_cavalo: tool_buscar_cavalo,
@@ -425,6 +517,9 @@ const TOOLS_MAP: Record<string, (input: any) => Promise<any>> = {
   vencedor_torneio: tool_vencedor_torneio,
   resultado_prova: tool_resultado_prova,
   buscar_em_documentos: tool_buscar_em_documentos,
+  programa_torneio: tool_programa_torneio,
+  horarios_torneio: tool_horarios_torneio,
+  adendos_torneio: tool_adendos_torneio,
 };
 
 const SYSTEM_PROMPT = `Você é o assistente de hipismo do portal Cavalar.IA. Responde em português brasileiro, com conhecimento técnico do esporte (salto principalmente).
@@ -450,6 +545,14 @@ PRINCÍPIO #7 (CRÍTICO - SEMPRE OBEDEÇA): RESPONDA APENAS A PERGUNTA ATUAL.
 - NUNCA repita info que já deu na resposta anterior.
 - Use o histórico SOMENTE pra entender pronomes/referências implícitas (ex: "e o cavalo dele?" → você sabe quem é "dele" pelo contexto).
 - Cada resposta começa DIRETAMENTE com a info da pergunta atual.
+
+PRINCÍPIO #8: PROGRAMAS, HORÁRIOS E ADENDOS. Pra perguntas sobre programa oficial, horários, premiações, regulamentos, juízes, mudanças (adendos) de um torneio, USE AS TOOLS ESPECÍFICAS:
+- "qual o programa do [torneio]?", "quem é o juiz presidente?", "qual a premiação da prova 1,40m?", "que dia é o GP?" → use programa_torneio
+- "que horas começa?", "qual o horário da Copa Ouro?", "agenda do sábado?" → use horarios_torneio (dado mais ATUALIZADO sempre)
+- "teve adendo?", "qual a última mudança?", "o programa foi alterado?" → use adendos_torneio
+- Pra busca livre em qualquer texto (regulamento detalhado, observações), use buscar_em_documentos como fallback.
+
+IMPORTANTE: Quando responder com base em programa/horários/adendos, SEMPRE mencione a data de publicação do documento (publicado_em) — assim o usuário sabe se a info é recente. Se houver adendos posteriores ao programa, mencione que houve atualização.
 
 Estilo: direto, técnico, sem rodeios. Use números, percentuais. Frases curtas. Não cite as ferramentas pelo nome.`;
 
