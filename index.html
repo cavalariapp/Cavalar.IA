@@ -851,6 +851,76 @@ body {
   border-radius: 6px;
 }
 
+/* ─── DOC EXPANDABLE ─── */
+.tor-doc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.tor-doc-hdr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.tor-doc-hdr:hover { background: var(--surface2); }
+.tor-doc-toggle {
+  font-size: 14px;
+  color: var(--accent);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.tor-doc-text {
+  border-top: 1px solid var(--border);
+  padding: 0;
+}
+.tor-doc-text-bar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.tor-doc-search {
+  flex: 1;
+  min-width: 160px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 7px 11px;
+  color: var(--fg);
+  font-size: 12px;
+  outline: none;
+}
+.tor-doc-search:focus { border-color: var(--accent); }
+.tor-doc-pdf-link {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.tor-doc-pdf-link:hover { text-decoration: underline; }
+.tor-doc-content {
+  padding: 14px;
+  margin: 0;
+  font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 55vh;
+  overflow-y: auto;
+  background: var(--bg);
+}
+
 /* ─── CHATBOT ─── */
 .cb-fab {
   position: fixed;
@@ -3513,7 +3583,7 @@ async function _loadTorneioDetail(evtId) {
   let docs = [];
   if (torneioId) {
     const { data } = await sb.from('torneio_documentos')
-      .select('id, tipo, titulo, data_publicacao, url_pdf, visto_em, criado_em')
+      .select('id, tipo, titulo, data_publicacao, url_pdf, visto_em, criado_em, texto_extraido')
       .eq('torneio_id', torneioId)
       .order('data_publicacao', { ascending: false });
     docs = data || [];
@@ -3536,13 +3606,29 @@ async function _loadTorneioDetail(evtId) {
     return `
       <div class="tor-section-title">${titulo}</div>
       ${lista.map(d => `
-        <a class="tor-doc" href="${d.url_pdf}" target="_blank" rel="noopener">
-          <div class="tor-doc-icon">📄</div>
-          <div class="tor-doc-body">
-            <div class="tor-doc-title">${escHtml(d.titulo)}${isNovo(d) ? '<span class="tor-doc-new">Novo</span>' : ''}</div>
-            <div class="tor-doc-date">Publicado em ${_fmtData(d.data_publicacao) || '—'}</div>
+        <div class="tor-doc-card">
+          <div class="tor-doc-hdr" onclick="_toggleDocText(${d.id})">
+            <div class="tor-doc-icon">📄</div>
+            <div class="tor-doc-body">
+              <div class="tor-doc-title">${escHtml(d.titulo)}${isNovo(d) ? '<span class="tor-doc-new">Novo</span>' : ''}</div>
+              <div class="tor-doc-date">Publicado em ${_fmtData(d.data_publicacao) || '—'}</div>
+            </div>
+            <div class="tor-doc-toggle">${d.texto_extraido ? '▾' : '↗'}</div>
           </div>
-        </a>
+          ${d.texto_extraido ? `
+            <div class="tor-doc-text" id="doctext-${d.id}" style="display:none">
+              <div class="tor-doc-text-bar">
+                <input type="search" class="tor-doc-search" placeholder="Buscar no documento..." oninput="_searchInDoc(${d.id}, this.value)">
+                <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>
+              </div>
+              <pre class="tor-doc-content" id="doccontent-${d.id}">${escHtml(d.texto_extraido)}</pre>
+            </div>
+          ` : `
+            <div class="tor-doc-text" style="display:none">
+              <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link" style="margin:12px">Abrir PDF original ↗</a>
+            </div>
+          `}
+        </div>
       `).join('')}
     `;
   };
@@ -3577,6 +3663,33 @@ async function _loadTorneioDetail(evtId) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeTorModal(); closeChatbot(); }
 });
+
+// Toggle expansão do texto extraído do PDF
+function _toggleDocText(docId) {
+  const el = document.getElementById(`doctext-${docId}`);
+  if (!el) return;
+  el.style.display = (el.style.display === 'none' ? 'block' : 'none');
+}
+
+// Busca dentro do texto do documento (highlight + scroll)
+function _searchInDoc(docId, term) {
+  const content = document.getElementById(`doccontent-${docId}`);
+  if (!content) return;
+  // Pega o texto original do dataset (preserva estado limpo)
+  if (!content._original) content._original = content.textContent;
+  const raw = content._original;
+  if (!term || term.length < 2) {
+    content.innerHTML = escHtml(raw);
+    return;
+  }
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(${escaped})`, 'gi');
+  const highlighted = escHtml(raw).replace(re, '<mark style="background:var(--accent-dim);color:var(--accent);border-radius:2px;padding:0 2px">$1</mark>');
+  content.innerHTML = highlighted;
+  // Auto-scroll pro primeiro match
+  const firstMark = content.querySelector('mark');
+  if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 </script>
 
 <!-- ───────── CHATBOT FAB + PANEL ───────── -->
