@@ -549,6 +549,126 @@ body {
 .rank-name { font-size: 13px; font-weight: 600; }
 .rank-pts { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 
+/* ─── ZERO-STREAK RANKINGS CAROUSEL ─── */
+.zr-section { margin: 0 0 24px; }
+.zr-toggle {
+  display: inline-flex;
+  margin: 0 16px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  gap: 2px;
+}
+.zr-toggle-btn {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .18s, color .18s;
+}
+.zr-toggle-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+.zr-carousel {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  padding: 0 16px;
+  gap: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.zr-carousel::-webkit-scrollbar { display: none; }
+.zr-slide {
+  flex: 0 0 calc(100% - 16px);
+  scroll-snap-align: start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.zr-slide-hdr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--accent);
+}
+.zr-altura {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  font-style: italic;
+  color: #fff;
+  letter-spacing: -.01em;
+}
+.zr-altura-sub {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.zr-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  padding: 9px 14px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.zr-row:last-child { border-bottom: none; }
+.zr-pos {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.zr-pos.top1 { color: #fbbf24; }
+.zr-pos.top2 { color: #94a3b8; }
+.zr-pos.top3 { color: #cd7c2f; }
+.zr-name { font-size: 12.5px; font-weight: 600; color: var(--fg); line-height: 1.25; }
+.zr-name small { display:block; font-size:10px; color:var(--muted); font-weight:400; margin-top:2px; }
+.zr-streak {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.zr-streak .zr-plus { color: var(--green); font-style: normal; }
+.zr-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+.zr-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  margin: 10px 0 0;
+}
+.zr-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .15s, width .15s;
+}
+.zr-dot.active { background: var(--accent); width: 18px; }
+
 /* ===========================
    EVENTS LIST
 =========================== */
@@ -1476,18 +1596,19 @@ body {
     </div>
   </div>
 
-  <!-- TOP RANKINGS -->
-  <div class="sec-hdr"><span class="sec-title">Top Rankings</span><button class="sec-link">VER TODOS →</button></div>
-  <div class="rank-card">
-    <div class="rank-hdr">
-      <span class="rank-hdr-title">Ranking Longines</span>
-      <span style="font-size:10px;color:var(--muted)">▼ Categoria</span>
+  <!-- ZERO-STREAK RANKINGS -->
+  <div class="sec-hdr">
+    <span class="sec-title">Sequência de Zeros · 2026</span>
+    <div class="zr-toggle" style="margin:0">
+      <button class="zr-toggle-btn active" data-entity="cavaleiro" onclick="setZrEntity('cavaleiro')">Cavaleiros</button>
+      <button class="zr-toggle-btn" data-entity="cavalo" onclick="setZrEntity('cavalo')">Cavalos</button>
     </div>
-    <div class="rank-row"><span class="rank-pos top3">1</span><span class="rank-name">Henrik von Eckermann</span><span class="rank-pts">4312</span></div>
-    <div class="rank-row"><span class="rank-pos top3">2</span><span class="rank-name">Steve Guerdat</span><span class="rank-pts">3987</span></div>
-    <div class="rank-row"><span class="rank-pos top3">3</span><span class="rank-name">Julien Epaillard</span><span class="rank-pts">3754</span></div>
-    <div class="rank-row"><span class="rank-pos">4</span><span class="rank-name">Ben Maher</span><span class="rank-pts">3288</span></div>
-    <div class="rank-row"><span class="rank-pos">5</span><span class="rank-name">Peder Fredricson</span><span class="rank-pts">3190</span></div>
+  </div>
+  <div class="zr-section">
+    <div class="zr-carousel" id="zr-carousel">
+      <div class="zr-slide"><div class="zr-empty">Carregando rankings…</div></div>
+    </div>
+    <div class="zr-dots" id="zr-dots"></div>
   </div>
 
   <!-- PRÓXIMOS EVENTOS -->
@@ -2268,20 +2389,223 @@ async function renderNews() {
   `).join('');
 }
 
-async function renderRankings() {
-  const container = document.querySelector('.rank-card');
-  if (!container) return;
-  const items = await DB.rankings();
-  const rows = container.querySelectorAll('.rank-row');
-  items.slice(0, 5).forEach((r, i) => {
-    if (rows[i]) {
-      rows[i].innerHTML = `
-        <span class="rank-pos ${i < 3 ? 'top3' : ''}">${r.pos}</span>
-        <span class="rank-name">${r.flag||''} ${r.name}</span>
-        <span class="rank-pts">${r.pts}</span>
-      `;
+// ═══════════════════════════════════════════════════════════════
+// ZERO-STREAK RANKINGS — sequência de percursos zerados consecutivos
+//
+// Regras (definidas pelo usuário):
+//   - Por altura: 1,00 / 1,10 / 1,20 / 1,30 / 1,35 / 1,40 / 1,45 / 1,50 / 1,55 / 1,60
+//   - Toggle global: cavaleiros OU cavalos
+//   - Ano vigente apenas (2026)
+//   - "Zerou" = penalidade total começa com 0 (vale pra Duas Fases: 0+0; ignora 4+0 e 0+4)
+//   - Ignora penalidade_2 (desempate / 2ª volta)
+//   - Display:
+//     * Se streak ATIVO atual >= melhor completado, mostra "N+" (com plus)
+//     * Senão, mostra a melhor sequência completa "N" (sem plus, ainda no ranking)
+//   - Top 10 por altura
+// ═══════════════════════════════════════════════════════════════
+
+const ZR_ALTURAS = ['1,00M', '1,10M', '1,20M', '1,30M', '1,35M', '1,40M', '1,45M', '1,50M', '1,55M', '1,60M'];
+const ZR_ANO_VIGENTE = new Date().getFullYear();
+
+let _zrEntity = 'cavaleiro';        // 'cavaleiro' | 'cavalo'
+let _zrDataCache = null;             // resultados crus do banco
+let _zrComputedCache = { cavaleiro: null, cavalo: null };
+
+function _zrIsPenZero(p) {
+  if (!p) return false;
+  return /^0([\s\n(,]|$)/.test(p.trim());
+}
+
+function _zrCleanName(s) {
+  if (!s) return '';
+  return s.split(/\n/)[0].split(/\s*\|\s*/)[0].trim();
+}
+
+/**
+ * Calcula streak (length + active) para uma sequência de resultados ordenados
+ * cronologicamente, segundo a regra B do usuário:
+ *   - Se active_current >= best_completed → mostra current + "+"
+ *   - Senão → mostra best_completed sem "+"
+ */
+function _zrComputeStreak(resultsOrdered) {
+  let bestCompleted = 0;
+  let currentActive = 0;
+  let lastDate = null;
+
+  for (const r of resultsOrdered) {
+    if (_zrIsPenZero(r.penalidade)) {
+      currentActive++;
+    } else {
+      if (currentActive > bestCompleted) bestCompleted = currentActive;
+      currentActive = 0;
     }
+    if (r._sortDate && (!lastDate || r._sortDate > lastDate)) lastDate = r._sortDate;
+  }
+
+  let length, active;
+  if (currentActive > 0 && currentActive >= bestCompleted) {
+    length = currentActive;
+    active = true;
+  } else {
+    length = bestCompleted;
+    active = false;
+  }
+  return { length, active, lastDate };
+}
+
+/** Faz query paginada com filtro por altura + ano vigente */
+async function _zrFetchData() {
+  if (_zrDataCache) return _zrDataCache;
+  const ano = ZR_ANO_VIGENTE;
+  const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
+  const PAGE = 1000;
+  const out = [];
+
+  // Paginação até esgotar (Supabase tem limite hard de 1000 por chamada)
+  for (let offset = 0; offset < 20000; offset += PAGE) {
+    const { data, error } = await sb
+      .from('resultados')
+      .select(`
+        id, cavaleiro_nome, cavalo_nome, penalidade,
+        provas!inner ( id, numero, descricao, tipo_prova, torneio_id,
+          torneios!inner ( id, data_inicio )
+        )
+      `)
+      .in('provas.descricao', ZR_ALTURAS)
+      .gte('provas.torneios.data_inicio', ini)
+      .lte('provas.torneios.data_inicio', fim)
+      .range(offset, offset + PAGE - 1);
+
+    if (error) { console.warn('zr fetch error', error); break; }
+    if (!data || data.length === 0) break;
+
+    for (const r of data) {
+      const desc = r.provas?.descricao;
+      if (!ZR_ALTURAS.includes(desc)) continue;
+      const dt = r.provas?.torneios?.data_inicio;
+      if (!dt) continue;
+      out.push({
+        penalidade: r.penalidade,
+        cavaleiro: _zrCleanName(r.cavaleiro_nome),
+        cavalo:    _zrCleanName(r.cavalo_nome),
+        altura: desc,
+        _sortKey: `${dt}|${String(r.provas.numero || 0).padStart(4, '0')}|${String(r.id).padStart(8, '0')}`,
+        _sortDate: dt,
+      });
+    }
+    if (data.length < PAGE) break; // chegou ao fim
+  }
+
+  out.sort((a, b) => a._sortKey.localeCompare(b._sortKey));
+  _zrDataCache = out;
+  return out;
+}
+
+/** Computa, para a entidade escolhida, top 10 por altura */
+async function _zrCompute(entity) {
+  if (_zrComputedCache[entity]) return _zrComputedCache[entity];
+  const data = await _zrFetchData();
+
+  const porAltura = {};
+  for (const alt of ZR_ALTURAS) porAltura[alt] = {};
+
+  // Agrupa por (altura, entidade) preservando ordem cronológica
+  for (const r of data) {
+    const nome = entity === 'cavaleiro' ? r.cavaleiro : r.cavalo;
+    if (!nome) continue;
+    const bucket = porAltura[r.altura];
+    if (!bucket) continue;
+    if (!bucket[nome]) bucket[nome] = [];
+    bucket[nome].push(r);
+  }
+
+  // Calcula streak e ordena
+  const result = {};
+  for (const alt of ZR_ALTURAS) {
+    const arr = [];
+    for (const [nome, lst] of Object.entries(porAltura[alt])) {
+      const s = _zrComputeStreak(lst);
+      if (s.length === 0) continue;
+      arr.push({ nome, ...s });
+    }
+    arr.sort((a, b) => {
+      if (b.length !== a.length) return b.length - a.length;       // streak DESC
+      if (b.active !== a.active) return b.active ? 1 : -1;          // ativos primeiro
+      return (b.lastDate || '').localeCompare(a.lastDate || '');    // mais recente
+    });
+    result[alt] = arr.slice(0, 10);
+  }
+  _zrComputedCache[entity] = result;
+  return result;
+}
+
+function _zrBuildSlide(altura, rows) {
+  const alturaLabel = altura.replace(',', '.').replace('M', 'm');
+  let body;
+  if (!rows || rows.length === 0) {
+    body = `<div class="zr-empty">Aguardando resultados em ${alturaLabel}.</div>`;
+  } else {
+    body = rows.map((r, i) => {
+      const pos = i + 1;
+      const cls = pos === 1 ? 'top1' : pos === 2 ? 'top2' : pos === 3 ? 'top3' : '';
+      const streak = r.active
+        ? `${r.length}<span class="zr-plus">+</span>`
+        : `${r.length}`;
+      return `
+        <div class="zr-row">
+          <span class="zr-pos ${cls}">${pos}º</span>
+          <span class="zr-name">${escHtml(r.nome)}</span>
+          <span class="zr-streak">${streak}</span>
+        </div>`;
+    }).join('');
+  }
+  return `
+    <div class="zr-slide">
+      <div class="zr-slide-hdr">
+        <div>
+          <div class="zr-altura-sub">Altura</div>
+          <div class="zr-altura">${alturaLabel}</div>
+        </div>
+        <div class="zr-altura-sub" style="color:var(--muted)">Top 10</div>
+      </div>
+      ${body}
+    </div>`;
+}
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function renderRankings() {
+  const carousel = document.getElementById('zr-carousel');
+  const dots = document.getElementById('zr-dots');
+  if (!carousel) return;
+
+  const data = await _zrCompute(_zrEntity);
+
+  carousel.innerHTML = ZR_ALTURAS.map(alt => _zrBuildSlide(alt, data[alt])).join('');
+  dots.innerHTML = ZR_ALTURAS.map((_, i) => `<span class="zr-dot${i === 0 ? ' active' : ''}"></span>`).join('');
+
+  // Atualiza pontos conforme scroll
+  carousel.onscroll = () => {
+    const slideWidth = carousel.scrollWidth / ZR_ALTURAS.length;
+    const idx = Math.round(carousel.scrollLeft / slideWidth);
+    const dotEls = dots.querySelectorAll('.zr-dot');
+    dotEls.forEach((d, i) => d.classList.toggle('active', i === idx));
+  };
+}
+
+function setZrEntity(entity) {
+  if (entity !== 'cavaleiro' && entity !== 'cavalo') return;
+  _zrEntity = entity;
+  document.querySelectorAll('.zr-toggle-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.entity === entity);
   });
+  // Reseta scroll do carrossel
+  const c = document.getElementById('zr-carousel');
+  if (c) c.scrollLeft = 0;
+  renderRankings();
 }
 
 async function renderEvents() {
