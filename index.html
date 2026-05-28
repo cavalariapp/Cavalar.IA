@@ -3290,14 +3290,19 @@ function _evtIsPast(iso) {
 function _evtBuildRow(e) {
   const d = _evtFormatDate(e.data_inicio, e.data_fim);
   const past = _evtIsPast(e.data_fim || e.data_inicio);
-  const tag = e.source === 'cbh'
-    ? `<span class="evt-tag cbh">CBH</span>`
+  const isAguardando = e.source === 'cbh';
+  // Tag: CBH = aguardando publicação pela federação X
+  const tag = isAguardando
+    ? `<span class="evt-tag cbh" title="Aguardando publicação por ${escHtml(e.federacao || '?')}">📋 ${escHtml(e.federacao || 'CBH')}</span>`
     : `<span class="evt-tag">${escHtml(e.federacao || '?')}</span>`;
   const loc = [e.local, e.estado].filter(Boolean).join(' · ');
   const nomeFirstLine = (e.nome || '').split(/\n/)[0];
   const nomeExtras = (e.nome || '').split(/\n/).slice(1).filter(Boolean).join(' · ');
+  const statusBadge = isAguardando
+    ? `<div class="evt-aguardando" style="font-size:10.5px;color:var(--muted);margin-top:4px">⏳ Aguardando programa da federação</div>`
+    : '';
   return `
-    <div class="event-row ${past ? 'evt-row-past' : ''}" onclick="openTorModal('${e.id}')">
+    <div class="event-row ${past ? 'evt-row-past' : ''} ${isAguardando ? 'evt-aguardando-row' : ''}" onclick="openTorModal('${e.id}')">
       <div class="evt-date">
         <div class="evt-day${d.small ? ' small' : ''}">${d.display}</div>
         <div class="evt-mon">${d.mon}</div>
@@ -3307,6 +3312,7 @@ function _evtBuildRow(e) {
         <div class="evt-name">${escHtml(nomeFirstLine)}</div>
         ${nomeExtras ? `<div class="evt-loc" style="font-size:10.5px">${escHtml(nomeExtras)}</div>` : ''}
         ${loc ? `<div class="evt-loc">📍 ${escHtml(loc)}</div>` : ''}
+        ${statusBadge}
       </div>
     </div>
   `;
