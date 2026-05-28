@@ -920,6 +920,122 @@ body {
   overflow-y: auto;
   background: var(--bg);
 }
+.doc-pending {
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ─── QUADRO DE HORÁRIOS ─── */
+.qh-wrap { padding: 12px 14px; max-height: 60vh; overflow-y: auto; background: var(--bg); }
+.qh-validade { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
+.qh-dia { margin-bottom: 18px; }
+.qh-dia-hdr {
+  display: flex; align-items: baseline; gap: 10px;
+  background: var(--accent);
+  color: #fff;
+  padding: 7px 12px;
+  border-radius: 4px 4px 0 0;
+}
+.qh-dia-data { font-family: var(--font-display); font-size: 16px; font-weight: 900; font-style: italic; }
+.qh-dia-semana { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; opacity: .9; }
+.qh-provas { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 4px 4px; }
+.qh-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.qh-row:last-child { border-bottom: none; }
+.qh-hora {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 900;
+  font-style: italic;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.qh-prova { line-height: 1.3; }
+.qh-prova-num { font-size: 10px; font-weight: 800; color: var(--muted); letter-spacing: .08em; }
+.qh-altura { color: var(--accent); margin-left: 4px; }
+.qh-prova-nome { font-size: 12.5px; font-weight: 600; color: #fff; margin: 2px 0; }
+.qh-cat, .qh-tabela { font-size: 10px; color: var(--muted); display: inline-block; margin-right: 6px; }
+.qh-pista {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 3px 7px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+/* ─── PROGRAMA ─── */
+.prg-wrap { padding: 12px 14px; max-height: 60vh; overflow-y: auto; background: var(--bg); }
+.prg-titulo { font-family: var(--font-display); font-size: 18px; font-weight: 900; font-style: italic; color: #fff; line-height: 1.1; margin-bottom: 8px; }
+.prg-tags { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 14px; }
+.prg-tag {
+  background: var(--accent);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  padding: 3px 8px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.prg-tag-mute { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+.prg-sec { margin-bottom: 18px; }
+.prg-sec-hdr {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .15em;
+  color: var(--accent);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 5px;
+  margin-bottom: 8px;
+}
+.prg-oficiais { font-size: 12px; line-height: 1.7; color: var(--fg); }
+.prg-oficiais strong { color: var(--muted); font-weight: 600; font-size: 11px; }
+.prg-prova {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+}
+.prg-prova-hdr { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 3px; }
+.prg-pnum { font-size: 9.5px; font-weight: 800; color: var(--accent); letter-spacing: .08em; background: var(--accent-dim); padding: 2px 6px; border-radius: 3px; }
+.prg-paltura { font-size: 13px; font-weight: 800; color: #fff; }
+.prg-ptabela { font-size: 9.5px; color: var(--muted); border: 1px solid var(--border); padding: 2px 6px; border-radius: 3px; }
+.prg-pnome { font-size: 12px; color: var(--fg); margin: 3px 0; }
+.prg-pcat { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.prg-premiacao { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.prg-premio { font-size: 11px; color: var(--fg); }
+.prg-premio strong { color: var(--accent); }
+.prg-texto { font-size: 12.5px; line-height: 1.6; color: var(--fg); }
+.prg-obs { font-size: 12px; line-height: 1.6; padding-left: 20px; color: var(--fg); }
+
+/* ─── ADENDO ─── */
+.adendo-wrap { padding: 14px; max-height: 60vh; overflow-y: auto; background: var(--bg); }
+.adendo-hdr { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+.adendo-num { background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; padding: 4px 9px; border-radius: 3px; letter-spacing: .12em; }
+.adendo-data { font-size: 10.5px; color: var(--muted); }
+.adendo-resumo { font-size: 13px; line-height: 1.5; color: var(--fg); background: var(--surface); padding: 11px; border-left: 3px solid var(--accent); border-radius: 4px; margin-bottom: 14px; }
+.adendo-item { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; margin-bottom: 7px; }
+.adendo-tipo { font-size: 9px; font-weight: 800; color: var(--accent); letter-spacing: .12em; margin-bottom: 4px; }
+.adendo-prova { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.adendo-desc { font-size: 12.5px; color: var(--fg); line-height: 1.4; }
+.adendo-diff { margin-top: 6px; font-size: 11.5px; line-height: 1.4; }
+.adendo-antes { color: var(--muted); text-decoration: line-through; }
+.adendo-depois { color: var(--accent); margin-top: 3px; }
 
 /* ─── CHATBOT ─── */
 .cb-fab {
@@ -2939,7 +3055,35 @@ async function _zrCompute(entity) {
       if (b.active !== a.active) return b.active ? 1 : -1;          // ativos primeiro
       return (b.lastDate || '').localeCompare(a.lastDate || '');    // mais recente
     });
-    result[alt] = arr.slice(0, 10);
+    // Pra evitar dominância de UM evento quando streaks são iguais (típico em alturas
+    // grandes com poucos dados): se houver mais que 10 com streak idêntico ao 10º, faz
+    // amostragem balanceada entre datas (alterna recente/antigo).
+    const top10 = arr.slice(0, 10);
+    if (arr.length > 10) {
+      const limiteLen = top10[9].length;
+      const limiteActive = top10[9].active;
+      // Pega todos com mesmo streak/active que o último
+      const empatados = arr.filter(x => x.length === limiteLen && x.active === limiteActive);
+      if (empatados.length > 4) {
+        // Reorganiza: top 10 = quem tem streak MAIOR que o limite + amostra balanceada dos empatados
+        const acimaDoLimite = arr.filter(x => x.length > limiteLen || (x.length === limiteLen && x.active && !limiteActive));
+        // Ordena empatados por data
+        empatados.sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || ''));
+        // Pega alternadamente do início (mais recentes) e do fim (mais antigos)
+        const vagas = 10 - acimaDoLimite.length;
+        const mix = [];
+        let head = 0, tail = empatados.length - 1;
+        while (mix.length < vagas && head <= tail) {
+          mix.push(empatados[head++]);
+          if (mix.length < vagas && head <= tail) mix.push(empatados[tail--]);
+        }
+        result[alt] = [...acimaDoLimite, ...mix];
+      } else {
+        result[alt] = top10;
+      }
+    } else {
+      result[alt] = top10;
+    }
   }
   _zrComputedCache[entity] = result;
   return result;
@@ -2951,7 +3095,10 @@ function _zrBuildSlide(altura, rows) {
   if (!rows || rows.length === 0) {
     body = `<div class="zr-empty">Aguardando resultados em ${alturaLabel}.</div>`;
   } else {
-    body = rows.map((r, i) => {
+    const aviso = rows.length < 5
+      ? `<div style="padding:8px 14px;font-size:10.5px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--surface2)">⚠️ Poucos dados em ${alturaLabel} este ano — ranking ficará mais robusto conforme aconteçam mais eventos.</div>`
+      : '';
+    const lista = rows.map((r, i) => {
       const pos = i + 1;
       const cls = pos === 1 ? 'top1' : pos === 2 ? 'top2' : pos === 3 ? 'top3' : '';
       const streak = r.active
@@ -2964,6 +3111,7 @@ function _zrBuildSlide(altura, rows) {
           <span class="zr-streak">${streak}</span>
         </div>`;
     }).join('');
+    body = aviso + lista;
   }
   return `
     <div class="zr-slide">
@@ -3583,7 +3731,7 @@ async function _loadTorneioDetail(evtId) {
   let docs = [];
   if (torneioId) {
     const { data } = await sb.from('torneio_documentos')
-      .select('id, tipo, titulo, data_publicacao, url_pdf, visto_em, criado_em, texto_extraido')
+      .select('id, tipo, titulo, data_publicacao, url_pdf, visto_em, criado_em, texto_extraido, conteudo_estruturado')
       .eq('torneio_id', torneioId)
       .order('data_publicacao', { ascending: false });
     docs = data || [];
@@ -3608,26 +3756,19 @@ async function _loadTorneioDetail(evtId) {
       ${lista.map(d => `
         <div class="tor-doc-card">
           <div class="tor-doc-hdr" onclick="_toggleDocText(${d.id})">
-            <div class="tor-doc-icon">📄</div>
+            <div class="tor-doc-icon">${d.tipo === 'horarios' ? '🕐' : d.tipo === 'adendo' ? '✎' : '📋'}</div>
             <div class="tor-doc-body">
               <div class="tor-doc-title">${escHtml(d.titulo)}${isNovo(d) ? '<span class="tor-doc-new">Novo</span>' : ''}</div>
               <div class="tor-doc-date">Publicado em ${_fmtData(d.data_publicacao) || '—'}</div>
             </div>
-            <div class="tor-doc-toggle">${d.texto_extraido ? '▾' : '↗'}</div>
+            <div class="tor-doc-toggle">▾</div>
           </div>
-          ${d.texto_extraido ? `
-            <div class="tor-doc-text" id="doctext-${d.id}" style="display:none">
-              <div class="tor-doc-text-bar">
-                <input type="search" class="tor-doc-search" placeholder="Buscar no documento..." oninput="_searchInDoc(${d.id}, this.value)">
-                <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>
-              </div>
-              <pre class="tor-doc-content" id="doccontent-${d.id}">${escHtml(d.texto_extraido)}</pre>
+          <div class="tor-doc-text" id="doctext-${d.id}" style="display:none">
+            ${_renderDocStructured(d)}
+            <div style="padding:10px 14px;border-top:1px solid var(--border);text-align:right">
+              <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>
             </div>
-          ` : `
-            <div class="tor-doc-text" style="display:none">
-              <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link" style="margin:12px">Abrir PDF original ↗</a>
-            </div>
-          `}
+          </div>
         </div>
       `).join('')}
     `;
@@ -3671,24 +3812,155 @@ function _toggleDocText(docId) {
   el.style.display = (el.style.display === 'none' ? 'block' : 'none');
 }
 
-// Busca dentro do texto do documento (highlight + scroll)
-function _searchInDoc(docId, term) {
-  const content = document.getElementById(`doccontent-${docId}`);
-  if (!content) return;
-  // Pega o texto original do dataset (preserva estado limpo)
-  if (!content._original) content._original = content.textContent;
-  const raw = content._original;
-  if (!term || term.length < 2) {
-    content.innerHTML = escHtml(raw);
-    return;
+// Renderiza o conteúdo estruturado conforme o tipo
+function _renderDocStructured(d) {
+  const s = d.conteudo_estruturado;
+  if (!s) {
+    return `<div class="doc-pending">⏳ Conteúdo ainda sendo estruturado pela IA. Tenta o PDF abaixo.</div>`;
   }
-  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`(${escaped})`, 'gi');
-  const highlighted = escHtml(raw).replace(re, '<mark style="background:var(--accent-dim);color:var(--accent);border-radius:2px;padding:0 2px">$1</mark>');
-  content.innerHTML = highlighted;
-  // Auto-scroll pro primeiro match
-  const firstMark = content.querySelector('mark');
-  if (firstMark) firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (d.tipo === 'horarios') return _renderHorarios(s);
+  if (d.tipo === 'programa') return _renderPrograma(s);
+  if (d.tipo === 'adendo')   return _renderAdendo(s);
+  return _renderOutros(s);
+}
+
+// Renderização Quadro de Horários (timetable visual)
+function _renderHorarios(s) {
+  if (!s.dias || !s.dias.length) {
+    return `<div class="doc-pending">Quadro vazio ou não reconhecido.</div>`;
+  }
+  return `
+    <div class="qh-wrap">
+      ${s.validade ? `<div class="qh-validade">Versão de ${escHtml(s.validade)}</div>` : ''}
+      ${s.dias.map(dia => `
+        <div class="qh-dia">
+          <div class="qh-dia-hdr">
+            <div class="qh-dia-data">${escHtml(dia.data || '—')}</div>
+            <div class="qh-dia-semana">${escHtml(dia.dia_semana || '')}</div>
+          </div>
+          <div class="qh-provas">
+            ${(dia.horarios || []).map(h => `
+              <div class="qh-row">
+                <div class="qh-hora">${escHtml(h.hora || '--:--')}</div>
+                <div class="qh-prova">
+                  <div class="qh-prova-num">${h.prova_numero ? 'PR. ' + escHtml(h.prova_numero) : ''} ${h.altura ? `<span class="qh-altura">${escHtml(h.altura)}</span>` : ''}</div>
+                  <div class="qh-prova-nome">${escHtml(h.prova_nome || '')}</div>
+                  ${h.categoria ? `<div class="qh-cat">${escHtml(h.categoria)}</div>` : ''}
+                  ${h.tabela ? `<div class="qh-tabela">${escHtml(h.tabela)}</div>` : ''}
+                </div>
+                ${h.pista ? `<div class="qh-pista">${escHtml(h.pista)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// Renderização Programa (info + provas + oficiais + regulamento)
+function _renderPrograma(s) {
+  const oficiais = s.oficiais || {};
+  const ofiList = [];
+  if (oficiais.juiz_presidente) ofiList.push(`<div><strong>Juiz Presidente:</strong> ${escHtml(oficiais.juiz_presidente)}</div>`);
+  if (oficiais.juizes?.length) ofiList.push(`<div><strong>Juízes:</strong> ${oficiais.juizes.map(escHtml).join(', ')}</div>`);
+  if (oficiais.desenhador_percurso) ofiList.push(`<div><strong>Desenhador de Percurso:</strong> ${escHtml(oficiais.desenhador_percurso)}</div>`);
+  if (oficiais.veterinario_oficial) ofiList.push(`<div><strong>Veterinário Oficial:</strong> ${escHtml(oficiais.veterinario_oficial)}</div>`);
+  if (oficiais.secretaria) ofiList.push(`<div><strong>Secretaria:</strong> ${escHtml(oficiais.secretaria)}</div>`);
+  if (oficiais.comissarios?.length) ofiList.push(`<div><strong>Comissários:</strong> ${oficiais.comissarios.map(escHtml).join(', ')}</div>`);
+
+  return `
+    <div class="prg-wrap">
+      ${s.titulo ? `<h3 class="prg-titulo">${escHtml(s.titulo)}</h3>` : ''}
+      ${(s.tipo || s.nivel || s.local) ? `
+        <div class="prg-tags">
+          ${s.tipo ? `<span class="prg-tag">${escHtml(s.tipo)}</span>` : ''}
+          ${s.nivel ? `<span class="prg-tag">${escHtml(s.nivel)}</span>` : ''}
+          ${s.local ? `<span class="prg-tag prg-tag-mute">📍 ${escHtml(s.local)}</span>` : ''}
+        </div>` : ''}
+
+      ${ofiList.length ? `
+        <div class="prg-sec">
+          <div class="prg-sec-hdr">Oficiais</div>
+          <div class="prg-oficiais">${ofiList.join('')}</div>
+        </div>` : ''}
+
+      ${s.provas?.length ? `
+        <div class="prg-sec">
+          <div class="prg-sec-hdr">Provas (${s.provas.length})</div>
+          ${s.provas.map(p => `
+            <div class="prg-prova">
+              <div class="prg-prova-hdr">
+                <span class="prg-pnum">PR. ${escHtml(p.numero || '?')}</span>
+                ${p.altura ? `<span class="prg-paltura">${escHtml(p.altura)}</span>` : ''}
+                ${p.tabela ? `<span class="prg-ptabela">${escHtml(p.tabela)}</span>` : ''}
+              </div>
+              <div class="prg-pnome">${escHtml(p.nome || '')}</div>
+              ${p.categoria ? `<div class="prg-pcat">Categoria: ${escHtml(p.categoria)}</div>` : ''}
+              ${(p.data || p.horario) ? `<div class="prg-pcat">📅 ${escHtml(p.data || '')} ${escHtml(p.horario || '')}</div>` : ''}
+              ${p.premiacao && Object.keys(p.premiacao).length ? `
+                <div class="prg-premiacao">
+                  ${Object.entries(p.premiacao).map(([lugar, valor]) => `
+                    <div class="prg-premio"><strong>${escHtml(lugar)}:</strong> ${escHtml(valor)}</div>
+                  `).join('')}
+                </div>` : ''}
+              ${p.observacoes ? `<div class="prg-pcat">${escHtml(p.observacoes)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>` : ''}
+
+      ${s.regulamento_resumo ? `
+        <div class="prg-sec">
+          <div class="prg-sec-hdr">Regulamento</div>
+          <div class="prg-texto">${escHtml(s.regulamento_resumo)}</div>
+        </div>` : ''}
+
+      ${s.observacoes_gerais?.length ? `
+        <div class="prg-sec">
+          <div class="prg-sec-hdr">Observações</div>
+          <ul class="prg-obs">${s.observacoes_gerais.map(o => `<li>${escHtml(o)}</li>`).join('')}</ul>
+        </div>` : ''}
+    </div>
+  `;
+}
+
+// Renderização Adendo (mudanças destacadas)
+function _renderAdendo(s) {
+  return `
+    <div class="adendo-wrap">
+      <div class="adendo-hdr">
+        ${s.numero_adendo ? `<span class="adendo-num">ADENDO ${escHtml(s.numero_adendo)}</span>` : ''}
+        ${s.data_publicacao ? `<span class="adendo-data">${escHtml(s.data_publicacao)}</span>` : ''}
+      </div>
+      ${s.resumo ? `<div class="adendo-resumo">${escHtml(s.resumo)}</div>` : ''}
+      ${s.mudancas?.length ? `
+        <div class="adendo-mudancas">
+          ${s.mudancas.map(m => `
+            <div class="adendo-item">
+              <div class="adendo-tipo">${escHtml((m.tipo || '').replace(/_/g, ' ').toUpperCase())}</div>
+              ${m.prova_afetada ? `<div class="adendo-prova">Prova: ${escHtml(m.prova_afetada)}</div>` : ''}
+              <div class="adendo-desc">${escHtml(m.descricao || '')}</div>
+              ${m.antes || m.depois ? `
+                <div class="adendo-diff">
+                  ${m.antes ? `<div class="adendo-antes"><strong>Antes:</strong> ${escHtml(m.antes)}</div>` : ''}
+                  ${m.depois ? `<div class="adendo-depois"><strong>Depois:</strong> ${escHtml(m.depois)}</div>` : ''}
+                </div>` : ''}
+            </div>
+          `).join('')}
+        </div>` : ''}
+    </div>
+  `;
+}
+
+function _renderOutros(s) {
+  return `
+    <div class="prg-wrap">
+      ${s.tipo_documento ? `<div class="prg-sec-hdr">${escHtml(s.tipo_documento)}</div>` : ''}
+      ${s.resumo ? `<div class="prg-texto">${escHtml(s.resumo)}</div>` : ''}
+      ${s.topicos_principais?.length ? `
+        <ul class="prg-obs">${s.topicos_principais.map(t => `<li>${escHtml(t)}</li>`).join('')}</ul>` : ''}
+    </div>
+  `;
 }
 </script>
 
