@@ -3766,7 +3766,9 @@ async function _loadTorneioDetail(evtId) {
           <div class="tor-doc-text" id="doctext-${d.id}" style="display:none">
             ${_renderDocStructured(d)}
             <div style="padding:10px 14px;border-top:1px solid var(--border);text-align:right">
-              <a href="${d.url_pdf}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>
+              ${(d.url_pdf && /^https?:\/\//i.test(d.url_pdf))
+                ? `<a href="${escHtml(d.url_pdf)}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>`
+                : `<span style="font-size:12px;color:var(--muted)">PDF indisponível</span>`}
             </div>
           </div>
         </div>
