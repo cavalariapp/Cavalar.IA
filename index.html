@@ -3199,7 +3199,7 @@ async function _evtFetchData(ano) {
   if (_evtCache && _evtCache.ano === ano) return _evtCache;
   const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
   const [tor, cbh] = await Promise.all([
-    sb.from('torneios').select('id, nome, fonte, data_inicio, data_fim, fingerprint')
+    sb.from('torneios').select('id, nome, fonte, data_inicio, data_fim, fingerprint, evento_cbh_id')
       .gte('data_inicio', ini).lte('data_inicio', fim)
       .order('data_inicio', { ascending: true }),
     sb.from('eventos_cbh').select('id, evento, tipo, estado, federacao, local, data_inicio, data_fim, fingerprint')
@@ -3210,21 +3210,24 @@ async function _evtFetchData(ano) {
   return _evtCache;
 }
 
-// Junta torneios + cbh, dedup por fingerprint (já temos torneios.fingerprint
-// e eventos_cbh.fingerprint; se baterem, prioriza torneio = dado real)
+// Junta torneios + cbh, dedup priorizando torneio (= dado real). Estratégia:
+//   1. Usa torneios.evento_cbh_id (FK) pra excluir CBH já vinculados
+//   2. Fallback: dedup por fingerprint pra casos não-linkados ainda
 function _evtMerge(torneios, cbhEventos, mes) {
   const m1 = String(mes + 1).padStart(2, '0');
-  // Filtra ambos pelo mês
   const tt = torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
   const cc = cbhEventos.filter(c => (c.data_inicio || '').substring(5, 7) === m1);
 
-  // Set de fingerprints de torneios — exclui cbh duplicados
+  // CBH IDs já cobertos por torneios (via FK explícita) + fingerprints
+  const cbhIdsVinculados = new Set();
   const torneioFps = new Set();
-  for (const t of tt) {
-    // torneio.fingerprint não selecionei mas a tabela tem; vou criar um aqui
+  for (const t of torneios) { // varre TODOS, não só do mês (evento pode atravessar mês)
+    if (t.evento_cbh_id) cbhIdsVinculados.add(t.evento_cbh_id);
     if (t.fingerprint) torneioFps.add(t.fingerprint);
   }
-  const cbhFiltrado = cc.filter(c => !torneioFps.has(c.fingerprint));
+  const cbhFiltrado = cc.filter(c =>
+    !cbhIdsVinculados.has(c.id) && !torneioFps.has(c.fingerprint)
+  );
 
   // Normaliza pra estrutura única
   const events = [
