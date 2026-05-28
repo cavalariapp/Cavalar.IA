@@ -539,12 +539,26 @@ PRINCÍPIO #5: Pra dados (cavaleiros, cavalos, torneios, rankings, calendário, 
 
 PRINCÍPIO #6: ANO ESPECÍFICO. Quando o usuário menciona um ano (ex: "em 2025", "no ano de 2024"), SEMPRE passe esse ano como parâmetro pras estatísticas. Sem ano, default = ano corrente. Pra histórico completo passe ano="todos".
 
-PRINCÍPIO #7 (CRÍTICO - SEMPRE OBEDEÇA): RESPONDA APENAS A PERGUNTA ATUAL.
-- NUNCA comece a resposta com cabeçalho/recap da pergunta anterior (ex: NÃO faça "**GP CSN D'Maio 2026:** ..." antes de responder outra coisa).
-- NUNCA use separador "---" pra dividir "pergunta anterior" e "pergunta nova".
-- NUNCA repita info que já deu na resposta anterior.
-- Use o histórico SOMENTE pra entender pronomes/referências implícitas (ex: "e o cavalo dele?" → você sabe quem é "dele" pelo contexto).
-- Cada resposta começa DIRETAMENTE com a info da pergunta atual.
+PRINCÍPIO #7 (ABSOLUTAMENTE CRÍTICO - VIOLAR ISSO ARRUINA A EXPERIÊNCIA):
+Você está em uma conversa contínua. Use o histórico APENAS pra resolver referências implícitas.
+- ❌ PROIBIDO: repetir/recapitular info da resposta anterior antes de responder a nova pergunta.
+- ❌ PROIBIDO: começar com "**[Nome do torneio anterior]**:" como cabeçalho.
+- ❌ PROIBIDO: usar "---" pra separar "antes" / "agora".
+- ❌ PROIBIDO: dizer "Como mencionei antes...", "Continuando..."
+- ✅ CORRETO: o usuário VÊ a resposta anterior na tela — não precisa rever.
+- ✅ CORRETO: "e o 2º lugar?" → use o contexto da pergunta anterior (torneio X, prova Y) e responda DIRETO o 2º lugar. Sem repetir 1º.
+- ✅ CORRETO: "qual o horário dessa prova?" → identifica a prova pelo contexto, responde DIRETO o horário.
+- ✅ CORRETO: "e o programa?" → mostra programa do MESMO torneio do contexto, sem recapitular.
+
+Exemplo VIOLAÇÃO (NUNCA faça):
+  user: Quem venceu o GP do D'Maio?
+  assistant: João da Silva com Penélope, 35.42s, sem faltas.
+  user: E o 2º lugar?
+  assistant: ❌ "**GP CSN D'Maio 2026:** João venceu. **2º lugar:** Maria..." ← REPETIU!
+
+Exemplo CORRETO:
+  user: E o 2º lugar?
+  assistant: ✅ "Maria Santos com Trovão, 36.18s, sem faltas."
 
 PRINCÍPIO #8: PROGRAMAS, HORÁRIOS E ADENDOS. Pra perguntas sobre programa oficial, horários, premiações, regulamentos, juízes, mudanças (adendos) de um torneio, USE AS TOOLS ESPECÍFICAS:
 - "qual o programa do [torneio]?", "quem é o juiz presidente?", "qual a premiação da prova 1,40m?", "que dia é o GP?" → use programa_torneio
@@ -565,16 +579,26 @@ Deno.serve(async (req) => {
     const { messages = [] } = await req.json();
     if (!messages.length) return new Response(JSON.stringify({ erro: "messages é obrigatório" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
 
-    // ─── SINGLE-TURN ──────────────────────────────────────────────
-    // Cada pergunta é independente. Histórico anterior é IGNORADO
-    // pra eliminar o comportamento de recap. Se o usuário quiser
-    // referenciar info anterior, precisa repetir o contexto.
-    const lastUserMsg = (messages as any[]).filter(m => m.role === "user").pop();
-    if (!lastUserMsg) {
+    // ─── MEMÓRIA CURTA (sliding window) ───────────────────────────
+    // Mantém últimas 6 mensagens (≈ 3 trocas user↔assistant) pra que
+    // referências implícitas ("e o cavalo dele?", "quem ficou em 2º?")
+    // funcionem, SEM dar ao modelo histórico longo o suficiente pra
+    // recapitular. System prompt reforça anti-recap.
+    //
+    // IMPORTANTE: filtra apenas role user/assistant com content texto
+    // (não tool_use/tool_result soltos de turnos antigos — só causa erro
+    // se ficarem órfãos sem o par).
+    const todas = (messages as any[]).filter((m: any) =>
+      (m.role === "user" || m.role === "assistant") &&
+      typeof m.content === "string" && m.content.trim().length > 0
+    );
+    if (!todas.length || todas[todas.length - 1].role !== "user") {
       return new Response(JSON.stringify({ erro: "nenhuma pergunta do usuário encontrada" }),
         { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
     }
-    let convo = [lastUserMsg];
+    // Pega últimas 6, garantindo que comece com user
+    let convo = todas.slice(-6);
+    while (convo.length && convo[0].role !== "user") convo = convo.slice(1);
 
     const MAX_ITER = 6;
     let lastResp: any;
