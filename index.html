@@ -725,6 +725,312 @@ body {
   transition: background .15s;
 }
 .evt-nav-btn:hover { background: var(--surface2); }
+.event-row { cursor: pointer; transition: background .12s; padding: 6px 16px; border-radius: 4px; }
+.event-row:hover { background: var(--surface2); }
+
+/* ─── TORNEIO DETAIL MODAL ─── */
+.tor-modal-bg {
+  position: fixed; inset: 0; z-index: 999;
+  background: rgba(0,0,0,.7);
+  backdrop-filter: blur(3px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.tor-modal-bg.open { display: flex; }
+.tor-modal {
+  background: var(--bg);
+  width: 100%;
+  max-width: 700px;
+  max-height: 92vh;
+  border-radius: 12px 12px 0 0;
+  border-top: 2px solid var(--accent);
+  overflow-y: auto;
+  padding-bottom: 32px;
+  animation: tor-slide .25s ease-out;
+}
+@keyframes tor-slide { from { transform: translateY(20px); opacity: .5 } to { transform: translateY(0); opacity: 1 } }
+@media (min-width: 720px) {
+  .tor-modal-bg { align-items: center; }
+  .tor-modal { border-radius: 12px; max-height: 84vh; }
+}
+.tor-modal-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+  background: var(--bg);
+  z-index: 2;
+}
+.tor-close {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 32px; height: 32px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+}
+.tor-content { padding: 16px 18px; }
+.tor-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  font-style: italic;
+  color: #fff;
+  line-height: 1.05;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.tor-meta {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tor-meta-item { display: inline-flex; align-items: center; gap: 4px; }
+.tor-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 22px 0 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+.tor-doc {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color .15s, background .15s;
+}
+.tor-doc:hover { border-color: var(--accent); background: var(--surface2); }
+.tor-doc-icon {
+  font-size: 22px; color: var(--accent);
+  background: var(--accent-dim);
+  width: 38px; height: 38px;
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.tor-doc-body { flex: 1; min-width: 0; }
+.tor-doc-title { font-size: 12.5px; font-weight: 700; color: #fff; line-height: 1.3; word-break: break-word; }
+.tor-doc-date  { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.tor-doc-new   {
+  display: inline-block;
+  background: var(--green);
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.tor-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+
+/* ─── CHATBOT ─── */
+.cb-fab {
+  position: fixed;
+  bottom: 78px;
+  right: 16px;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  z-index: 900;
+  box-shadow: 0 8px 22px rgba(232,77,14,.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  transition: transform .15s;
+}
+.cb-fab:hover { transform: scale(1.05); }
+.cb-fab svg { width: 26px; height: 26px; }
+
+.cb-panel-bg {
+  position: fixed; inset: 0; z-index: 998;
+  background: rgba(0,0,0,.65);
+  backdrop-filter: blur(3px);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+}
+.cb-panel-bg.open { display: flex; }
+
+.cb-panel {
+  background: var(--bg);
+  width: 100%;
+  max-width: 700px;
+  height: 88vh;
+  border-radius: 12px 12px 0 0;
+  border-top: 2px solid var(--accent);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: cb-slide .25s ease-out;
+}
+@keyframes cb-slide { from { transform: translateY(20px); opacity: .5 } to { transform: translateY(0); opacity: 1 } }
+@media (min-width: 720px) {
+  .cb-panel-bg { align-items: center; }
+  .cb-panel { border-radius: 12px; height: 80vh; }
+}
+
+.cb-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.cb-hdr-title {
+  display: flex; align-items: center; gap: 8px;
+}
+.cb-hdr-title .badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+.cb-hdr-title strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-style: italic;
+  text-transform: uppercase;
+  color: #fff;
+}
+.cb-close {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 28px; height: 28px;
+  border-radius: 999px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.cb-msgs {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cb-msg {
+  max-width: 84%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+.cb-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.cb-msg.assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-bottom-left-radius: 4px;
+}
+.cb-msg.thinking {
+  align-self: flex-start;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.cb-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+.cb-suggest-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11.5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.cb-suggest-btn:hover {
+  background: var(--surface2);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.cb-input-wrap {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.cb-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 10px 16px;
+  color: var(--fg);
+  font-size: 13.5px;
+  outline: none;
+  resize: none;
+  max-height: 120px;
+  font-family: inherit;
+}
+.cb-input:focus { border-color: var(--accent); }
+.cb-send {
+  background: var(--accent);
+  border: none;
+  color: #fff;
+  width: 40px; height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.cb-send:disabled { background: var(--muted); cursor: not-allowed; opacity: .5; }
 
 /* ===========================
    NEWS CARDS (list)
@@ -2753,7 +3059,7 @@ function _evtBuildRow(e) {
   const nomeFirstLine = (e.nome || '').split(/\n/)[0];
   const nomeExtras = (e.nome || '').split(/\n/).slice(1).filter(Boolean).join(' · ');
   return `
-    <div class="event-row ${past ? 'evt-row-past' : ''}">
+    <div class="event-row ${past ? 'evt-row-past' : ''}" onclick="openTorModal('${e.id}')">
       <div class="evt-date">
         <div class="evt-day${d.small ? ' small' : ''}">${d.display}</div>
         <div class="evt-mon">${d.mon}</div>
@@ -3137,6 +3443,275 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', () => auto(init));
+</script>
+
+<!-- ───────── TORNEIO DETAIL MODAL ───────── -->
+<div class="tor-modal-bg" id="tor-modal-bg" onclick="if(event.target===this) closeTorModal()">
+  <div class="tor-modal">
+    <div class="tor-modal-hdr">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)">Detalhes do Torneio</div>
+      <button class="tor-close" onclick="closeTorModal()" aria-label="Fechar">✕</button>
+    </div>
+    <div class="tor-content" id="tor-content"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// TORNEIO DETAIL — modal com programa, adendos, horários
+// ═══════════════════════════════════════════════════════════════
+
+function openTorModal(evtId) {
+  const bg = document.getElementById('tor-modal-bg');
+  const content = document.getElementById('tor-content');
+  content.innerHTML = '<div style="padding:40px 20px;text-align:center;color:var(--muted);font-size:13px">Carregando…</div>';
+  bg.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  _loadTorneioDetail(evtId).catch(e => {
+    content.innerHTML = `<div style="padding:40px 20px;text-align:center;color:#f88;font-size:13px">Erro: ${escHtml(e.message)}</div>`;
+  });
+}
+
+function closeTorModal() {
+  document.getElementById('tor-modal-bg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function _fmtData(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+async function _loadTorneioDetail(evtId) {
+  // evtId no formato "t-{id}" (torneio) ou "c-{id}" (cbh)
+  const [tipo, id] = evtId.split('-');
+  const content = document.getElementById('tor-content');
+
+  let titulo, dataIni, dataFim, fonte, local, estado, torneioId = null, idCbh = null;
+
+  if (tipo === 't') {
+    const { data, error } = await sb.from('torneios')
+      .select('id, id_cbh, nome, fonte, data_inicio, data_fim')
+      .eq('id', parseInt(id)).single();
+    if (error) throw error;
+    torneioId = data.id; idCbh = data.id_cbh;
+    titulo = data.nome; dataIni = data.data_inicio; dataFim = data.data_fim; fonte = data.fonte;
+  } else if (tipo === 'c') {
+    const { data, error } = await sb.from('eventos_cbh')
+      .select('id, evento, federacao, data_inicio, data_fim, local, estado').eq('id', parseInt(id)).single();
+    if (error) throw error;
+    titulo = data.evento; dataIni = data.data_inicio; dataFim = data.data_fim;
+    fonte = data.federacao; local = data.local; estado = data.estado;
+  }
+
+  const linhas = (titulo || '').split('\n');
+  const tituloMain = linhas[0];
+  const tituloExtra = linhas.slice(1).filter(Boolean);
+
+  // Busca documentos se for torneio
+  let docs = [];
+  if (torneioId) {
+    const { data } = await sb.from('torneio_documentos')
+      .select('id, tipo, titulo, data_publicacao, url_pdf, visto_em, criado_em')
+      .eq('torneio_id', torneioId)
+      .order('data_publicacao', { ascending: false });
+    docs = data || [];
+  }
+
+  // Agrupa por tipo
+  const porTipo = { programa: [], adendo: [], horarios: [], outros: [] };
+  for (const d of docs) (porTipo[d.tipo] || porTipo.outros).push(d);
+
+  // Identifica "novos" (criados ou atualizados nos últimos 3 dias)
+  const TRES_DIAS = 3 * 24 * 60 * 60 * 1000;
+  const agora = Date.now();
+  const isNovo = (d) => {
+    const dt = new Date(d.criado_em || d.visto_em).getTime();
+    return (agora - dt) < TRES_DIAS;
+  };
+
+  const docBlock = (titulo, lista) => {
+    if (!lista.length) return '';
+    return `
+      <div class="tor-section-title">${titulo}</div>
+      ${lista.map(d => `
+        <a class="tor-doc" href="${d.url_pdf}" target="_blank" rel="noopener">
+          <div class="tor-doc-icon">📄</div>
+          <div class="tor-doc-body">
+            <div class="tor-doc-title">${escHtml(d.titulo)}${isNovo(d) ? '<span class="tor-doc-new">Novo</span>' : ''}</div>
+            <div class="tor-doc-date">Publicado em ${_fmtData(d.data_publicacao) || '—'}</div>
+          </div>
+        </a>
+      `).join('')}
+    `;
+  };
+
+  const dataRange = dataFim && dataFim !== dataIni
+    ? `${_fmtData(dataIni)} a ${_fmtData(dataFim)}`
+    : _fmtData(dataIni);
+
+  const metaItems = [
+    dataRange ? `<span class="tor-meta-item">📅 ${dataRange}</span>` : '',
+    fonte     ? `<span class="tor-meta-item">🏛️ ${escHtml(fonte)}</span>` : '',
+    local     ? `<span class="tor-meta-item">📍 ${escHtml(local)}${estado ? ' · ' + estado : ''}</span>` : '',
+  ].filter(Boolean).join(' ');
+
+  content.innerHTML = `
+    <h2 class="tor-title">${escHtml(tituloMain)}</h2>
+    ${tituloExtra.map(t => `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">· ${escHtml(t)}</div>`).join('')}
+    <div class="tor-meta" style="margin-top:8px">${metaItems}</div>
+
+    ${docs.length === 0
+      ? `<div class="tor-section-title">Documentos</div>
+         <div class="tor-empty">${torneioId ? 'Nenhum documento publicado ainda. Verifica diariamente.' : 'Evento do calendário CBH — documentos serão publicados pela federação responsável.'}</div>`
+      : docBlock('Programa', porTipo.programa) +
+        docBlock('Adendos', porTipo.adendo) +
+        docBlock('Quadro de Horários', porTipo.horarios) +
+        docBlock('Outros', porTipo.outros)
+    }
+  `;
+}
+
+// Fecha modal com Esc
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeTorModal(); closeChatbot(); }
+});
+</script>
+
+<!-- ───────── CHATBOT FAB + PANEL ───────── -->
+<button class="cb-fab" id="cb-fab" onclick="openChatbot()" aria-label="Conversar com IA Cavalar">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+
+<div class="cb-panel-bg" id="cb-panel-bg" onclick="if(event.target===this) closeChatbot()">
+  <div class="cb-panel">
+    <div class="cb-hdr">
+      <div class="cb-hdr-title">
+        <span class="badge">IA</span>
+        <strong>Cavalar</strong>
+      </div>
+      <button class="cb-close" onclick="closeChatbot()" aria-label="Fechar">✕</button>
+    </div>
+    <div class="cb-msgs" id="cb-msgs"></div>
+    <div class="cb-suggest" id="cb-suggest">
+      <button class="cb-suggest-btn" onclick="cbAskExample('Quem lidera o ranking de zeros em 1,40m?')">Ranking 1,40m</button>
+      <button class="cb-suggest-btn" onclick="cbAskExample('Estatísticas do Raphael Machado Leite em 2026')">Stats de cavaleiro</button>
+      <button class="cb-suggest-btn" onclick="cbAskExample('Quais os próximos torneios?')">Próximos eventos</button>
+      <button class="cb-suggest-btn" onclick="cbAskExample('O CSN 5 D Maio teve adendos?')">Adendos do D'Maio</button>
+    </div>
+    <div class="cb-input-wrap">
+      <textarea class="cb-input" id="cb-input" rows="1" placeholder="Pergunte algo sobre cavaleiros, cavalos, eventos…" onkeydown="cbKeydown(event)"></textarea>
+      <button class="cb-send" id="cb-send" onclick="cbSend()" aria-label="Enviar">→</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// CHATBOT — frontend
+// ═══════════════════════════════════════════════════════════════
+
+const _cbMessages = []; // histórico de mensagens (formato Anthropic)
+let _cbWorking = false;
+
+function openChatbot() {
+  document.getElementById('cb-panel-bg').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  if (_cbMessages.length === 0) {
+    _cbAppend('assistant', 'Oi! Sou a IA do Cavalar. Posso responder sobre rankings, estatísticas de cavaleiros e cavalos, próximos eventos, adendos publicados — tudo baseado nos dados do app. O que você quer saber?');
+    document.getElementById('cb-suggest').style.display = 'flex';
+  }
+  setTimeout(() => document.getElementById('cb-input').focus(), 200);
+}
+
+function closeChatbot() {
+  document.getElementById('cb-panel-bg').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function _cbAppend(role, text) {
+  const div = document.createElement('div');
+  div.className = `cb-msg ${role}`;
+  div.textContent = text;
+  document.getElementById('cb-msgs').appendChild(div);
+  _cbScrollBottom();
+  return div;
+}
+
+function _cbScrollBottom() {
+  const c = document.getElementById('cb-msgs');
+  c.scrollTop = c.scrollHeight;
+}
+
+function cbKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); cbSend(); }
+  const ta = e.target;
+  // auto-resize
+  ta.style.height = 'auto';
+  ta.style.height = Math.min(120, ta.scrollHeight) + 'px';
+}
+
+function cbAskExample(q) {
+  document.getElementById('cb-input').value = q;
+  cbSend();
+}
+
+async function cbSend() {
+  if (_cbWorking) return;
+  const input = document.getElementById('cb-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Esconde sugestões após primeira pergunta
+  document.getElementById('cb-suggest').style.display = 'none';
+
+  _cbAppend('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  _cbMessages.push({ role: 'user', content: text });
+
+  _cbWorking = true;
+  document.getElementById('cb-send').disabled = true;
+  const thinking = _cbAppend('thinking', 'Pensando…');
+
+  try {
+    // Supabase Edge Function (mesmo SUPABASE_URL definido lá no início do script)
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY,
+      },
+      body: JSON.stringify({ messages: _cbMessages }),
+    });
+    thinking.remove();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ erro: 'erro desconhecido' }));
+      _cbAppend('assistant', `Erro: ${err.erro || res.status}`);
+      _cbWorking = false; document.getElementById('cb-send').disabled = false;
+      return;
+    }
+
+    const data = await res.json();
+    _cbAppend('assistant', data.resposta || '(sem resposta)');
+
+    // Atualiza histórico com o que o backend devolveu
+    // (inclui tool_uses e tool_results — preserva contexto pra próximas perguntas)
+    if (data.messages) {
+      // Mantém só o histórico do usuário + assistant (sem tools intermediárias visíveis)
+      _cbMessages.push({ role: 'assistant', content: data.resposta || '' });
+    }
+  } catch (e) {
+    thinking.remove();
+    _cbAppend('assistant', `Falha de conexão: ${e.message}`);
+  }
+
+  _cbWorking = false;
+  document.getElementById('cb-send').disabled = false;
+}
 </script>
 </body>
 </html>
