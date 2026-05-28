@@ -682,6 +682,7 @@ body {
 .event-row { display: flex; gap: 12px; align-items: center; }
 .evt-date { width: 46px; flex-shrink: 0; text-align: center; }
 .evt-day { font-size: 22px; font-weight: 900; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.evt-day.small { font-size: 14px; line-height: 1.1; }
 .evt-mon { font-size: 8.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
 .evt-info { flex: 1; }
 .evt-lvl { font-size: 9.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
@@ -2715,10 +2716,25 @@ function _evtMerge(torneios, cbhEventos, mes) {
   return events;
 }
 
-function _evtFormatDate(iso) {
-  if (!iso) return { day: '--', mon: '---' };
-  const [, m, d] = iso.split('-');
-  return { day: d, mon: MESES_ABREV[parseInt(m) - 1] };
+function _evtFormatDate(ini, fim) {
+  if (!ini) return { display: '--', mon: '', small: false };
+  const [, mi, di] = ini.split('-');
+  // Sem data fim ou dia único
+  if (!fim || fim === ini) {
+    return { display: di, mon: MESES_ABREV[parseInt(mi) - 1], small: false };
+  }
+  const [, mf, df] = fim.split('-');
+  // Mesma data fim no mesmo mês
+  if (mi === mf) {
+    return { display: `${di}–${df}`, mon: MESES_ABREV[parseInt(mi) - 1], small: true };
+  }
+  // Cross mês (ex: 28 FEV – 02 MAR)
+  return {
+    display: `${di}/${mi}`,
+    mon: `a ${df}/${mf}`,
+    small: true,
+    cross: true,
+  };
 }
 
 function _evtIsPast(iso) {
@@ -2728,7 +2744,7 @@ function _evtIsPast(iso) {
 }
 
 function _evtBuildRow(e) {
-  const d = _evtFormatDate(e.data_inicio);
+  const d = _evtFormatDate(e.data_inicio, e.data_fim);
   const past = _evtIsPast(e.data_fim || e.data_inicio);
   const tag = e.source === 'cbh'
     ? `<span class="evt-tag cbh">CBH</span>`
@@ -2739,7 +2755,7 @@ function _evtBuildRow(e) {
   return `
     <div class="event-row ${past ? 'evt-row-past' : ''}">
       <div class="evt-date">
-        <div class="evt-day">${d.day}</div>
+        <div class="evt-day${d.small ? ' small' : ''}">${d.display}</div>
         <div class="evt-mon">${d.mon}</div>
       </div>
       <div class="evt-info">
