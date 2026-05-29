@@ -267,12 +267,62 @@ body {
 .sk-pill { height: 12px; border-radius: 6px; }
 
 /* ===========================
+   DIA — grupo de provas por data do programa
+=========================== */
+.day-header {
+  margin: 20px 16px 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.day-header-inner {
+  background: var(--surface2);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.day-date {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--fg);
+  flex-grow: 1;
+}
+.day-week {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: 6px;
+}
+.day-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+.day-chevron {
+  color: var(--muted);
+  transition: transform .15s ease;
+}
+.day-collapsed .day-chevron { transform: rotate(-90deg); }
+.day-collapsed .day-provas { display: none; }
+.day-provas .prova-block { margin: 12px 0 0; }
+.day-provas .prova-block:first-child { margin-top: 4px; }
+
+/* ===========================
    PROVA CARD
 =========================== */
 .prova-block {
   margin: 16px 16px 0;
 }
 .prova-block:last-child { margin-bottom: 0; }
+
+.prova-meta-item {
+  background: var(--surface2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-weight: 600;
+}
 
 .prova-hdr {
   display: flex;
@@ -932,11 +982,15 @@ function populateTorneioFilter() {
 }
 
 // ─── Carregar provas e resultados de um torneio ───────────────
+// Cache do programa estruturado por torneio: { provaNumero: { data, dia_semana, hora, pista } }
+let _provaProgramaInfo = {};
+
 async function loadTorneio(torneioId) {
   $id('skeleton').style.display     = 'block';
   $id('error-msg').style.display    = 'none';
   $id('provas-container').innerHTML = '';
   $id('filter-prova').innerHTML     = '<option value="">Todas as provas</option>';
+  _provaProgramaInfo = {};
 
   try {
     // 1. Torneio
@@ -967,6 +1021,63 @@ async function loadTorneio(torneioId) {
       allResultados = resultados || [];
     } else {
       allResultados = [];
+    }
+
+    // 4. Programa estruturado (se houver): enriquece provas com data/hora/pista.
+    //    Busca PROGRAMA e QUADRO DE HORÁRIOS — horários tem prioridade (mais atual).
+    try {
+      const { data: docs } = await sb.from('torneio_documentos')
+        .select('tipo, conteudo_estruturado, data_publicacao')
+        .eq('torneio_id', torneioId)
+        .in('tipo', ['programa', 'horarios'])
+        .not('conteudo_estruturado', 'is', null)
+        .order('data_publicacao', { ascending: false });
+      for (const d of (docs || [])) {
+        const estr = d.conteudo_estruturado || {};
+        // Programa: provas em estr.provas[] com numero, data, horario
+        if (d.tipo === 'programa' && Array.isArray(estr.provas)) {
+          for (const p of estr.provas) {
+            const num = String(p.numero || '').replace(/^0+/, '');
+            if (!num) continue;
+            const k = num.toUpperCase();
+            if (!_provaProgramaInfo[k]) _provaProgramaInfo[k] = {};
+            const cur = _provaProgramaInfo[k];
+            if (p.data && !cur.data) cur.data = p.data;
+            if (p.horario && !cur.hora) cur.hora = p.horario;
+            if (p.tabela && !cur.tabela) cur.tabela = p.tabela;
+          }
+        }
+        // Horários: estr.dias[] com data, dia_semana, horarios[] { hora, prova_numero, pista }
+        if (d.tipo === 'horarios' && Array.isArray(estr.dias)) {
+          for (const dia of estr.dias) {
+            for (const h of (dia.horarios || [])) {
+              const num = String(h.prova_numero || '').replace(/^0+/, '');
+              if (!num) continue;
+              const k = num.toUpperCase();
+              if (!_provaProgramaInfo[k]) _provaProgramaInfo[k] = {};
+              const cur = _provaProgramaInfo[k];
+              // horários é fonte mais autoritativa pra data/hora/pista
+              cur.data = dia.data || cur.data;
+              cur.dia_semana = dia.dia_semana || cur.dia_semana;
+              cur.hora = h.hora || cur.hora;
+              cur.pista = h.pista || cur.pista;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Enriquece allProvas com info do programa (sem inventar — só se houver)
+    for (const p of allProvas) {
+      const m = (p.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
+      const k = (m ? m[1] : String(p.numero || '')).toUpperCase();
+      const info = _provaProgramaInfo[k];
+      if (info) {
+        if (info.data) p._data = info.data;
+        if (info.dia_semana) p._diaSemana = info.dia_semana;
+        if (info.hora) p.horario = info.hora;
+        if (info.pista) p.pista = info.pista;
+      }
     }
 
     populateProvaFilter();
@@ -1099,16 +1210,80 @@ function renderAll() {
 
   let totalVisiveis = 0;
 
-  provasFiltradas.forEach((prova, idx) => {
-    const resultados = allResultados.filter(r => {
-      if (r.prova_id !== prova.id) return false;
-      if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
-      if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
-      return true;
+  // Tem dados de data? Agrupa por dia.
+  const temDataPrograma = provasFiltradas.some(p => p._data);
+  if (temDataPrograma && !provaId) {
+    const grupos = new Map();
+    const semData = [];
+    for (const p of provasFiltradas) {
+      if (p._data) {
+        const k = p._data;
+        if (!grupos.has(k)) grupos.set(k, { data: p._data, diaSemana: p._diaSemana, provas: [] });
+        grupos.get(k).provas.push(p);
+      } else {
+        semData.push(p);
+      }
+    }
+    // Ordena grupos por data
+    const sortedKeys = [...grupos.keys()].sort();
+    let idxGlobal = 0;
+    for (const k of sortedKeys) {
+      const g = grupos.get(k);
+      // Header do dia (clicável pra expandir/colapsar)
+      const dayId = `day-${k.replace(/\D/g, '')}`;
+      const dayHeader = document.createElement('div');
+      dayHeader.className = 'day-header';
+      dayHeader.innerHTML = `
+        <div class="day-header-inner" onclick="toggleDay('${dayId}')">
+          <div class="day-date">${escHtml(g.data)}${g.diaSemana ? ` <span class="day-week">${escHtml(g.diaSemana)}</span>` : ''}</div>
+          <div class="day-count">${g.provas.length} prova${g.provas.length !== 1 ? 's' : ''}</div>
+          <svg class="day-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+        <div class="day-provas" id="${dayId}"></div>
+      `;
+      container.appendChild(dayHeader);
+      const provasContainer = dayHeader.querySelector(`#${dayId}`);
+      for (const prova of g.provas) {
+        const resultados = allResultados.filter(r => {
+          if (r.prova_id !== prova.id) return false;
+          if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
+          if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
+          return true;
+        });
+        totalVisiveis += resultados.length;
+        provasContainer.appendChild(buildProvaBlock(prova, resultados, idxGlobal++, cavaleiro, cavalo));
+      }
+    }
+    if (semData.length) {
+      const semDataHeader = document.createElement('div');
+      semDataHeader.className = 'day-header';
+      semDataHeader.innerHTML = `<div class="day-header-inner"><div class="day-date">Provas sem data específica</div></div><div class="day-provas"></div>`;
+      container.appendChild(semDataHeader);
+      const cont = semDataHeader.querySelector('.day-provas');
+      for (const prova of semData) {
+        const resultados = allResultados.filter(r => {
+          if (r.prova_id !== prova.id) return false;
+          if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
+          if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
+          return true;
+        });
+        totalVisiveis += resultados.length;
+        cont.appendChild(buildProvaBlock(prova, resultados, idxGlobal++, cavaleiro, cavalo));
+      }
+    }
+  } else {
+    // Sem dados de dia ou filtro de prova específica → lista flat
+    provasFiltradas.forEach((prova, idx) => {
+      const resultados = allResultados.filter(r => {
+        if (r.prova_id !== prova.id) return false;
+        if (cavaleiro && !(r.cavaleiro_nome || '').toLowerCase().includes(cavaleiro)) return false;
+        if (cavalo   && !(r.cavalo_nome    || '').toLowerCase().includes(cavalo))   return false;
+        return true;
+      });
+      totalVisiveis += resultados.length;
+      container.appendChild(buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo));
     });
-    totalVisiveis += resultados.length;
-    container.appendChild(buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo));
-  });
+  }
 
   const sumEl = $id('results-summary');
   if (hasFilters) {
@@ -1314,6 +1489,22 @@ async function renderGlobalSearch(cavaleiro, cavalo) {
 }
 
 // ─── Bloco de uma prova ──────────────────────────────────────
+// Normaliza altura: extrai a PRIMEIRA medida no formato "X,YYm" (altura do percurso).
+// Descarta segundas medidas ("1,30M X 1,50M" → "1,30m") que indicam largura/desempate.
+// Retorna null se não houver altura reconhecível.
+function alturaPrincipal(desc) {
+  if (!desc) return null;
+  const m = String(desc).match(/(\d{1,2}[,.]?\d{0,2})\s*[mM]\b/);
+  if (!m) return null;
+  return m[1].replace('.', ',') + 'm';
+}
+
+// Tipo de prova em formato visual amigável (já em pt-BR)
+function tipoProvaLabel(t) {
+  if (!t || t === 'Outro') return null;
+  return t; // "Duas Fases", "Cronometro", "Desempate", "Tempo Ideal", "Duas Voltas"
+}
+
 function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
   const wrapper = document.createElement('div');
   wrapper.className = 'prova-block' + (idx === 0 ? ' open' : '');
@@ -1321,15 +1512,21 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
 
   const countText = `${resultados.length} resultado${resultados.length !== 1 ? 's' : ''}`;
 
-  // Número formatado: "PR. 01" quando coluna preenchida, ou "PROVA" como fallback
-  const numBadge = prova.numero != null
-    ? `PR. ${String(prova.numero).padStart(2, '0')}`
-    : 'PROVA';
+  // Badge "PR. 01" / "PR. 11A" (preserva sufixo do nome) / "PROVA" fallback
+  let numBadge = 'PROVA';
+  if (prova.numero != null) {
+    // Captura sufixo letra do nome: "PR. 11A - ..." → "11A"
+    const m = (prova.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
+    numBadge = m ? `PR. ${m[1]}` : `PR. ${String(prova.numero).padStart(2, '0')}`;
+  }
 
-  // Descrição principal: usa descricao, cai para nome
-  const descricao = prova.descricao || prova.nome || '—';
+  // Altura padronizada (só "1,30m")
+  const altura = alturaPrincipal(prova.descricao || prova.nome);
+  const tipo   = tipoProvaLabel(prova.tipo_prova);
+  const pista  = prova.pista; // se existir no schema
+  const horario = prova.horario;
 
-  // Chips de categorias: split por "/" em "CN4/HC" → ["CN4", "HC"]
+  // Header: altura + categorias + tipo. Se algo falta, simplesmente não mostra.
   const cats = prova.categorias
     ? prova.categorias.split('/').map(c => c.trim()).filter(Boolean)
     : [];
@@ -1337,14 +1534,28 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
     ? `<div class="prova-cats">${cats.map(c => `<span class="cat-chip">${escHtml(c)}</span>`).join('')}</div>`
     : '';
 
+  // Subheader: tipo + pista + horário (só os campos com dado)
+  const metaParts = [];
+  if (tipo) metaParts.push(`<span class="prova-meta-item">${escHtml(tipo)}</span>`);
+  if (pista) metaParts.push(`<span class="prova-meta-item">📍 ${escHtml(pista)}</span>`);
+  if (horario) metaParts.push(`<span class="prova-meta-item">🕐 ${escHtml(horario)}</span>`);
+  const metaHtml = metaParts.length
+    ? `<div class="prova-meta" style="margin-top:4px;display:flex;flex-wrap:wrap;gap:8px;font-size:10.5px;color:var(--muted)">${metaParts.join('')}</div>`
+    : '';
+
+  // Linha principal: PR.NN — altura — nome curto (sem altura redundante)
+  // Se não tem altura, usa a descricao bruta
+  const descLinha = altura || (prova.descricao || prova.nome || '—');
+
   wrapper.innerHTML = `
     <div class="prova-hdr" onclick="toggleProva(${prova.id})">
       <div class="prova-hdr-left">
         <div class="prova-hdr-top">
           <span class="prova-badge">${escHtml(numBadge)}</span>
-          <span class="prova-desc">${escHtml(descricao)}</span>
+          <span class="prova-desc">${escHtml(descLinha)}</span>
         </div>
         ${catsHtml}
+        ${metaHtml}
       </div>
       <div class="prova-hdr-right">
         <span class="prova-count">${countText}</span>
@@ -1437,6 +1648,14 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
 function toggleProva(provaId) {
   const el = $id(`prova-${provaId}`);
   if (el) el.classList.toggle('open');
+}
+
+// ─── Toggle dia ───────────────────────────────────────────────
+function toggleDay(dayId) {
+  const el = $id(dayId);
+  if (!el) return;
+  const hdr = el.parentElement;
+  hdr.classList.toggle('day-collapsed');
 }
 
 // ─── Limpar filtros ───────────────────────────────────────────
