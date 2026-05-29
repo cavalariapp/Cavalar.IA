@@ -2045,7 +2045,7 @@ body {
   <div class="topbar">
     <svg class="logo-img" viewBox="300 770 3390 370" height="32" style="" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
     <div class="topbar-right">
-      <button class="btn-entrar" onclick="nav('onboarding')">ENTRAR</button>
+      <button class="btn-entrar" id="btn-entrar-home" onclick="window.location.href='login.html'">ENTRAR</button>
       <button class="btn-hamburger"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -2946,7 +2946,28 @@ function initCategories() {
 }
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
-async function renderHomeContent() { await Promise.all([renderNews(), renderRankings(), renderEvents()]); }
+async function renderHomeContent() {
+  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton()]);
+}
+
+// Substitui botão ENTRAR pelo nome do usuário se logado
+async function updateAuthButton() {
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    const btn = document.getElementById('btn-entrar-home');
+    if (!btn) return;
+    if (user) {
+      // Pega nome do perfil
+      const { data: profile } = await sb.from('profiles').select('nome_completo').eq('id', user.id).maybeSingle();
+      const primeiro = (profile?.nome_completo || user.email || 'EU').split(/\s+/)[0].toUpperCase();
+      btn.textContent = primeiro.length > 9 ? primeiro.substring(0, 9) + '…' : primeiro;
+      btn.onclick = () => window.location.href = 'perfil.html';
+    } else {
+      btn.textContent = 'ENTRAR';
+      btn.onclick = () => window.location.href = 'login.html';
+    }
+  } catch (_) {}
+}
 
 async function renderNews() {
   const container = document.getElementById('home-news-list');

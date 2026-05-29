@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Perfil · Cavalar.IA</title>
+<link rel="manifest" href="manifest.webmanifest?v=2">
+<meta name="theme-color" content="#080d18">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080d18; --surface:#0f1623; --surface2:#141e2e; --fg:#fff; --muted:#7a8ba8;
+  --border:#1c2840; --accent:#e84d0e; --accent-dim:rgba(232,77,14,.13); --accent-glow:rgba(232,77,14,.28);
+  --font-display:'Barlow Condensed',sans-serif;
+  --font-body:-apple-system,system-ui,sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-height:100vh; }
+.page { max-width:520px; margin:0 auto; padding:20px 16px 100px; }
+.topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+.brand { font-family:var(--font-display); font-size:22px; }
+.brand .dot { color:var(--accent); }
+.btn-link { background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; font-family:inherit; }
+.btn-link:hover { color:var(--accent); }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:22px; margin-bottom:16px; }
+.profile-header { text-align:center; }
+.avatar { width:88px; height:88px; background:linear-gradient(135deg, var(--accent), #d44309); border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:36px; font-weight:900; color:#fff; }
+.nome { font-family:var(--font-display); font-size:24px; font-weight:900; }
+.bio { color:var(--muted); font-size:13px; margin-top:6px; line-height:1.5; }
+.meta { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:12px; }
+.meta-chip { background:var(--surface2); padding:4px 10px; border-radius:12px; font-size:11px; color:var(--muted); }
+.section-title { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
+.field { margin-bottom:14px; }
+.field label { display:block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.input, .textarea, .select {
+  width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--border);
+  padding:10px 12px; border-radius:5px; font-size:14px; font-family:inherit;
+}
+.textarea { min-height:80px; resize:vertical; }
+.input:focus, .textarea:focus, .select:focus { outline:none; border-color:var(--accent); }
+.btn { background:var(--accent); color:#fff; border:none; padding:11px 20px; border-radius:5px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; }
+.btn:hover { background:#d44309; }
+.btn-secondary { background:transparent; color:var(--muted); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--surface2); color:var(--fg); }
+.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.stat-box { background:var(--bg); padding:10px 6px; border-radius:4px; text-align:center; }
+.stat-val { font-size:18px; font-weight:900; color:var(--accent); }
+.stat-lbl { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+.toggle-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; }
+.toggle-label { font-size:13px; }
+.toggle-switch { width:44px; height:24px; background:var(--surface2); border-radius:12px; position:relative; cursor:pointer; transition:background .2s; }
+.toggle-switch.on { background:var(--accent); }
+.toggle-switch::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:left .2s; }
+.toggle-switch.on::after { left:22px; }
+.interesses-list { display:flex; flex-wrap:wrap; gap:8px; }
+.interesse-chip { background:var(--surface2); padding:6px 12px; border-radius:14px; font-size:12px; }
+.interesse-chip b { color:var(--accent); margin-left:4px; }
+.row-actions { display:flex; gap:8px; margin-top:14px; }
+.empty { color:var(--muted); font-size:13px; text-align:center; padding:14px 0; }
+.spinner { width:36px; height:36px; border:3px solid var(--surface2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin:60px auto; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.privacy-note { font-size:11px; color:var(--muted); margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <a href="index.html" class="brand">CAVALAR<span class="dot">.</span>IA</a>
+    <button class="btn-link" id="btn-logout" style="display:none">Sair</button>
+  </div>
+
+  <div id="loading" class="spinner"></div>
+  <div id="content" style="display:none"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+const TIPOS_LABEL = {
+  cavaleiro_amazona:'Cavaleiro / Amazona',
+  criador:'Criador(a)', treinador:'Treinador(a)',
+  profissional:'Profissional', amador:'Amador(a)',
+  veterinario:'Veterinário(a)', amante:'Amante do esporte',
+};
+
+const PERGUNTAS = {
+  cavalo_temperamento: 'Cavalo:',
+  cron_ou_desempate: 'Prefere:',
+  pista: 'Pista:',
+  luva: 'Luva:',
+  treino: 'Treino:',
+};
+
+async function carregar() {
+  const params = new URLSearchParams(window.location.search);
+  const userIdParam = params.get('u');
+
+  const { data: { user } } = await sb.auth.getUser();
+  const meuId = user?.id || null;
+  const alvoId = userIdParam || meuId;
+
+  if (!alvoId) {
+    // Não logado e sem param → vai pra login
+    window.location.href = 'login.html';
+    return;
+  }
+
+  $('btn-logout').style.display = meuId ? 'inline-block' : 'none';
+  if (meuId) {
+    $('btn-logout').onclick = async () => {
+      await sb.auth.signOut();
+      window.location.href = 'index.html';
+    };
+  }
+
+  const ehProprio = meuId && (meuId === alvoId);
+
+  // Carrega perfil
+  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', alvoId).single();
+  if (error || !profile) {
+    $('loading').style.display = 'none';
+    $('content').style.display = 'block';
+    $('content').innerHTML = ehProprio
+      ? `<div class="card"><div class="empty">Seu perfil ainda não foi criado.<br><br><a href="cadastro.html" class="btn">Completar cadastro</a></div></div>`
+      : `<div class="card"><div class="empty">Perfil não encontrado ou privado.</div></div>`;
+    return;
+  }
+
+  // Carrega interesses + cavaleiro stats em paralelo
+  const [interessesRes, statsRes] = await Promise.all([
+    sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', alvoId),
+    profile.cavaleiro_nome
+      ? sb.rpc('match_cavaleiro', { nome_input: profile.cavaleiro_nome }).then(r => r.data?.[0])
+      : Promise.resolve(null),
+  ]);
+
+  renderProfile(profile, interessesRes.data || [], statsRes, ehProprio);
+}
+
+function renderProfile(p, interesses, stats, ehProprio) {
+  $('loading').style.display = 'none';
+  $('content').style.display = 'block';
+
+  const inicial = (p.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
+  const tipos = (p.tipos || []).map(t => TIPOS_LABEL[t] || t).filter(Boolean);
+
+  const statsHtml = stats ? (() => {
+    const pct = (n, total) => total > 0 ? Math.round((n/total)*100) : 0;
+    return `
+      <div class="card">
+        <div class="section-title">Resumo do cavaleiro · ${esc(stats.cavaleiro_nome)}</div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val">${stats.total_participacoes}</div><div class="stat-lbl">Particip.<br>(${stats.total_provas} provas)</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(stats.zeros, stats.total_participacoes)}%</div><div class="stat-lbl">Zero<br>(${stats.zeros})</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(stats.vitorias, stats.total_participacoes)}%</div><div class="stat-lbl">Vitórias<br>(${stats.vitorias})</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(stats.top6, stats.total_participacoes)}%</div><div class="stat-lbl">Top 6<br>(${stats.top6})</div></div>
+        </div>
+        ${stats.cavalos?.length ? `<div style="margin-top:12px; font-size:11px; color:var(--muted)">Cavalos recentes: ${stats.cavalos.slice(0,4).map(esc).join(' · ')}</div>` : ''}
+      </div>
+    `;
+  })() : '';
+
+  const interessesHtml = interesses.length ? `
+    <div class="card">
+      <div class="section-title">Interesses</div>
+      <div class="interesses-list">
+        ${interesses.map(i => `<span class="interesse-chip">${esc(PERGUNTAS[i.pergunta_id] || i.pergunta_id)} <b>${esc(i.resposta)}</b></span>`).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const contatoHtml = (p.instagram || p.website || (ehProprio && (p.email || p.celular))) ? `
+    <div class="card">
+      <div class="section-title">Contato</div>
+      ${p.instagram ? `<div style="margin-bottom:6px">📷 <a href="https://instagram.com/${esc(p.instagram.replace('@',''))}" target="_blank" style="color:var(--accent); text-decoration:none">@${esc(p.instagram.replace('@',''))}</a></div>` : ''}
+      ${p.website ? `<div style="margin-bottom:6px">🌐 <a href="${esc(p.website)}" target="_blank" style="color:var(--accent); text-decoration:none">${esc(p.website)}</a></div>` : ''}
+      ${ehProprio && p.email ? `<div style="margin-bottom:6px; color:var(--muted); font-size:12px">✉️ ${esc(p.email)} (só você vê)</div>` : ''}
+      ${ehProprio && p.celular ? `<div style="margin-bottom:6px; color:var(--muted); font-size:12px">📱 ${esc(p.celular)} (só você vê)</div>` : ''}
+    </div>
+  ` : '';
+
+  const editHtml = ehProprio ? `
+    <div class="card">
+      <div class="section-title">Editar perfil</div>
+      <div class="field">
+        <label>Bio</label>
+        <textarea id="edit-bio" class="textarea" placeholder="Conte um pouco sobre você">${esc(p.bio || '')}</textarea>
+      </div>
+      <div class="field">
+        <label>Instagram</label>
+        <input id="edit-instagram" class="input" placeholder="@seu_perfil" value="${esc(p.instagram || '')}">
+      </div>
+      <div class="field">
+        <label>Website</label>
+        <input id="edit-website" class="input" placeholder="https://..." value="${esc(p.website || '')}">
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Perfil público</span>
+        <div class="toggle-switch ${p.visibilidade === 'publico' ? 'on' : ''}" id="toggle-publico"></div>
+      </div>
+      <p class="privacy-note">Quando público, outros usuários podem ver seu perfil, bio, interesses e estatísticas. Email e celular ficam sempre privados.</p>
+      <div class="row-actions">
+        <button class="btn" id="btn-salvar">Salvar alterações</button>
+      </div>
+    </div>
+  ` : '';
+
+  $('content').innerHTML = `
+    <div class="card profile-header">
+      <div class="avatar">${esc(inicial)}</div>
+      <div class="nome">${esc(p.nome_completo)}</div>
+      ${p.bio ? `<div class="bio">${esc(p.bio)}</div>` : ''}
+      ${tipos.length ? `<div class="meta">${tipos.map(t => `<span class="meta-chip">${esc(t)}</span>`).join('')}</div>` : ''}
+      ${p.estado ? `<div class="meta" style="margin-top:6px"><span class="meta-chip">📍 ${esc(p.estado)}${p.pais && p.pais !== 'Brasil' ? ', ' + esc(p.pais) : ''}</span></div>` : ''}
+    </div>
+    ${statsHtml}
+    ${contatoHtml}
+    ${interessesHtml}
+    ${editHtml}
+  `;
+
+  if (ehProprio) wireEdit(p);
+}
+
+function wireEdit(p) {
+  let visibilidade = p.visibilidade;
+  $('toggle-publico').onclick = () => {
+    visibilidade = visibilidade === 'publico' ? 'privado' : 'publico';
+    $('toggle-publico').classList.toggle('on', visibilidade === 'publico');
+  };
+  $('btn-salvar').onclick = async () => {
+    $('btn-salvar').disabled = true;
+    const updates = {
+      bio: $('edit-bio').value.trim() || null,
+      instagram: $('edit-instagram').value.trim() || null,
+      website: $('edit-website').value.trim() || null,
+      visibilidade,
+    };
+    const { error } = await sb.from('profiles').update(updates).eq('id', p.id);
+    $('btn-salvar').disabled = false;
+    if (error) { alert('Erro ao salvar: ' + error.message); return; }
+    $('btn-salvar').textContent = '✓ Salvo';
+    setTimeout(() => location.reload(), 800);
+  };
+}
+
+carregar();
+</script>
+</body>
+</html>

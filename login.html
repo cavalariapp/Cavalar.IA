@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Entrar · Cavalar.IA</title>
+<link rel="manifest" href="manifest.webmanifest?v=2">
+<meta name="theme-color" content="#080d18">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080d18; --surface:#0f1623; --surface2:#141e2e; --fg:#fff; --muted:#7a8ba8;
+  --border:#1c2840; --accent:#e84d0e; --accent-dim:rgba(232,77,14,.13);
+  --font-display:'Barlow Condensed',sans-serif;
+  --font-body:-apple-system,system-ui,sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-height:100vh; }
+.page { max-width:380px; margin:0 auto; padding:60px 20px; }
+.brand { font-family:var(--font-display); font-size:28px; text-align:center; margin-bottom:6px; }
+.brand .dot { color:var(--accent); }
+.subtitle { color:var(--muted); font-size:13px; text-align:center; margin-bottom:32px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:26px; }
+h2 { font-family:var(--font-display); font-size:20px; margin-bottom:6px; font-weight:900; }
+.hint { color:var(--muted); font-size:12.5px; margin-bottom:20px; }
+.field { margin-bottom:16px; }
+.field label { display:block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.input { width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--border); padding:11px 13px; border-radius:5px; font-size:14px; font-family:inherit; }
+.input:focus { outline:none; border-color:var(--accent); }
+.otp-input { letter-spacing:.5em; text-align:center; font-size:22px; font-weight:700; }
+.btn { background:var(--accent); color:#fff; border:none; padding:13px 22px; border-radius:5px; font-size:13px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; width:100%; margin-top:12px; }
+.btn:hover:not(:disabled) { background:#d44309; }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn-secondary { background:transparent; color:var(--muted); border:1px solid var(--border); font-weight:600; }
+.btn-secondary:hover { background:var(--surface2); color:var(--fg); }
+.err { color:#ff6b6b; font-size:12px; margin-top:8px; }
+.ok { color:#4ade80; font-size:12px; margin-top:8px; }
+.divider { text-align:center; color:var(--muted); font-size:12px; margin:20px 0 14px; position:relative; }
+.divider::before, .divider::after { content:''; position:absolute; top:50%; width:30%; height:1px; background:var(--border); }
+.divider::before { left:0; } .divider::after { right:0; }
+a.link { color:var(--accent); text-decoration:none; font-size:13px; }
+a.link:hover { text-decoration:underline; }
+.center { text-align:center; }
+.back { color:var(--muted); font-size:12px; text-decoration:none; display:block; margin-bottom:14px; text-align:center; }
+.back:hover { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+  <a href="index.html" class="back">← Voltar</a>
+  <h1 class="brand">CAVALAR<span class="dot">.</span>IA</h1>
+  <p class="subtitle">Entre na sua conta</p>
+
+  <div class="card" id="step-email">
+    <h2>Bem-vindo de volta</h2>
+    <p class="hint">Vamos enviar um código pro seu email</p>
+    <div class="field">
+      <label>Email</label>
+      <input id="f-email" class="input" type="email" placeholder="voce@email.com" autocomplete="email">
+    </div>
+    <div class="err" id="err-1"></div>
+    <button class="btn" onclick="enviarOtp()">Enviar código →</button>
+
+    <div class="divider">ou</div>
+    <p class="center"><a href="cadastro.html" class="link">Criar nova conta</a></p>
+  </div>
+
+  <div class="card" id="step-otp" style="display:none">
+    <h2>Confirme o código</h2>
+    <p class="hint">Enviamos um código para <strong id="show-email"></strong></p>
+    <div class="field">
+      <label>Código (6 dígitos)</label>
+      <input id="f-otp" class="input otp-input" type="text" inputmode="numeric" maxlength="6" placeholder="······">
+    </div>
+    <div class="err" id="err-2"></div>
+    <div class="ok" id="ok-2"></div>
+    <button class="btn" onclick="confirmar()">Entrar →</button>
+    <button class="btn btn-secondary" onclick="voltarEmail()">← Trocar email</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+let email = '';
+
+async function enviarOtp() {
+  email = $('f-email').value.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('err-1').textContent = 'Email inválido'; return; }
+  $('err-1').textContent = 'Enviando…';
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: false }, // login: NÃO cria novo usuário
+  });
+  if (error) { $('err-1').textContent = error.message || 'Erro ao enviar código'; return; }
+  $('show-email').textContent = email;
+  $('step-email').style.display = 'none';
+  $('step-otp').style.display = 'block';
+}
+
+async function confirmar() {
+  const code = $('f-otp').value.trim();
+  if (code.length !== 6) { $('err-2').textContent = 'Digite os 6 dígitos'; return; }
+  $('err-2').textContent = 'Verificando…';
+  const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
+  if (error || !data.user) { $('err-2').textContent = error?.message || 'Código inválido'; return; }
+  $('ok-2').textContent = '✓ Entrando…';
+  window.location.href = 'perfil.html';
+}
+
+function voltarEmail() {
+  $('step-email').style.display = 'block';
+  $('step-otp').style.display = 'none';
+}
+
+// Se já logado, redireciona
+sb.auth.getUser().then(({ data: { user } }) => {
+  if (user) window.location.href = 'perfil.html';
+});
+</script>
+</body>
+</html>

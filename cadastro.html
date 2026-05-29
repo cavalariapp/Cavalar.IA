@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Cadastro · Cavalar.IA</title>
+<link rel="manifest" href="manifest.webmanifest?v=2">
+<meta name="theme-color" content="#080d18">
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=2">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png?v=2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080d18; --surface:#0f1623; --surface2:#141e2e; --fg:#fff; --muted:#7a8ba8;
+  --border:#1c2840; --accent:#e84d0e; --accent-dim:rgba(232,77,14,.13); --accent-glow:rgba(232,77,14,.28);
+  --font-display:'Barlow Condensed','Impact',sans-serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html,body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-height:100vh; }
+.page { max-width:440px; margin:0 auto; padding:24px 18px 80px; }
+.brand { font-family:var(--font-display); font-size:28px; letter-spacing:-.02em; color:var(--fg); margin-bottom:8px; }
+.brand .dot { color:var(--accent); }
+.subtitle { color:var(--muted); font-size:13px; margin-bottom:28px; }
+.steps { display:flex; gap:6px; margin-bottom:28px; }
+.step-dot { flex:1; height:4px; border-radius:2px; background:var(--surface2); transition:background .2s; }
+.step-dot.done { background:var(--accent); }
+.step-dot.current { background:var(--accent-glow); }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:24px; }
+h2 { font-family:var(--font-display); font-size:22px; margin-bottom:6px; font-weight:900; letter-spacing:-.01em; }
+.hint { color:var(--muted); font-size:12.5px; margin-bottom:20px; }
+.field { margin-bottom:16px; }
+.field label { display:block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
+.input, .select {
+  width:100%; background:var(--bg); color:var(--fg); border:1px solid var(--border);
+  padding:11px 13px; border-radius:5px; font-size:14px; font-family:inherit;
+  transition:border-color .15s;
+}
+.input:focus, .select:focus { outline:none; border-color:var(--accent); }
+.row { display:flex; gap:10px; }
+.row > .field { flex:1; }
+.chips { display:flex; flex-wrap:wrap; gap:8px; }
+.chip {
+  background:var(--surface2); color:var(--fg); border:1px solid var(--border);
+  padding:8px 14px; border-radius:20px; font-size:12.5px; font-weight:600;
+  cursor:pointer; user-select:none; transition:all .15s;
+}
+.chip:hover { border-color:var(--accent-glow); }
+.chip.active {
+  background:var(--accent-dim); border-color:var(--accent); color:var(--accent);
+}
+.btn {
+  background:var(--accent); color:#fff; border:none; padding:13px 22px;
+  border-radius:5px; font-size:13px; font-weight:800; letter-spacing:.06em;
+  text-transform:uppercase; cursor:pointer; transition:background .15s;
+  width:100%; margin-top:18px;
+}
+.btn:hover:not(:disabled) { background:#d44309; }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+.btn-secondary {
+  background:transparent; color:var(--muted); border:1px solid var(--border);
+  font-weight:600; margin-top:8px;
+}
+.btn-secondary:hover:not(:disabled) { background:var(--surface2); color:var(--fg); }
+.err { color:#ff6b6b; font-size:12px; margin-top:8px; }
+.ok { color:#4ade80; font-size:12px; margin-top:8px; }
+.otp-input {
+  letter-spacing:.5em; text-align:center; font-size:22px; font-weight:700;
+  font-variant-numeric:tabular-nums;
+}
+.match-card {
+  background:linear-gradient(135deg, var(--accent-dim), transparent);
+  border:1px solid var(--accent-glow); padding:18px; border-radius:6px;
+  margin:14px 0;
+}
+.match-card .match-greeting { font-size:15px; line-height:1.5; margin-bottom:14px; }
+.match-card .match-greeting b { color:var(--accent); }
+.stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:12px; }
+.stat-box { background:var(--bg); padding:10px 6px; border-radius:4px; text-align:center; }
+.stat-val { font-size:18px; font-weight:900; color:var(--accent); }
+.stat-lbl { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+.batebola-q { font-family:var(--font-display); font-size:18px; text-align:center; margin:16px 0 12px; }
+.batebola-opts { display:flex; gap:10px; }
+.batebola-opts .chip { flex:1; text-align:center; padding:14px 8px; font-size:13px; }
+a.back { color:var(--muted); font-size:12px; text-decoration:none; display:inline-block; margin-bottom:18px; }
+a.back:hover { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="page">
+  <a href="index.html" class="back">← Voltar</a>
+  <h1 class="brand">CAVALAR<span class="dot">.</span>IA</h1>
+  <p class="subtitle">Crie sua conta para acessar todos os recursos</p>
+
+  <div class="steps">
+    <div class="step-dot current" data-step="1"></div>
+    <div class="step-dot" data-step="2"></div>
+    <div class="step-dot" data-step="3"></div>
+    <div class="step-dot" data-step="4"></div>
+    <div class="step-dot" data-step="5"></div>
+  </div>
+
+  <!-- STEP 1: Dados pessoais -->
+  <div class="card" id="step-1">
+    <h2>Dados pessoais</h2>
+    <p class="hint">Vamos começar por você</p>
+
+    <div class="field">
+      <label>Nome completo</label>
+      <input id="f-nome" class="input" type="text" placeholder="João da Silva Santos" autocomplete="name">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Idade</label>
+        <input id="f-idade" class="input" type="number" min="1" max="120" placeholder="32">
+      </div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="f-estado" class="select">
+          <option value="">—</option>
+          <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+          <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+          <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+          <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+          <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+          <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+          <option>SP</option><option>SE</option><option>TO</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>País</label>
+      <input id="f-pais" class="input" type="text" value="Brasil" autocomplete="country-name">
+    </div>
+
+    <div class="field">
+      <label>Email</label>
+      <input id="f-email" class="input" type="email" placeholder="voce@email.com" autocomplete="email">
+    </div>
+
+    <div class="field">
+      <label>Celular (WhatsApp)</label>
+      <input id="f-celular" class="input" type="tel" placeholder="(11) 99999-9999" autocomplete="tel">
+    </div>
+
+    <div class="err" id="err-1"></div>
+    <button class="btn" onclick="nextStep(1)">Continuar →</button>
+  </div>
+
+  <!-- STEP 2: Tipos -->
+  <div class="card" id="step-2" style="display:none">
+    <h2>O que você é?</h2>
+    <p class="hint">Selecione um ou mais — não tem certo nem errado</p>
+
+    <div class="chips" id="tipos-chips">
+      <span class="chip" data-tipo="cavaleiro_amazona">Cavaleiro / Amazona</span>
+      <span class="chip" data-tipo="criador">Criador(a)</span>
+      <span class="chip" data-tipo="treinador">Treinador(a)</span>
+      <span class="chip" data-tipo="profissional">Profissional</span>
+      <span class="chip" data-tipo="amador">Amador(a)</span>
+      <span class="chip" data-tipo="veterinario">Veterinário(a)</span>
+      <span class="chip" data-tipo="amante">Amante do esporte</span>
+    </div>
+
+    <div class="err" id="err-2"></div>
+    <button class="btn" onclick="nextStep(2)">Continuar →</button>
+    <button class="btn btn-secondary" onclick="prevStep(2)">← Voltar</button>
+  </div>
+
+  <!-- STEP 3: Confirmação email com OTP -->
+  <div class="card" id="step-3" style="display:none">
+    <h2>Confirme seu email</h2>
+    <p class="hint">Enviamos um código de 6 dígitos para <strong id="step3-email"></strong></p>
+
+    <div class="field">
+      <label>Código</label>
+      <input id="f-otp" class="input otp-input" type="text" inputmode="numeric" maxlength="6" placeholder="······">
+    </div>
+
+    <div class="err" id="err-3"></div>
+    <div class="ok" id="ok-3"></div>
+    <button class="btn" onclick="confirmOtp()">Confirmar →</button>
+    <button class="btn btn-secondary" onclick="resendOtp()">Não recebi — reenviar código</button>
+  </div>
+
+  <!-- STEP 4: Reconhecimento de cavaleiro -->
+  <div class="card" id="step-4" style="display:none">
+    <h2 id="step4-title">Bem-vindo!</h2>
+    <div id="step4-content"></div>
+    <button class="btn" onclick="nextStep(4)" id="step4-continue">Continuar →</button>
+  </div>
+
+  <!-- STEP 5: Bate-bola interesses -->
+  <div class="card" id="step-5" style="display:none">
+    <h2>Bate-bola rápido</h2>
+    <p class="hint">Pra gente te conhecer melhor (pula quando quiser)</p>
+    <div id="batebola"></div>
+    <div class="err" id="err-5"></div>
+    <button class="btn" onclick="finalizarCadastro()">Finalizar cadastro</button>
+    <button class="btn btn-secondary" onclick="finalizarCadastro(true)">Pular e finalizar</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZldGtncmtzdmJlZ2lmb3RtbHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyMDM5MzMsImV4cCI6MjA5NDc3OTkzM30.OFTLHndXd3E42xrWR_nlK-nT_XYuBJA6rKKRVKhh57k';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const dados = {
+  nome:'', idade:null, email:'', celular:'', estado:'', pais:'Brasil',
+  tipos:[], interesses:{}, cavaleiroMatch:null,
+};
+
+// ─── Tipos (multi-select) ───────────────────────────────────────
+document.querySelectorAll('#tipos-chips .chip').forEach(c => {
+  c.onclick = () => {
+    c.classList.toggle('active');
+    const tipo = c.dataset.tipo;
+    if (c.classList.contains('active')) {
+      if (!dados.tipos.includes(tipo)) dados.tipos.push(tipo);
+    } else {
+      dados.tipos = dados.tipos.filter(t => t !== tipo);
+    }
+  };
+});
+
+// ─── Bate-bola perguntas ────────────────────────────────────────
+const PERGUNTAS = [
+  { id:'cavalo_temperamento',  q:'Cavalo quente ou cavalo frio?',  a:'Quente', b:'Frio' },
+  { id:'cron_ou_desempate',    q:'Cronômetro ou desempate?',       a:'Cronômetro', b:'Desempate' },
+  { id:'pista',                q:'Pista de areia ou pista de grama?', a:'Areia', b:'Grama' },
+  { id:'luva',                 q:'Com luva ou sem luva?',           a:'Com luva', b:'Sem luva' },
+  { id:'treino',               q:'Trabalho de plano ou dias de salto?', a:'Plano', b:'Salto' },
+];
+
+function renderBateBola() {
+  const el = $('batebola');
+  el.innerHTML = PERGUNTAS.map(p => `
+    <div style="margin-bottom:18px">
+      <div class="batebola-q">${p.q}</div>
+      <div class="batebola-opts" data-pid="${p.id}">
+        <span class="chip" data-r="${p.a}">${p.a}</span>
+        <span class="chip" data-r="${p.b}">${p.b}</span>
+      </div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.batebola-opts').forEach(grupo => {
+    grupo.querySelectorAll('.chip').forEach(c => {
+      c.onclick = () => {
+        grupo.querySelectorAll('.chip').forEach(x => x.classList.remove('active'));
+        c.classList.add('active');
+        dados.interesses[grupo.dataset.pid] = c.dataset.r;
+      };
+    });
+  });
+}
+
+// ─── Navegação de steps ─────────────────────────────────────────
+function showStep(n) {
+  for (let i=1; i<=5; i++) $(`step-${i}`).style.display = (i===n ? 'block' : 'none');
+  document.querySelectorAll('.step-dot').forEach((d,i) => {
+    d.classList.remove('done','current');
+    if (i+1 < n) d.classList.add('done');
+    if (i+1 === n) d.classList.add('current');
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function nextStep(from) {
+  if (from === 1) {
+    // Valida campos
+    dados.nome = $('f-nome').value.trim();
+    dados.idade = parseInt($('f-idade').value) || null;
+    dados.email = $('f-email').value.trim().toLowerCase();
+    dados.celular = $('f-celular').value.trim();
+    dados.estado = $('f-estado').value;
+    dados.pais = $('f-pais').value.trim() || 'Brasil';
+    const errs = [];
+    if (dados.nome.length < 5 || !dados.nome.includes(' ')) errs.push('Nome completo (nome + sobrenome)');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dados.email)) errs.push('Email inválido');
+    if (!dados.celular) errs.push('Celular obrigatório');
+    if (errs.length) { $('err-1').textContent = errs.join(' · '); return; }
+    $('err-1').textContent = '';
+    showStep(2);
+    return;
+  }
+  if (from === 2) {
+    if (!dados.tipos.length) { $('err-2').textContent = 'Escolha pelo menos um'; return; }
+    $('err-2').textContent = '';
+    // Envia OTP
+    await enviarOtp();
+    return;
+  }
+  if (from === 4) {
+    renderBateBola();
+    showStep(5);
+    return;
+  }
+}
+
+function prevStep(from) {
+  if (from > 1) showStep(from - 1);
+}
+
+// ─── OTP / Auth ─────────────────────────────────────────────────
+async function enviarOtp() {
+  $('step3-email').textContent = dados.email;
+  $('err-3').textContent = 'Enviando código…';
+  const { error } = await sb.auth.signInWithOtp({
+    email: dados.email,
+    options: {
+      shouldCreateUser: true,
+      data: { nome_completo: dados.nome },
+    },
+  });
+  if (error) {
+    $('err-3').textContent = error.message;
+    return;
+  }
+  $('err-3').textContent = '';
+  $('ok-3').textContent = '✓ Código enviado';
+  showStep(3);
+}
+
+async function resendOtp() {
+  $('ok-3').textContent = '';
+  await enviarOtp();
+}
+
+async function confirmOtp() {
+  const codigo = $('f-otp').value.trim();
+  if (codigo.length !== 6) { $('err-3').textContent = 'Digite os 6 dígitos'; return; }
+  $('err-3').textContent = 'Validando…';
+  const { data, error } = await sb.auth.verifyOtp({
+    email: dados.email, token: codigo, type: 'email',
+  });
+  if (error || !data.user) {
+    $('err-3').textContent = error?.message || 'Código inválido';
+    return;
+  }
+  // Cria perfil base
+  const { error: errProf } = await sb.from('profiles').upsert({
+    id: data.user.id,
+    nome_completo: dados.nome,
+    idade: dados.idade,
+    email: dados.email,
+    celular: dados.celular,
+    estado: dados.estado,
+    pais: dados.pais,
+    tipos: dados.tipos,
+    visibilidade: 'privado',
+  });
+  if (errProf) { $('err-3').textContent = errProf.message; return; }
+  // Próximo: reconhecer cavaleiro
+  await reconhecerCavaleiro();
+}
+
+// ─── Reconhecimento ─────────────────────────────────────────────
+async function reconhecerCavaleiro() {
+  $('err-3').textContent = '';
+  $('ok-3').textContent = 'Procurando seu nome nos resultados…';
+
+  const primeiroNome = dados.nome.split(/\s+/)[0];
+  const { data, error } = await sb.rpc('match_cavaleiro', { nome_input: dados.nome });
+
+  const content = $('step4-content');
+  $('step4-title').textContent = `Bem-vindo, ${primeiroNome}!`;
+
+  if (error || !data || data.length === 0) {
+    // Sem match — saudação simples
+    content.innerHTML = `
+      <p class="hint" style="font-size:14px; color:var(--fg)">Que bom te ter aqui na <strong>Cavalar.IA</strong>! 🐴</p>
+      <p class="hint" style="margin-top:10px">Não encontramos seu nome nos resultados ainda — quando você competir, vamos achar e mostrar suas estatísticas aqui.</p>
+    `;
+    showStep(4);
+    return;
+  }
+
+  const best = data[0];
+  dados.cavaleiroMatch = best.cavaleiro_nome;
+
+  // Calcula percentuais
+  const pct = (n, total) => total > 0 ? Math.round((n/total)*100) : 0;
+  const pZeros = pct(best.zeros, best.total_participacoes);
+  const pVit   = pct(best.vitorias, best.total_participacoes);
+  const pTop6  = pct(best.top6, best.total_participacoes);
+
+  const cavalos = (best.cavalos || []).filter(Boolean).slice(0, 2);
+  const frasecavalos = cavalos.length === 0 ? ''
+    : cavalos.length === 1 ? `Não é você que monta o(a) <b>${cavalos[0]}</b>?`
+    : `Não é você que monta o(a) <b>${cavalos[0]}</b> e o(a) <b>${cavalos[1]}</b>?`;
+
+  content.innerHTML = `
+    <div class="match-card">
+      <div class="match-greeting">
+        Que bom te ter aqui, <b>${best.cavaleiro_nome}</b>! 🐴<br>
+        ${frasecavalos ? `Peraí! ${frasecavalos} Eu tô sempre acompanhando e vocês arrebentam! 👏` : ''}
+      </div>
+      <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px">Seus números</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val">${best.total_participacoes}</div>
+          <div class="stat-lbl">Participações<br>(${best.total_provas} provas)</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${pZeros}%</div>
+          <div class="stat-lbl">Percursos<br>Zero (${best.zeros})</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${pVit}%</div>
+          <div class="stat-lbl">Vitórias<br>(${best.vitorias})</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">${pTop6}%</div>
+          <div class="stat-lbl">Top 6<br>(${best.top6})</div>
+        </div>
+      </div>
+    </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:14px">
+      <input type="checkbox" id="confirm-cavaleiro" checked>
+      <span>Sim, sou eu! Vincular ao meu perfil.</span>
+    </label>
+  `;
+  showStep(4);
+}
+
+// ─── Finalizar ──────────────────────────────────────────────────
+async function finalizarCadastro(pular = false) {
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) { $('err-5').textContent = 'Sessão expirou — tente fazer login'; return; }
+
+  // Vincula cavaleiro se confirmado
+  if (dados.cavaleiroMatch) {
+    const confirmEl = document.getElementById('confirm-cavaleiro');
+    if (confirmEl?.checked) {
+      await sb.from('profiles').update({
+        cavaleiro_nome: dados.cavaleiroMatch,
+        cavaleiro_match_confirmado: true,
+      }).eq('id', user.id);
+    }
+  }
+
+  // Salva interesses
+  if (!pular) {
+    const rows = Object.entries(dados.interesses).map(([pergunta_id, resposta]) => ({
+      profile_id: user.id, pergunta_id, resposta,
+    }));
+    if (rows.length) {
+      await sb.from('profile_interesses').upsert(rows);
+    }
+  }
+
+  // Vai pra página de perfil
+  window.location.href = 'perfil.html';
+}
+
+showStep(1);
+</script>
+</body>
+</html>
