@@ -321,7 +321,15 @@ async function enviarOtp() {
     },
   });
   if (error) {
-    const msg = error.message || 'Erro ao enviar código';
+    // Traduz erros comuns
+    let msg = error.message || 'Erro ao enviar código';
+    if (/rate limit/i.test(msg)) {
+      msg = '⏱ Muitos pedidos de código nessa hora. Espera ~1h e tenta de novo (ou configure SMTP próprio no Supabase).';
+    } else if (/already registered/i.test(msg) || /already exists/i.test(msg)) {
+      msg = 'Esse email já tem conta. Vai pro login.';
+    } else if (/invalid email/i.test(msg)) {
+      msg = 'Email inválido.';
+    }
     // mostra erro no step visível (2 ou 3)
     const onStep3 = $('step-3').style.display !== 'none';
     $(onStep3 ? 'err-3' : 'err-2').textContent = msg;
