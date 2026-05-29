@@ -1052,14 +1052,21 @@ async function loadTorneio(torneioId) {
         .in('tipo', ['programa', 'horarios'])
         .not('conteudo_estruturado', 'is', null)
         .order('data_publicacao', { ascending: false });
+      // Normaliza número de prova: remove zeros à esquerda mas preserva sufixos
+      // letra (11A → "11A", 01 → "1", "01A" → "1A")
+      const normNum = (raw) => {
+        if (raw == null) return '';
+        const s = String(raw).trim().toUpperCase();
+        const m = s.match(/^0*(\d+)([A-Z]?)/);
+        return m ? (m[1] + (m[2] || '')) : s;
+      };
+
       for (const d of (docs || [])) {
         const estr = d.conteudo_estruturado || {};
-        // Programa: provas em estr.provas[] com numero, data, horario
         if (d.tipo === 'programa' && Array.isArray(estr.provas)) {
           for (const p of estr.provas) {
-            const num = String(p.numero || '').replace(/^0+/, '');
-            if (!num) continue;
-            const k = num.toUpperCase();
+            const k = normNum(p.numero);
+            if (!k) continue;
             if (!_provaProgramaInfo[k]) _provaProgramaInfo[k] = {};
             const cur = _provaProgramaInfo[k];
             if (p.data && !cur.data) cur.data = p.data;
@@ -1067,16 +1074,13 @@ async function loadTorneio(torneioId) {
             if (p.tabela && !cur.tabela) cur.tabela = p.tabela;
           }
         }
-        // Horários: estr.dias[] com data, dia_semana, horarios[] { hora, prova_numero, pista }
         if (d.tipo === 'horarios' && Array.isArray(estr.dias)) {
           for (const dia of estr.dias) {
             for (const h of (dia.horarios || [])) {
-              const num = String(h.prova_numero || '').replace(/^0+/, '');
-              if (!num) continue;
-              const k = num.toUpperCase();
+              const k = normNum(h.prova_numero);
+              if (!k) continue;
               if (!_provaProgramaInfo[k]) _provaProgramaInfo[k] = {};
               const cur = _provaProgramaInfo[k];
-              // horários é fonte mais autoritativa pra data/hora/pista
               cur.data = dia.data || cur.data;
               cur.dia_semana = dia.dia_semana || cur.dia_semana;
               cur.hora = h.hora || cur.hora;
@@ -1085,20 +1089,21 @@ async function loadTorneio(torneioId) {
           }
         }
       }
-    } catch (_) {}
 
-    // Enriquece allProvas com info do programa (sem inventar — só se houver)
-    for (const p of allProvas) {
-      const m = (p.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
-      const k = (m ? m[1] : String(p.numero || '')).toUpperCase();
-      const info = _provaProgramaInfo[k];
-      if (info) {
-        if (info.data) p._data = info.data;
-        if (info.dia_semana) p._diaSemana = info.dia_semana;
-        if (info.hora) p.horario = info.hora;
-        if (info.pista) p.pista = info.pista;
+      // Enriquece allProvas. Usa a MESMA normalização — preserva sufixo letra.
+      for (const p of allProvas) {
+        const m = (p.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
+        const rawKey = m ? m[1] : (p.numero != null ? String(p.numero) : '');
+        const k = normNum(rawKey);
+        const info = _provaProgramaInfo[k];
+        if (info) {
+          if (info.data) p._data = info.data;
+          if (info.dia_semana) p._diaSemana = info.dia_semana;
+          if (info.hora) p.horario = info.hora;
+          if (info.pista) p.pista = info.pista;
+        }
       }
-    }
+    } catch (_) {}
 
     populateProvaFilter();
     renderAll();
