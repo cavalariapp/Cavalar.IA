@@ -380,7 +380,7 @@ async function confirmOtp() {
 // ─── Reconhecimento ─────────────────────────────────────────────
 async function reconhecerCavaleiro() {
   $('err-3').textContent = '';
-  $('ok-3').textContent = 'Procurando seu nome nos resultados…';
+  $('ok-3').textContent = '';
 
   const primeiroNome = dados.nome.split(/\s+/)[0];
   const { data, error } = await sb.rpc('match_cavaleiro', { nome_input: dados.nome });
