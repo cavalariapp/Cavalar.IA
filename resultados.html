@@ -324,6 +324,22 @@ body {
   font-weight: 600;
 }
 
+/* Badge destacado pra provas especiais (Copa Ouro, GP, Clássico etc) */
+.prova-especial {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  background: linear-gradient(135deg, var(--accent-dim), transparent);
+  border: 1px solid var(--accent-glow);
+  color: var(--accent);
+  padding: 3px 9px;
+  border-radius: 4px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .prova-hdr {
   display: flex;
   align-items: center;
@@ -1503,6 +1519,21 @@ function alturaPrincipal(desc) {
   return m[1].replace('.', ',') + 'm';
 }
 
+// Detecta nome especial da prova: Copa Ouro/Prata/Bronze, Mini GP, Clássico, GP.
+// Procura tanto no campo nome quanto na descricao.
+function nomeEspecialDaProva(prova) {
+  const txt = `${prova.nome || ''} ${prova.descricao || ''}`;
+  // Ordem importa: Mini GP antes de GP, etc
+  if (/\bmini\s*(gp|grande\s*pr[êe]mio)\b/i.test(txt)) return 'Mini GP';
+  if (/\bgrande\s*pr[êe]mio\b/i.test(txt))             return 'Grande Prêmio';
+  if (/\bgp\b/i.test(txt))                              return 'GP';
+  if (/\bcopa\s*ouro\b/i.test(txt))                     return 'Copa Ouro';
+  if (/\bcopa\s*prata\b/i.test(txt))                    return 'Copa Prata';
+  if (/\bcopa\s*bronze\b/i.test(txt))                   return 'Copa Bronze';
+  if (/\bcl[áa]ssico\b/i.test(txt))                     return 'Clássico';
+  return null;
+}
+
 // Tipo de prova em formato visual amigável (já em pt-BR)
 function tipoProvaLabel(t) {
   if (!t || t === 'Outro') return null;
@@ -1551,12 +1582,19 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
   // Se não tem altura, usa a descricao bruta
   const descLinha = altura || (prova.descricao || prova.nome || '—');
 
+  // Nome especial (Copa Ouro/Prata/Bronze, GP, Clássico, Mini GP)
+  const especial = nomeEspecialDaProva(prova);
+  const especialHtml = especial
+    ? `<span class="prova-especial">🏆 ${escHtml(especial)}</span>`
+    : '';
+
   wrapper.innerHTML = `
     <div class="prova-hdr" onclick="toggleProva(${prova.id})">
       <div class="prova-hdr-left">
         <div class="prova-hdr-top">
           <span class="prova-badge">${escHtml(numBadge)}</span>
           <span class="prova-desc">${escHtml(descLinha)}</span>
+          ${especialHtml}
         </div>
         ${catsHtml}
         ${metaHtml}
