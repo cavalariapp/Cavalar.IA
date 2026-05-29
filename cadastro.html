@@ -176,8 +176,8 @@ a.back:hover { color:var(--accent); }
     <p class="hint">Enviamos um código de 6 dígitos para <strong id="step3-email"></strong></p>
 
     <div class="field">
-      <label>Código</label>
-      <input id="f-otp" class="input otp-input" type="text" inputmode="numeric" maxlength="6" placeholder="······">
+      <label>Código (6 a 8 dígitos)</label>
+      <input id="f-otp" class="input otp-input" type="text" inputmode="numeric" maxlength="8" placeholder="········">
     </div>
 
     <div class="err" id="err-3"></div>
@@ -349,7 +349,9 @@ async function resendOtp() {
 
 async function confirmOtp() {
   const codigo = $('f-otp').value.trim();
-  if (codigo.length !== 6) { $('err-3').textContent = 'Digite os 6 dígitos'; return; }
+  if (codigo.length < 6 || codigo.length > 8 || !/^\d+$/.test(codigo)) {
+    $('err-3').textContent = 'Digite o código (6 a 8 dígitos numéricos)'; return;
+  }
   $('err-3').textContent = 'Validando…';
   const { data, error } = await sb.auth.verifyOtp({
     email: dados.email, token: codigo, type: 'email',
