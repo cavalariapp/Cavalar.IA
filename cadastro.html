@@ -291,9 +291,11 @@ async function nextStep(from) {
   }
   if (from === 2) {
     if (!dados.tipos.length) { $('err-2').textContent = 'Escolha pelo menos um'; return; }
-    $('err-2').textContent = '';
+    $('err-2').textContent = 'Enviando código pro seu email…';
     // Envia OTP
-    await enviarOtp();
+    const ok = await enviarOtp();
+    if (!ok) return; // erro já mostrado em err-2
+    $('err-2').textContent = '';
     return;
   }
   if (from === 4) {
@@ -308,9 +310,9 @@ function prevStep(from) {
 }
 
 // ─── OTP / Auth ─────────────────────────────────────────────────
+// Retorna true se enviou, false se deu erro (msg em err-2 ou err-3)
 async function enviarOtp() {
   $('step3-email').textContent = dados.email;
-  $('err-3').textContent = 'Enviando código…';
   const { error } = await sb.auth.signInWithOtp({
     email: dados.email,
     options: {
@@ -319,12 +321,17 @@ async function enviarOtp() {
     },
   });
   if (error) {
-    $('err-3').textContent = error.message;
-    return;
+    const msg = error.message || 'Erro ao enviar código';
+    // mostra erro no step visível (2 ou 3)
+    const onStep3 = $('step-3').style.display !== 'none';
+    $(onStep3 ? 'err-3' : 'err-2').textContent = msg;
+    console.error('[OTP]', error);
+    return false;
   }
   $('err-3').textContent = '';
   $('ok-3').textContent = '✓ Código enviado';
   showStep(3);
+  return true;
 }
 
 async function resendOtp() {
