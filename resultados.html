@@ -926,11 +926,13 @@ function populateAnoFilter() {
     opt.textContent = a;
     sel.appendChild(opt);
   });
+  // Default: ano corrente (se existir nos dados)
+  const anoAtual = new Date().getFullYear();
+  if (anos.includes(anoAtual)) sel.value = String(anoAtual);
 }
 
 function populateMesFilter() {
   const sel = $id('filter-mes');
-  // Lista todos os meses 1-12; idealmente filtrar pelos que têm dados, mas isso depende do Ano selecionado
   sel.innerHTML = '<option value="">Todos</option>';
   for (let m = 1; m <= 12; m++) {
     const opt = document.createElement('option');
@@ -938,6 +940,8 @@ function populateMesFilter() {
     opt.textContent = NOMES_MESES[m];
     sel.appendChild(opt);
   }
+  // Default: mês corrente
+  sel.value = String(new Date().getMonth() + 1);
 }
 
 // Popula o dropdown de torneios respeitando filtros fonte/ano/mes/busca
