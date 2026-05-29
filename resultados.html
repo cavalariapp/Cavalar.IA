@@ -1805,52 +1805,63 @@ $id('filter-cavaleiro').addEventListener('input', onTextFilter);
 $id('filter-cavalo').addEventListener('input', onTextFilter);
 
 // ─── Inicializa ───────────────────────────────────────────────
-// Se URL tem ?torneio=ID, carrega esse torneio direto
+// Se URL tem ?torneio=ID, carrega esse torneio direto.
+// Estratégia: carrega TODA a lista de torneios, define filtros baseado
+// no torneio do param (ao invés de pré-selecionar mês atual), depois
+// chama loadTorneio. Garante que o dropdown e a página mostrem o evento certo.
 const _urlParams = new URLSearchParams(window.location.search);
 const _torneioParam = _urlParams.get('torneio');
 
 if (_torneioParam) {
-  // Boot custom: carrega lista, escolhe o torneio do param, popula filtros
-  // baseado no torneio escolhido pra ele aparecer no dropdown
   (async () => {
     $id('skeleton').style.display  = 'block';
     $id('error-msg').style.display = 'none';
     try {
+      // 1. Carrega lista pra ter context dos torneios
       const { data: torneios } = await sb
         .from('torneios')
         .select('id, nome, fonte, data_inicio, data_fim')
         .order('data_inicio', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
       allTorneios = (torneios || []).map(t => ({
-        ...t, ano: anoDoTorneio({ ...t, ano: extrairAno(t.nome) }),
+        ...t, ano: t.data_inicio ? parseInt(t.data_inicio.substring(0, 4)) : extrairAno(t.nome),
       }));
-      // Ajusta filtros pra que o torneio escolhido apareça no dropdown
-      const t = allTorneios.find(x => x.id === Number(_torneioParam));
-      if (t) {
-        // Limpa filtros que podem esconder o torneio
-        populateAnoFilter();
-        populateMesFilter();
-        $id('filter-fonte').value = t.fonte || '';
-        const ano = anoDoTorneio(t);
-        if (ano) $id('filter-ano').value = String(ano);
-        const mes = mesDoTorneio(t);
-        if (mes) $id('filter-mes').value = String(mes);
+
+      // 2. Acha o torneio do param
+      const tParam = allTorneios.find(x => x.id === Number(_torneioParam));
+
+      // 3. Popula filtros — usa OS DADOS DO TORNEIO em vez dos defaults
+      populateFonteFilter();
+      populateAnoFilter();   // pré-seleciona ano corrente
+      populateMesFilter();   // pré-seleciona mês corrente
+      // Sobrescreve com os do torneio do param
+      if (tParam) {
+        $id('filter-fonte').value = tParam.fonte || '';
+        const anoT = anoDoTorneio(tParam);
+        if (anoT) $id('filter-ano').value = String(anoT);
+        const mesT = mesDoTorneio(tParam);
+        if (mesT) $id('filter-mes').value = String(mesT);
+        else $id('filter-mes').value = ''; // se torneio não tem mês conhecido, mostra todos
       }
       populateTorneioFilter();
+
+      // 4. Tenta selecionar no dropdown; se falhou (filtros restritivos),
+      // limpa fonte/ano/mês e tenta de novo
       const sel = $id('filter-torneio');
       sel.value = _torneioParam;
-      if (sel.value === _torneioParam) {
-        await loadTorneio(Number(_torneioParam));
-      } else {
-        // Filtro fonte/ano/mês escondeu — limpa e tenta de novo
+      if (sel.value !== _torneioParam) {
         $id('filter-fonte').value = '';
         $id('filter-ano').value = '';
         $id('filter-mes').value = '';
         populateTorneioFilter();
         sel.value = _torneioParam;
-        await loadTorneio(Number(_torneioParam));
       }
+
+      // 5. Carrega resultados do torneio (loadTorneio faz fetch direto pelo id,
+      // não depende do dropdown)
+      await loadTorneio(Number(_torneioParam));
     } catch (e) {
+      $id('skeleton').style.display = 'none';
       $id('error-msg').style.display = 'block';
       $id('error-text').textContent = e.message || 'Erro';
     }
