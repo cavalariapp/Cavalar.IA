@@ -1800,7 +1800,59 @@ $id('filter-cavaleiro').addEventListener('input', onTextFilter);
 $id('filter-cavalo').addEventListener('input', onTextFilter);
 
 // ─── Inicializa ───────────────────────────────────────────────
-loadData();
+// Se URL tem ?torneio=ID, carrega esse torneio direto
+const _urlParams = new URLSearchParams(window.location.search);
+const _torneioParam = _urlParams.get('torneio');
+
+if (_torneioParam) {
+  // Boot custom: carrega lista, escolhe o torneio do param, popula filtros
+  // baseado no torneio escolhido pra ele aparecer no dropdown
+  (async () => {
+    $id('skeleton').style.display  = 'block';
+    $id('error-msg').style.display = 'none';
+    try {
+      const { data: torneios } = await sb
+        .from('torneios')
+        .select('id, nome, fonte, data_inicio, data_fim')
+        .order('data_inicio', { ascending: false, nullsFirst: false })
+        .order('id', { ascending: false });
+      allTorneios = (torneios || []).map(t => ({
+        ...t, ano: anoDoTorneio({ ...t, ano: extrairAno(t.nome) }),
+      }));
+      // Ajusta filtros pra que o torneio escolhido apareça no dropdown
+      const t = allTorneios.find(x => x.id === Number(_torneioParam));
+      if (t) {
+        // Limpa filtros que podem esconder o torneio
+        populateAnoFilter();
+        populateMesFilter();
+        $id('filter-fonte').value = t.fonte || '';
+        const ano = anoDoTorneio(t);
+        if (ano) $id('filter-ano').value = String(ano);
+        const mes = mesDoTorneio(t);
+        if (mes) $id('filter-mes').value = String(mes);
+      }
+      populateTorneioFilter();
+      const sel = $id('filter-torneio');
+      sel.value = _torneioParam;
+      if (sel.value === _torneioParam) {
+        await loadTorneio(Number(_torneioParam));
+      } else {
+        // Filtro fonte/ano/mês escondeu — limpa e tenta de novo
+        $id('filter-fonte').value = '';
+        $id('filter-ano').value = '';
+        $id('filter-mes').value = '';
+        populateTorneioFilter();
+        sel.value = _torneioParam;
+        await loadTorneio(Number(_torneioParam));
+      }
+    } catch (e) {
+      $id('error-msg').style.display = 'block';
+      $id('error-text').textContent = e.message || 'Erro';
+    }
+  })();
+} else {
+  loadData();
+}
 </script>
 </body>
 </html>

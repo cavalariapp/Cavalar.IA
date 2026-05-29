@@ -827,6 +827,28 @@ body {
   flex-wrap: wrap;
 }
 .tor-meta-item { display: inline-flex; align-items: center; gap: 4px; }
+.tor-actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tor-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: #fff;
+  padding: 9px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background .12s;
+}
+.tor-action-btn:hover { background: #d44309; }
 .tor-section-title {
   font-size: 10px;
   font-weight: 800;
@@ -3281,8 +3303,22 @@ function _evtMerge(torneios, cbhEventos, mes) {
     })),
   ];
 
-  // Ordena por data ASC
-  events.sort((a, b) => (a.data_inicio || '').localeCompare(b.data_inicio || ''));
+  // Ordena: futuros/em-andamento PRIMEIRO (próximos da data atual), depois passados.
+  // Dentro de cada grupo: futuros em ordem cronológica ASC, passados em ordem DESC
+  // (mais recentes primeiro). Resultado: usuário vê hoje/próximos no topo,
+  // pode rolar pra cima/baixo pra ver mais.
+  const hojeISO = new Date().toISOString().substring(0, 10);
+  events.sort((a, b) => {
+    const aFim = a.data_fim || a.data_inicio || '';
+    const bFim = b.data_fim || b.data_inicio || '';
+    const aPast = aFim && aFim < hojeISO;
+    const bPast = bFim && bFim < hojeISO;
+    if (aPast !== bPast) return aPast ? 1 : -1; // futuros primeiro
+    const ai = a.data_inicio || '';
+    const bi = b.data_inicio || '';
+    // Dentro do grupo: futuros ASC, passados DESC
+    return aPast ? bi.localeCompare(ai) : ai.localeCompare(bi);
+  });
   return events;
 }
 
@@ -3838,10 +3874,19 @@ async function _loadTorneioDetail(evtId) {
     local     ? `<span class="tor-meta-item">📍 ${escHtml(local)}${estado ? ' · ' + estado : ''}</span>` : '',
   ].filter(Boolean).join(' ');
 
+  // Botão "Resultados" — direciona pra página de resultados filtrada por torneio
+  const btnResultados = torneioId
+    ? `<a href="resultados.html?torneio=${torneioId}" class="tor-action-btn">
+         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 3v18h18"/><polyline points="7 14 12 9 16 13 21 8"/></svg>
+         Ver Resultados
+       </a>`
+    : '';
+
   content.innerHTML = `
     <h2 class="tor-title">${escHtml(tituloMain)}</h2>
     ${tituloExtra.map(t => `<div style="font-size:12px;color:var(--muted);margin-bottom:4px">· ${escHtml(t)}</div>`).join('')}
     <div class="tor-meta" style="margin-top:8px">${metaItems}</div>
+    ${btnResultados ? `<div class="tor-actions">${btnResultados}</div>` : ''}
 
     ${docs.length === 0
       ? `<div class="tor-section-title">Documentos</div>
