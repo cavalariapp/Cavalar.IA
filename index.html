@@ -3219,22 +3219,19 @@ async function _evtFetchData(ano) {
 }
 
 // Junta torneios + cbh, dedup priorizando torneio (= dado real). Estratégia:
-//   1. FILTRA torneios fantasma (sem evento_cbh_id E sem provas → divulgação)
-//   2. Usa torneios.evento_cbh_id (FK) pra excluir CBH já vinculados
-//   3. Fallback: dedup por fingerprint pra casos não-linkados ainda
+//   1. Usa torneios.evento_cbh_id (FK) pra excluir CBH já vinculados
+//   2. Fallback: dedup por fingerprint pra casos não-linkados ainda
+// Nota: o filtro de "torneio fantasma" foi movido pro scrape (filtro por
+// federação responsável). Frontend mostra TUDO que está no banco.
 function _evtMerge(torneios, cbhEventos, mes) {
   const m1 = String(mes + 1).padStart(2, '0');
-
-  // FILTRO: torneio só aparece se tem vínculo CBH OU resultados próprios
-  const torneiosReais = torneios.filter(t => t.evento_cbh_id || t._tem_provas);
-
-  const tt = torneiosReais.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
+  const tt = torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
   const cc = cbhEventos.filter(c => (c.data_inicio || '').substring(5, 7) === m1);
 
   // CBH IDs já cobertos por torneios (via FK explícita) + fingerprints
   const cbhIdsVinculados = new Set();
   const torneioFps = new Set();
-  for (const t of torneiosReais) {
+  for (const t of torneios) {
     if (t.evento_cbh_id) cbhIdsVinculados.add(t.evento_cbh_id);
     if (t.fingerprint) torneioFps.add(t.fingerprint);
   }
