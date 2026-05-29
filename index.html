@@ -1694,7 +1694,7 @@ body {
 }
 .login-form {
   background: var(--bg);
-  padding: 26px 24px 40px;
+  padding: 26px 24px 100px; /* espaço extra pra navegação inferior não cobrir */
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1741,7 +1741,8 @@ body {
 }
 .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .signup-prompt { text-align: center; font-size: 12px; color: var(--muted); }
-.signup-link { color: var(--accent); cursor: pointer; font-weight: 700; }
+.signup-link { color: var(--accent); cursor: pointer; font-weight: 700; text-decoration: none; }
+.signup-link:hover { text-decoration: underline; }
 
 /* ===========================
    LEILÃO SCREEN
@@ -2026,13 +2027,13 @@ body {
         <input class="form-input" type="password" placeholder="••••••••" autocomplete="current-password">
         <button class="form-forgot">Esqueceu a senha?</button>
       </div>
-      <button class="btn-full primary" onclick="nav('home')">
+      <button class="btn-full primary" onclick="window.location.href='login.html'">
         ENTRAR
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </button>
       <div class="divider">ou</div>
       <button class="btn-full outline" onclick="nav('home')">CONTINUAR SEM CONTA</button>
-      <p class="signup-prompt">Não tem conta? <span class="signup-link">Criar conta grátis →</span></p>
+      <p class="signup-prompt">Não tem conta? <a href="cadastro.html" class="signup-link">Criar conta grátis →</a></p>
     </div>
   </div>
 </div>
@@ -2667,7 +2668,7 @@ body {
 <!-- ============================================================
      BOTTOM NAV
 ============================================================ -->
-<nav class="bottom-nav" id="bottom-nav">
+<nav class="bottom-nav" id="bottom-nav" style="display:none">
   <button class="nav-btn" id="nb-home" onclick="nav('home')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
     Início
