@@ -862,6 +862,26 @@ function highlight(text, term) {
   return escHtml(text).replace(re, '<mark>$1</mark>');
 }
 
+// ─── Mapa cavaleiro → profile vinculado (pra linkificar nomes)
+let _profileLinkMap = new Map();
+async function loadProfileLinkMap() {
+  try {
+    const { data } = await sb.from('profiles')
+      .select('id,cavaleiro_nome')
+      .eq('cavaleiro_match_confirmado', true)
+      .eq('visibilidade', 'publico');
+    _profileLinkMap = new Map();
+    (data || []).forEach(p => {
+      if (p.cavaleiro_nome) _profileLinkMap.set(p.cavaleiro_nome.toLowerCase().trim(), p.id);
+    });
+  } catch (e) { console.warn('[profileLinkMap]', e); }
+}
+function linkifyCavaleiro(nome, htmlSafeName) {
+  const id = _profileLinkMap.get((nome || '').toLowerCase().trim());
+  if (!id) return htmlSafeName;
+  return `<a href="perfil.html?u=${id}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${htmlSafeName}</a>`;
+}
+
 // Classe de cor para a colocação
 function posClass(pos) {
   const n = parseInt(pos, 10);
@@ -876,6 +896,9 @@ async function loadData() {
   $id('skeleton').style.display  = 'block';
   $id('error-msg').style.display = 'none';
   $id('provas-container').innerHTML = '';
+
+  // Carrega map de profiles vinculados em paralelo (não bloqueia)
+  loadProfileLinkMap();
 
   try {
     const { data: torneios, error: errT } = await sb
@@ -1673,7 +1696,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
     return `
       <tr>
         <td><span class="${posClass(r.colocacao)}">${escHtml(r.colocacao)}</span></td>
-        <td class="col-rider">${highlight(nomeCavaleiro(r.cavaleiro_nome), cavaleiro)}</td>
+        <td class="col-rider">${(() => { const n = nomeCavaleiro(r.cavaleiro_nome); return linkifyCavaleiro(n, highlight(n, cavaleiro)); })()}</td>
         <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return highlight(c.nome, cavalo) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
         ${cells}
       </tr>`;

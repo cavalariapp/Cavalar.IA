@@ -409,14 +409,14 @@ async function reconhecerCavaleiro() {
 
   const cavalos = (best.cavalos || []).filter(Boolean).slice(0, 2);
   const frasecavalos = cavalos.length === 0 ? ''
-    : cavalos.length === 1 ? `Não é você que monta o(a) <b>${cavalos[0]}</b>?`
-    : `Não é você que monta o(a) <b>${cavalos[0]}</b> e o(a) <b>${cavalos[1]}</b>?`;
+    : cavalos.length === 1 ? `Esse cavaleiro monta o(a) <b>${cavalos[0]}</b>.`
+    : `Esse cavaleiro monta o(a) <b>${cavalos[0]}</b> e o(a) <b>${cavalos[1]}</b>.`;
 
   content.innerHTML = `
     <div class="match-card">
       <div class="match-greeting">
-        Que bom te ter aqui, <b>${best.cavaleiro_nome}</b>! 🐴<br>
-        ${frasecavalos ? `Peraí! ${frasecavalos} Eu tô sempre acompanhando e vocês arrebentam! 👏` : ''}
+        Achei um nome parecido nos resultados: <b>${best.cavaleiro_nome}</b>. <br>
+        ${frasecavalos ? `${frasecavalos} Se for você, marca o check abaixo pra eu vincular ao seu perfil. Se não for, desmarca e segue 👍` : 'Se for você, marca o check abaixo. Se não for, desmarca e segue 👍'}
       </div>
       <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:6px">Seus números</div>
       <div class="stats-grid">
@@ -439,8 +439,8 @@ async function reconhecerCavaleiro() {
       </div>
     </div>
     <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-top:14px">
-      <input type="checkbox" id="confirm-cavaleiro" checked>
-      <span>Sim, sou eu! Vincular ao meu perfil.</span>
+      <input type="checkbox" id="confirm-cavaleiro">
+      <span>Sim, sou eu! Vincular esse cavaleiro ao meu perfil.</span>
     </label>
   `;
   showStep(4);
@@ -472,8 +472,8 @@ async function finalizarCadastro(pular = false) {
     }
   }
 
-  // Vai pra página de perfil
-  window.location.href = 'perfil.html';
+  // Vai pra home (usuário pode editar perfil pelo menu hamburger depois)
+  window.location.href = 'index.html';
 }
 
 showStep(1);

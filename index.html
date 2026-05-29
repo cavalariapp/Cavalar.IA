@@ -145,6 +145,74 @@ body {
 }
 .btn-hamburger span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
 
+/* HAMBURGER DROPDOWN MENU */
+.ham-menu {
+  position: fixed;
+  top: 70px;
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 220px;
+  z-index: 300;
+  box-shadow: 0 8px 24px rgba(0,0,0,.6);
+  display: none;
+  overflow: hidden;
+}
+.ham-menu.open { display: block; }
+.ham-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px; font-size: 14px; color: var(--fg);
+  cursor: pointer; background: none; border: none; width: 100%; text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.ham-menu-item:hover { background: var(--surface2); }
+.ham-menu-item:last-child { border-bottom: none; }
+.ham-menu-item.danger { color: #ff6b6b; }
+.ham-menu-item svg { width: 16px; height: 16px; opacity: .7; flex-shrink: 0; }
+.ham-menu-header {
+  padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface2);
+}
+.ham-menu-header .ham-name { font-size: 13.5px; font-weight: 700; color: var(--fg); }
+.ham-menu-header .ham-email { font-size: 11px; color: var(--muted); margin-top: 2px; word-break: break-all; }
+.ham-overlay {
+  position: fixed; inset: 0; z-index: 290; background: transparent;
+  display: none;
+}
+.ham-overlay.open { display: block; }
+
+/* COMUNIDADE — type filter chips */
+.com-tipo-chip {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  padding: 7px 13px; border-radius: 16px; font-size: 11.5px; font-weight: 600;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.com-tipo-chip:hover { color: var(--fg); }
+.com-tipo-chip.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+/* COMUNIDADE — card */
+.com-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 14px; margin-bottom: 10px; cursor: pointer; transition: border-color .15s;
+}
+.com-card:hover { border-color: var(--accent); }
+.com-avatar {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #d44309);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 18px; font-weight: 900; color: #fff;
+  flex-shrink: 0;
+}
+.com-info { flex: 1; min-width: 0; }
+.com-name { font-size: 14.5px; font-weight: 700; color: var(--fg); }
+.com-meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; }
+.com-cavaleiro-badge {
+  display: inline-block; font-size: 9.5px; font-weight: 800; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--accent); background: var(--accent-dim);
+  padding: 2px 7px; border-radius: 3px; margin-top: 4px;
+}
+
 /* ===========================
    BOTTOM NAV
 =========================== */
@@ -2018,22 +2086,16 @@ body {
     </div>
 
     <div class="login-form">
-      <div class="form-field">
-        <label class="form-label">E-mail</label>
-        <input class="form-input" type="email" placeholder="seu@email.com" autocomplete="email">
-      </div>
-      <div class="form-field">
-        <label class="form-label">Senha</label>
-        <input class="form-input" type="password" placeholder="••••••••" autocomplete="current-password">
-        <button class="form-forgot">Esqueceu a senha?</button>
-      </div>
+      <p style="color:var(--muted);font-size:13px;text-align:center;margin-bottom:18px;line-height:1.5">
+        Sem senha. Você entra com um código enviado pro seu email — fica logado nesse dispositivo.
+      </p>
       <button class="btn-full primary" onclick="window.location.href='login.html'">
-        ENTRAR
+        ENTRAR COM EMAIL
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </button>
+      <button class="btn-full outline" onclick="window.location.href='cadastro.html'">CRIAR CONTA GRÁTIS</button>
       <div class="divider">ou</div>
-      <button class="btn-full outline" onclick="nav('home')">CONTINUAR SEM CONTA</button>
-      <p class="signup-prompt">Não tem conta? <a href="cadastro.html" class="signup-link">Criar conta grátis →</a></p>
+      <button class="btn-full outline" onclick="nav('home')" style="opacity:.7">CONTINUAR SEM CONTA</button>
     </div>
   </div>
 </div>
@@ -2666,6 +2728,39 @@ body {
 </div>
 
 <!-- ============================================================
+     SCREEN: COMUNIDADE — busca/exploração de usuários
+============================================================ -->
+<div class="screen" id="scr-comunidade">
+  <div class="topbar">
+    <button class="back-btn" onclick="nav('home')" style="background:none;border:none;color:#fff;font-size:14px;cursor:pointer">← Voltar</button>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:18px 20px 100px">
+    <h1 style="font-family:var(--font-display);font-size:30px;font-weight:900;letter-spacing:-.01em;margin-bottom:6px">COMUNIDADE</h1>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px">Encontre cavaleiros, criadores, treinadores e amantes do esporte na plataforma.</p>
+
+    <div style="position:relative;margin-bottom:16px">
+      <input id="comunidade-search" placeholder="Buscar por nome…" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:13px 16px 13px 42px;color:#fff;font-size:14px;outline:none">
+      <svg style="position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    </div>
+
+    <div id="comunidade-filters" style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px">
+      <button class="com-tipo-chip active" data-tipo="">Todos</button>
+      <button class="com-tipo-chip" data-tipo="cavaleiro_amazona">Cavaleiros</button>
+      <button class="com-tipo-chip" data-tipo="criador">Criadores</button>
+      <button class="com-tipo-chip" data-tipo="treinador">Treinadores</button>
+      <button class="com-tipo-chip" data-tipo="profissional">Profissionais</button>
+      <button class="com-tipo-chip" data-tipo="veterinario">Veterinários</button>
+      <button class="com-tipo-chip" data-tipo="amante">Amantes</button>
+    </div>
+
+    <div id="comunidade-list">
+      <div style="text-align:center;color:var(--muted);padding:40px 20px;font-size:13px">Carregando perfis públicos…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
      BOTTOM NAV
 ============================================================ -->
 <nav class="bottom-nav" id="bottom-nav" style="display:none">
@@ -2685,7 +2780,7 @@ body {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
     Leilões
   </button>
-  <button class="nav-btn" id="nb-perfil">
+  <button class="nav-btn" id="nb-perfil" onclick="goPerfil()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     Perfil
   </button>
@@ -2829,6 +2924,81 @@ function nav(id) {
   if (id === 'leilao') auto(initAuction);
   if (id === 'home') auto(renderHomeContent);
   if (id === 'noticias') auto(initNoticias);
+  if (id === 'comunidade') auto(initComunidade);
+}
+
+// ─── COMUNIDADE ───────────────────────────────────────────────
+let _comunidadeProfiles = [];
+let _comunidadeTipoFilter = '';
+let _comunidadeQuery = '';
+
+async function initComunidade() {
+  const list = document.getElementById('comunidade-list');
+  if (!list) return;
+  // Bind filters/search uma vez
+  if (!list.dataset.bound) {
+    list.dataset.bound = '1';
+    document.querySelectorAll('.com-tipo-chip').forEach(c => {
+      c.onclick = () => {
+        document.querySelectorAll('.com-tipo-chip').forEach(x => x.classList.remove('active'));
+        c.classList.add('active');
+        _comunidadeTipoFilter = c.dataset.tipo || '';
+        renderComunidade();
+      };
+    });
+    const search = document.getElementById('comunidade-search');
+    search.oninput = (e) => { _comunidadeQuery = e.target.value.trim().toLowerCase(); renderComunidade(); };
+  }
+  // Carrega perfis públicos (só uma vez por sessão)
+  if (_comunidadeProfiles.length === 0) {
+    try {
+      const { data } = await sb.from('profiles')
+        .select('id,nome_completo,tipos,cavaleiro_nome,cavaleiro_match_confirmado,estado,bio')
+        .eq('visibilidade', 'publico')
+        .order('nome_completo');
+      _comunidadeProfiles = data || [];
+    } catch (e) { console.warn('[comunidade]', e); }
+  }
+  renderComunidade();
+}
+
+const TIPO_LABELS = {
+  cavaleiro_amazona: 'Cavaleiro/Amazona',
+  criador: 'Criador',
+  treinador: 'Treinador',
+  profissional: 'Profissional',
+  amador: 'Amador',
+  veterinario: 'Veterinário',
+  amante: 'Amante',
+};
+
+function renderComunidade() {
+  const list = document.getElementById('comunidade-list');
+  if (!list) return;
+  let items = _comunidadeProfiles;
+  if (_comunidadeTipoFilter) {
+    items = items.filter(p => (p.tipos || []).includes(_comunidadeTipoFilter));
+  }
+  if (_comunidadeQuery) {
+    items = items.filter(p => (p.nome_completo || '').toLowerCase().includes(_comunidadeQuery));
+  }
+  if (!items.length) {
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:30px 20px;font-size:13px">Nenhum perfil público${_comunidadeQuery ? ' com esse nome' : ''}${_comunidadeTipoFilter ? ' nesse tipo' : ''}.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(p => {
+    const iniciais = (p.nome_completo || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    const tiposLabels = (p.tipos || []).map(t => TIPO_LABELS[t] || t).slice(0, 2).join(' · ');
+    return `
+      <div class="com-card" onclick="window.location.href='perfil.html?u=${p.id}'">
+        <div class="com-avatar">${iniciais}</div>
+        <div class="com-info">
+          <div class="com-name">${escHtml(p.nome_completo || '')}</div>
+          <div class="com-meta">${escHtml(tiposLabels)}${p.estado ? ' · ' + escHtml(p.estado) : ''}</div>
+          ${p.cavaleiro_match_confirmado ? `<div class="com-cavaleiro-badge">✓ Cavaleiro verificado</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ─── AUTH ─────────────────────────────────────────────────────
@@ -2951,23 +3121,144 @@ async function renderHomeContent() {
   await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton()]);
 }
 
-// Substitui botão ENTRAR pelo nome do usuário se logado
+// Cache global do usuário logado (preenchido por updateAuthButton)
+let _currentUser = null;
+let _currentProfile = null;
+// Map: cavaleiro_canonical_lower → profile_id (pra linkificar nomes)
+let _profileLinkMap = new Map();
+
+// Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
+async function loadProfileLinkMap() {
+  try {
+    const { data } = await sb.from('profiles')
+      .select('id,cavaleiro_nome,visibilidade')
+      .eq('cavaleiro_match_confirmado', true)
+      .eq('visibilidade', 'publico');
+    _profileLinkMap = new Map();
+    (data || []).forEach(p => {
+      if (p.cavaleiro_nome) _profileLinkMap.set(p.cavaleiro_nome.toLowerCase().trim(), p.id);
+    });
+  } catch (e) { console.warn('[profileLinkMap]', e); }
+}
+
+// Envolve nome em <a> se houver profile vinculado
+function linkifyName(nome) {
+  if (!nome) return '';
+  const safe = escHtml(nome);
+  const id = _profileLinkMap.get(nome.toLowerCase().trim());
+  if (!id) return safe;
+  return `<a href="perfil.html?u=${id}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${safe}</a>`;
+}
+
+// Substitui botão ENTRAR pelo nome do usuário se logado + atualiza hamburger
 async function updateAuthButton() {
   try {
     const { data: { user } } = await sb.auth.getUser();
-    const btn = document.getElementById('btn-entrar-home');
-    if (!btn) return;
+    _currentUser = user;
     if (user) {
-      // Pega nome do perfil
-      const { data: profile } = await sb.from('profiles').select('nome_completo').eq('id', user.id).maybeSingle();
-      const primeiro = (profile?.nome_completo || user.email || 'EU').split(/\s+/)[0].toUpperCase();
-      btn.textContent = primeiro.length > 9 ? primeiro.substring(0, 9) + '…' : primeiro;
-      btn.onclick = () => window.location.href = 'perfil.html';
+      const { data: profile } = await sb.from('profiles').select('nome_completo,email,cavaleiro_nome').eq('id', user.id).maybeSingle();
+      _currentProfile = profile;
     } else {
-      btn.textContent = 'ENTRAR';
-      btn.onclick = () => window.location.href = 'login.html';
+      _currentProfile = null;
     }
-  } catch (_) {}
+
+    // Atualiza todos os botões "ENTRAR" do app (têm vários nos diversos screens)
+    const entrarBtn = document.getElementById('btn-entrar-home');
+    if (entrarBtn) {
+      if (user) {
+        const primeiro = (_currentProfile?.nome_completo || user.email || 'EU').split(/\s+/)[0].toUpperCase();
+        entrarBtn.textContent = primeiro.length > 9 ? primeiro.substring(0, 9) + '…' : primeiro;
+        entrarBtn.onclick = () => window.location.href = 'perfil.html';
+      } else {
+        entrarBtn.textContent = 'ENTRAR';
+        entrarBtn.onclick = () => window.location.href = 'login.html';
+      }
+    }
+
+    // Atualiza hamburger menu content
+    updateHamMenu();
+  } catch (e) { console.warn('[auth]', e); }
+}
+
+// ─── HAMBURGER MENU (dropdown) ──────────────────────────────────
+function updateHamMenu() {
+  const menu = document.getElementById('ham-menu');
+  if (!menu) return;
+  const u = _currentUser;
+  const p = _currentProfile;
+  let html = '';
+  if (u) {
+    const nome = p?.nome_completo || u.email;
+    html += `
+      <div class="ham-menu-header">
+        <div class="ham-name">${escHtml(nome)}</div>
+        <div class="ham-email">${escHtml(u.email)}</div>
+      </div>
+      <button class="ham-menu-item" onclick="closeHamMenu();window.location.href='perfil.html'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Minha página
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();window.location.href='perfil.html?edit=1'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Editar perfil
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('comunidade')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="7" r="3"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
+        Comunidade
+      </button>
+      <button class="ham-menu-item danger" onclick="logout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sair
+      </button>
+    `;
+  } else {
+    html += `
+      <button class="ham-menu-item" onclick="closeHamMenu();window.location.href='login.html'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        Entrar
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();window.location.href='cadastro.html'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        Criar conta grátis
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('comunidade')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+        Comunidade
+      </button>
+    `;
+  }
+  menu.innerHTML = html;
+}
+
+function toggleHamMenu() {
+  const menu = document.getElementById('ham-menu');
+  const overlay = document.getElementById('ham-overlay');
+  menu.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+function closeHamMenu() {
+  document.getElementById('ham-menu')?.classList.remove('open');
+  document.getElementById('ham-overlay')?.classList.remove('open');
+}
+async function logout() {
+  await sb.auth.signOut();
+  _currentUser = null;
+  _currentProfile = null;
+  closeHamMenu();
+  window.location.href = 'index.html';
+}
+
+// Botão Perfil do bottom nav — vai pra perfil.html se logado, senão login.html
+function goPerfil() {
+  if (_currentUser) window.location.href = 'perfil.html';
+  else window.location.href = 'login.html';
+}
+
+// Bind hamburger buttons (vários no app)
+function bindHamburgers() {
+  document.querySelectorAll('.btn-hamburger').forEach(b => {
+    b.onclick = (e) => { e.stopPropagation(); toggleHamMenu(); };
+  });
 }
 
 async function renderNews() {
@@ -3184,7 +3475,7 @@ function _zrBuildSlide(altura, rows) {
       return `
         <div class="zr-row">
           <span class="zr-pos ${cls}">${pos}º</span>
-          <span class="zr-name">${escHtml(r.nome)}</span>
+          <span class="zr-name">${linkifyName(r.nome)}</span>
           <span class="zr-streak">${streak}</span>
         </div>`;
     }).join('');
@@ -3749,6 +4040,8 @@ async function init() {
   // Load all data into local state
   STATE.localPodcasts = await DB.podcasts();
   STATE.localHorses = await DB.horses();
+  // Carrega map de profiles ANTES dos rankings/news pra já linkificar nomes
+  await loadProfileLinkMap();
   await Promise.all([
     renderNews(),
     renderRankings(),
@@ -3760,7 +4053,14 @@ async function init() {
   initCategories();
   initPills();
   initNoticias();
+  bindHamburgers();
   document.getElementById('bottom-nav').style.display = 'none';
+
+  // Auto-skip onboarding se já logado
+  try {
+    const { data: { user } } = await sb.auth.getUser();
+    if (user) nav('home');
+  } catch (_) {}
 
   if (!document.getElementById('shake-style')) {
     const s = document.createElement('style');
@@ -3772,6 +4072,12 @@ async function init() {
 
 document.addEventListener('DOMContentLoaded', () => auto(init));
 </script>
+
+<!-- ───────── HAMBURGER DROPDOWN MENU ───────── -->
+<div class="ham-overlay" id="ham-overlay" onclick="closeHamMenu()"></div>
+<div class="ham-menu" id="ham-menu">
+  <!-- preenchido pelo updateHamMenu() -->
+</div>
 
 <!-- ───────── TORNEIO DETAIL MODAL ───────── -->
 <div class="tor-modal-bg" id="tor-modal-bg" onclick="if(event.target===this) closeTorModal()">
