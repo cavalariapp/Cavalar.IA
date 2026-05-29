@@ -3199,29 +3199,42 @@ async function _evtFetchData(ano) {
   if (_evtCache && _evtCache.ano === ano) return _evtCache;
   const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
   const [tor, cbh] = await Promise.all([
-    sb.from('torneios').select('id, nome, fonte, data_inicio, data_fim, fingerprint, evento_cbh_id')
+    sb.from('torneios').select('id, nome, fonte, data_inicio, data_fim, fingerprint, evento_cbh_id, provas(id)')
       .gte('data_inicio', ini).lte('data_inicio', fim)
       .order('data_inicio', { ascending: true }),
     sb.from('eventos_cbh').select('id, evento, tipo, estado, federacao, local, data_inicio, data_fim, fingerprint')
       .gte('data_inicio', ini).lte('data_inicio', fim)
       .order('data_inicio', { ascending: true }),
   ]);
-  _evtCache = { ano, torneios: tor.data || [], cbh: cbh.data || [] };
+
+  // Pra cada torneio, sabe se tem resultados (via contagem de provas)
+  // Torneio sem provas E sem evento_cbh_id = shell de divulgação → esconde
+  const torneios = (tor.data || []).map(t => ({
+    ...t,
+    _tem_provas: (t.provas || []).length > 0,
+  }));
+
+  _evtCache = { ano, torneios, cbh: cbh.data || [] };
   return _evtCache;
 }
 
 // Junta torneios + cbh, dedup priorizando torneio (= dado real). Estratégia:
-//   1. Usa torneios.evento_cbh_id (FK) pra excluir CBH já vinculados
-//   2. Fallback: dedup por fingerprint pra casos não-linkados ainda
+//   1. FILTRA torneios fantasma (sem evento_cbh_id E sem provas → divulgação)
+//   2. Usa torneios.evento_cbh_id (FK) pra excluir CBH já vinculados
+//   3. Fallback: dedup por fingerprint pra casos não-linkados ainda
 function _evtMerge(torneios, cbhEventos, mes) {
   const m1 = String(mes + 1).padStart(2, '0');
-  const tt = torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
+
+  // FILTRO: torneio só aparece se tem vínculo CBH OU resultados próprios
+  const torneiosReais = torneios.filter(t => t.evento_cbh_id || t._tem_provas);
+
+  const tt = torneiosReais.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
   const cc = cbhEventos.filter(c => (c.data_inicio || '').substring(5, 7) === m1);
 
   // CBH IDs já cobertos por torneios (via FK explícita) + fingerprints
   const cbhIdsVinculados = new Set();
   const torneioFps = new Set();
-  for (const t of torneios) { // varre TODOS, não só do mês (evento pode atravessar mês)
+  for (const t of torneiosReais) {
     if (t.evento_cbh_id) cbhIdsVinculados.add(t.evento_cbh_id);
     if (t.fingerprint) torneioFps.add(t.fingerprint);
   }
