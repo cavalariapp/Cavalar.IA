@@ -1090,17 +1090,27 @@ async function loadTorneio(torneioId) {
         }
       }
 
-      // Enriquece allProvas. Usa a MESMA normalização — preserva sufixo letra.
+      // Enriquece allProvas. Prioridade:
+      //   1. data_prova/dia_semana do banco (scraper extraiu direto do calendário)
+      //   2. Programa estruturado (info do PDF processado por AI)
       for (const p of allProvas) {
+        // Banco já tem data?
+        if (p.data_prova) {
+          // Formata pra DD/MM/YYYY pra exibir
+          const [Y, M, D] = p.data_prova.split('-');
+          p._data = `${D}/${M}/${Y}`;
+          if (p.dia_semana) p._diaSemana = p.dia_semana;
+        }
+        // Fallback: programa estruturado
         const m = (p.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
         const rawKey = m ? m[1] : (p.numero != null ? String(p.numero) : '');
         const k = normNum(rawKey);
         const info = _provaProgramaInfo[k];
         if (info) {
-          if (info.data) p._data = info.data;
-          if (info.dia_semana) p._diaSemana = info.dia_semana;
-          if (info.hora) p.horario = info.hora;
-          if (info.pista) p.pista = info.pista;
+          if (!p._data && info.data) p._data = info.data;
+          if (!p._diaSemana && info.dia_semana) p._diaSemana = info.dia_semana;
+          if (info.hora && !p.horario) p.horario = info.hora;
+          if (info.pista && !p.pista) p.pista = info.pista;
         }
       }
     } catch (_) {}
