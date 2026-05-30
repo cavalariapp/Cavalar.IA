@@ -18,20 +18,74 @@
 }
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
 body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-height:100vh; }
-.page { max-width:520px; margin:0 auto; padding:20px 16px 100px; }
-.topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
-.brand { font-family:var(--font-display); font-size:22px; }
+.page { max-width:600px; margin:0 auto; padding-bottom:80px; }
+
+/* Topbar */
+.topbar { display:flex; justify-content:space-between; align-items:center; padding:14px 16px; }
+.brand { font-family:var(--font-display); font-size:22px; color:#fff; text-decoration:none; }
 .brand .dot { color:var(--accent); }
-.btn-link { background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; font-family:inherit; }
-.btn-link:hover { color:var(--accent); }
-.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:22px; margin-bottom:16px; }
-.profile-header { text-align:center; }
-.avatar { width:88px; height:88px; background:linear-gradient(135deg, var(--accent), #d44309); border-radius:50%; margin:0 auto 12px; display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:36px; font-weight:900; color:#fff; }
-.nome { font-family:var(--font-display); font-size:24px; font-weight:900; }
-.bio { color:var(--muted); font-size:13px; margin-top:6px; line-height:1.5; }
-.meta { display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:12px; }
+.btn-back { background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; }
+.btn-back:hover { color:var(--accent); }
+
+/* Cover + Avatar */
+.cover-wrap { position:relative; height:220px; background:linear-gradient(135deg, #1a2540, #0f1623); overflow:hidden; }
+.cover-img { width:100%; height:100%; object-fit:cover; display:block; }
+.cover-edit-btn {
+  position:absolute; top:12px; right:12px;
+  background:rgba(8,13,24,.8); border:1px solid var(--border); color:#fff;
+  padding:7px 12px; border-radius:5px; font-size:11.5px; font-weight:700;
+  cursor:pointer; display:flex; align-items:center; gap:6px;
+}
+.cover-edit-btn:hover { border-color:var(--accent); color:var(--accent); }
+
+.profile-head { position:relative; padding:0 18px 18px; margin-top:-66px; }
+.avatar-wrap {
+  width:120px; height:120px; border-radius:50%;
+  border:5px solid var(--bg); background:linear-gradient(135deg, var(--accent), #d44309);
+  display:flex; align-items:center; justify-content:center; position:relative;
+  font-family:var(--font-display); font-size:46px; font-weight:900; color:#fff;
+  overflow:hidden; flex-shrink:0;
+}
+.avatar-img { width:100%; height:100%; object-fit:cover; }
+.avatar-edit-btn {
+  position:absolute; bottom:4px; right:4px;
+  background:var(--accent); border:3px solid var(--bg); color:#fff;
+  width:32px; height:32px; border-radius:50%; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+.avatar-edit-btn svg { width:14px; height:14px; }
+
+.head-actions { display:flex; gap:8px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+.btn { background:var(--accent); color:#fff; border:none; padding:10px 18px; border-radius:5px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; }
+.btn:hover:not(:disabled) { background:#d44309; }
+.btn:disabled { opacity:.5; cursor:not-allowed; }
+.btn-outline { background:transparent; color:var(--fg); border:1px solid var(--border); }
+.btn-outline:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.btn-danger { background:transparent; color:#ff6b6b; border:1px solid #ff6b6b33; }
+
+.profile-name { font-family:var(--font-display); font-size:30px; font-weight:900; margin-top:14px; line-height:1.1; }
+.profile-bio { color:var(--muted); font-size:14px; margin-top:8px; line-height:1.5; white-space:pre-wrap; }
+.profile-meta { display:flex; flex-wrap:wrap; gap:6px; margin-top:14px; }
 .meta-chip { background:var(--surface2); padding:4px 10px; border-radius:12px; font-size:11px; color:var(--muted); }
-.section-title { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:12px; }
+.meta-chip.verified { background:var(--accent-dim); color:var(--accent); font-weight:700; }
+
+/* Tabs */
+.tabs { display:flex; border-bottom:1px solid var(--border); margin:18px 18px 0; gap:0; }
+.tab {
+  flex:1; padding:13px 8px; text-align:center; font-size:12px; font-weight:800;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--muted);
+  cursor:pointer; border:none; background:none; border-bottom:2px solid transparent;
+  font-family:inherit;
+}
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab-panel { padding:18px; display:none; }
+.tab-panel.active { display:block; }
+
+/* Cards */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:18px; margin-bottom:14px; }
+.section-title { font-size:11px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+
+/* Forms */
 .field { margin-bottom:14px; }
 .field label { display:block; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
 .input, .textarea, .select {
@@ -40,39 +94,127 @@ body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-
 }
 .textarea { min-height:80px; resize:vertical; }
 .input:focus, .textarea:focus, .select:focus { outline:none; border-color:var(--accent); }
-.btn { background:var(--accent); color:#fff; border:none; padding:11px 20px; border-radius:5px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; }
-.btn:hover { background:#d44309; }
-.btn-secondary { background:transparent; color:var(--muted); border:1px solid var(--border); }
-.btn-secondary:hover { background:var(--surface2); color:var(--fg); }
+
+/* Stats grid */
 .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
 .stat-box { background:var(--bg); padding:10px 6px; border-radius:4px; text-align:center; }
 .stat-val { font-size:18px; font-weight:900; color:var(--accent); }
 .stat-lbl { font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-top:2px; }
+
+/* Toggle */
 .toggle-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; }
 .toggle-label { font-size:13px; }
-.toggle-switch { width:44px; height:24px; background:var(--surface2); border-radius:12px; position:relative; cursor:pointer; transition:background .2s; }
+.toggle-switch { width:44px; height:24px; background:var(--surface2); border-radius:12px; position:relative; cursor:pointer; transition:background .2s; flex-shrink:0; }
 .toggle-switch.on { background:var(--accent); }
 .toggle-switch::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:left .2s; }
 .toggle-switch.on::after { left:22px; }
+
+/* Interesses */
 .interesses-list { display:flex; flex-wrap:wrap; gap:8px; }
 .interesse-chip { background:var(--surface2); padding:6px 12px; border-radius:14px; font-size:12px; }
 .interesse-chip b { color:var(--accent); margin-left:4px; }
-.row-actions { display:flex; gap:8px; margin-top:14px; }
-.empty { color:var(--muted); font-size:13px; text-align:center; padding:14px 0; }
-.spinner { width:36px; height:36px; border:3px solid var(--surface2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin:60px auto; }
+
+/* Feed */
+.compose-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:14px; }
+.compose-textarea {
+  width:100%; background:var(--bg); border:1px solid var(--border); color:#fff;
+  padding:11px 13px; border-radius:5px; font-family:inherit; font-size:14px;
+  min-height:60px; resize:vertical;
+}
+.compose-actions { display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px; }
+.compose-tipo { display:flex; gap:6px; flex-wrap:wrap; }
+.compose-tipo-chip {
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  padding:6px 11px; border-radius:14px; font-size:11.5px; font-weight:600;
+  cursor:pointer;
+}
+.compose-tipo-chip.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+.compose-img-preview { max-width:100%; max-height:200px; border-radius:5px; margin-top:10px; display:block; }
+
+.post-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:14px 16px; margin-bottom:12px;
+}
+.post-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.post-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg, var(--accent), #d44309); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:15px; font-weight:900; color:#fff; flex-shrink:0; overflow:hidden; }
+.post-avatar img { width:100%; height:100%; object-fit:cover; }
+.post-author-name { font-size:13.5px; font-weight:700; color:#fff; }
+.post-author-name a { color:#fff; text-decoration:none; }
+.post-author-name a:hover { color:var(--accent); }
+.post-time { font-size:11px; color:var(--muted); }
+.post-tipo {
+  display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:.08em;
+  text-transform:uppercase; padding:2px 7px; border-radius:3px; margin-left:6px;
+}
+.post-tipo.anuncio { background:#3aa0ff22; color:#3aa0ff; }
+.post-tipo.foto { background:#7c5cffaa22; color:#7c5cff; }
+.post-text { font-size:14px; line-height:1.5; white-space:pre-wrap; word-break:break-word; }
+.post-img { width:100%; border-radius:5px; margin-top:10px; }
+.post-actions { display:flex; gap:14px; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.post-action-btn { background:none; border:none; color:var(--muted); font-size:11.5px; cursor:pointer; display:flex; align-items:center; gap:5px; }
+.post-action-btn:hover { color:#ff6b6b; }
+
+.privacy-note { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.4; }
+.empty { color:var(--muted); font-size:13px; text-align:center; padding:30px 14px; }
+.spinner { width:36px; height:36px; border:3px solid var(--surface2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin:80px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
-.privacy-note { font-size:11px; color:var(--muted); margin-top:8px; }
+
+.contact-line { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13.5px; }
+.contact-line a { color:var(--accent); text-decoration:none; }
+.contact-line a:hover { text-decoration:underline; }
+.contact-private { color:var(--muted); font-size:12px; }
+
+.row-actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+
+/* Hide file inputs */
+input[type=file] { display:none; }
 </style>
 </head>
 <body>
 <div class="page">
   <div class="topbar">
     <a href="index.html" class="brand">CAVALAR<span class="dot">.</span>IA</a>
-    <button class="btn-link" id="btn-logout" style="display:none">Sair</button>
+    <button class="btn-back" onclick="history.length>1 ? history.back() : (location.href='index.html')">← Voltar</button>
   </div>
 
   <div id="loading" class="spinner"></div>
-  <div id="content" style="display:none"></div>
+  <div id="content" style="display:none">
+    <!-- COVER + AVATAR -->
+    <div class="cover-wrap" id="cover-wrap">
+      <div id="cover-content"></div>
+      <button class="cover-edit-btn" id="cover-edit-btn" style="display:none" onclick="document.getElementById('cover-file').click()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Trocar capa
+      </button>
+      <input type="file" id="cover-file" accept="image/*">
+    </div>
+
+    <div class="profile-head">
+      <div class="avatar-wrap" id="avatar-wrap">
+        <div id="avatar-content"></div>
+        <button class="avatar-edit-btn" id="avatar-edit-btn" style="display:none" onclick="document.getElementById('avatar-file').click()" title="Trocar foto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+        <input type="file" id="avatar-file" accept="image/*">
+      </div>
+      <div class="head-actions" id="head-actions"></div>
+      <div class="profile-name" id="profile-name"></div>
+      <div class="profile-bio" id="profile-bio"></div>
+      <div class="profile-meta" id="profile-meta"></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <button class="tab active" data-tab="sobre" onclick="setTab('sobre')">Sobre</button>
+      <button class="tab" data-tab="feed" onclick="setTab('feed')">Feed</button>
+    </div>
+
+    <!-- TAB: SOBRE -->
+    <div class="tab-panel active" id="panel-sobre"></div>
+
+    <!-- TAB: FEED -->
+    <div class="tab-panel" id="panel-feed"></div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -101,159 +243,437 @@ const PERGUNTAS = {
   treino: 'Treino:',
 };
 
+// State
+let _profile = null;
+let _ehProprio = false;
+let _interesses = [];
+let _stats = null;
+let _editMode = false;
+let _alvoId = null;
+
 async function carregar() {
   const params = new URLSearchParams(window.location.search);
   const userIdParam = params.get('u');
+  const startEdit = params.get('edit') === '1';
 
-  const { data: { user } } = await sb.auth.getUser();
-  const meuId = user?.id || null;
-  const alvoId = userIdParam || meuId;
+  const { data: { session } } = await sb.auth.getSession();
+  const meuId = session?.user?.id || null;
+  _alvoId = userIdParam || meuId;
 
-  if (!alvoId) {
-    // Não logado e sem param → vai pra login
+  if (!_alvoId) {
     window.location.href = 'login.html';
     return;
   }
 
-  $('btn-logout').style.display = meuId ? 'inline-block' : 'none';
-  if (meuId) {
-    $('btn-logout').onclick = async () => {
-      await sb.auth.signOut();
-      window.location.href = 'index.html';
-    };
-  }
+  _ehProprio = meuId && (meuId === _alvoId);
 
-  const ehProprio = meuId && (meuId === alvoId);
-
-  // Carrega perfil
-  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', alvoId).single();
+  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', _alvoId).single();
   if (error || !profile) {
     $('loading').style.display = 'none';
     $('content').style.display = 'block';
-    $('content').innerHTML = ehProprio
-      ? `<div class="card"><div class="empty">Seu perfil ainda não foi criado.<br><br><a href="cadastro.html" class="btn">Completar cadastro</a></div></div>`
-      : `<div class="card"><div class="empty">Perfil não encontrado ou privado.</div></div>`;
+    document.querySelector('.profile-head').innerHTML = _ehProprio
+      ? `<div class="empty">Seu perfil ainda não foi criado.<br><a href="cadastro.html" style="color:var(--accent)">Completar cadastro</a></div>`
+      : `<div class="empty">Perfil não encontrado ou privado.</div>`;
     return;
   }
+  _profile = profile;
 
-  // Carrega interesses + cavaleiro stats em paralelo
   const [interessesRes, statsRes] = await Promise.all([
-    sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', alvoId),
+    sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', _alvoId),
     profile.cavaleiro_nome
       ? sb.rpc('match_cavaleiro', { nome_input: profile.cavaleiro_nome }).then(r => r.data?.[0])
       : Promise.resolve(null),
   ]);
+  _interesses = interessesRes.data || [];
+  _stats = statsRes || null;
 
-  renderProfile(profile, interessesRes.data || [], statsRes, ehProprio);
-}
-
-function renderProfile(p, interesses, stats, ehProprio) {
   $('loading').style.display = 'none';
   $('content').style.display = 'block';
 
-  const inicial = (p.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
-  const tipos = (p.tipos || []).map(t => TIPOS_LABEL[t] || t).filter(Boolean);
+  if (_ehProprio && startEdit) _editMode = true;
 
-  const statsHtml = stats ? (() => {
-    const pct = (n, total) => total > 0 ? Math.round((n/total)*100) : 0;
-    return `
+  renderAll();
+}
+
+function renderAll() {
+  renderCover();
+  renderAvatar();
+  renderHead();
+  renderSobre();
+  renderFeed();
+}
+
+function renderCover() {
+  const c = $('cover-content');
+  if (_profile.capa_url) {
+    c.innerHTML = `<img class="cover-img" src="${esc(_profile.capa_url)}" alt="">`;
+  } else {
+    c.innerHTML = '';
+  }
+  $('cover-edit-btn').style.display = _ehProprio ? 'flex' : 'none';
+}
+
+function renderAvatar() {
+  const a = $('avatar-content');
+  if (_profile.avatar_url) {
+    a.innerHTML = `<img class="avatar-img" src="${esc(_profile.avatar_url)}" alt="">`;
+  } else {
+    const inicial = (_profile.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
+    a.innerHTML = `<span>${esc(inicial)}</span>`;
+  }
+  $('avatar-edit-btn').style.display = _ehProprio ? 'flex' : 'none';
+}
+
+function renderHead() {
+  $('profile-name').textContent = _profile.nome_completo || '';
+  $('profile-bio').textContent = _profile.bio || '';
+
+  const tipos = (_profile.tipos || []).map(t => TIPOS_LABEL[t] || t).filter(Boolean);
+  const metaHtml = [
+    ...(tipos.map(t => `<span class="meta-chip">${esc(t)}</span>`)),
+    _profile.estado ? `<span class="meta-chip">📍 ${esc(_profile.estado)}</span>` : '',
+    _profile.cavaleiro_match_confirmado ? `<span class="meta-chip verified">✓ Cavaleiro verificado</span>` : '',
+  ].join('');
+  $('profile-meta').innerHTML = metaHtml;
+
+  const actions = $('head-actions');
+  if (_ehProprio) {
+    actions.innerHTML = `
+      <button class="btn ${_editMode ? 'btn-outline' : ''}" onclick="toggleEdit()">
+        ${_editMode ? '✕ Cancelar edição' : '✎ Editar perfil'}
+      </button>
+      <button class="btn-outline btn" onclick="logout()">Sair</button>
+    `;
+  } else {
+    actions.innerHTML = `<span class="meta-chip">Visualizando perfil público</span>`;
+  }
+}
+
+function renderSobre() {
+  const panel = $('panel-sobre');
+  const p = _profile;
+
+  // Modo edição
+  if (_editMode && _ehProprio) {
+    panel.innerHTML = `
       <div class="card">
-        <div class="section-title">Resumo do cavaleiro · ${esc(stats.cavaleiro_nome)}</div>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-val">${stats.total_participacoes}</div><div class="stat-lbl">Particip.<br>(${stats.total_provas} provas)</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(stats.zeros, stats.total_participacoes)}%</div><div class="stat-lbl">Zero<br>(${stats.zeros})</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(stats.vitorias, stats.total_participacoes)}%</div><div class="stat-lbl">Vitórias<br>(${stats.vitorias})</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(stats.top6, stats.total_participacoes)}%</div><div class="stat-lbl">Top 6<br>(${stats.top6})</div></div>
+        <div class="section-title">Editando seu perfil</div>
+        <div class="field">
+          <label>Nome completo</label>
+          <input id="e-nome" class="input" value="${esc(p.nome_completo || '')}">
         </div>
-        ${stats.cavalos?.length ? `<div style="margin-top:12px; font-size:11px; color:var(--muted)">Cavalos recentes: ${stats.cavalos.slice(0,4).map(esc).join(' · ')}</div>` : ''}
+        <div class="field">
+          <label>Bio (apresente-se)</label>
+          <textarea id="e-bio" class="textarea" placeholder="Conte sobre você, sua relação com hipismo, etc.">${esc(p.bio || '')}</textarea>
+        </div>
+        <div class="field">
+          <label>Instagram (sem @)</label>
+          <input id="e-instagram" class="input" placeholder="seu_perfil" value="${esc((p.instagram || '').replace('@',''))}">
+        </div>
+        <div class="field">
+          <label>Website / Site</label>
+          <input id="e-website" class="input" placeholder="https://..." value="${esc(p.website || '')}">
+        </div>
+        <div class="field">
+          <label>Estado (UF)</label>
+          <input id="e-estado" class="input" maxlength="2" placeholder="SP" value="${esc(p.estado || '')}">
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Perfil público</div>
+            <div class="privacy-note" style="margin-top:2px">Quando público, outros usuários podem ver bio, feed, foto e stats. Email/celular ficam sempre privados.</div>
+          </div>
+          <div class="toggle-switch ${p.visibilidade === 'publico' ? 'on' : ''}" id="e-toggle-publico"></div>
+        </div>
+        <div class="row-actions">
+          <button class="btn" id="btn-salvar">Salvar alterações</button>
+          <button class="btn btn-outline" onclick="toggleEdit()">Cancelar</button>
+        </div>
       </div>
     `;
-  })() : '';
+    wireEdit();
+    return;
+  }
 
-  const interessesHtml = interesses.length ? `
-    <div class="card">
-      <div class="section-title">Interesses</div>
-      <div class="interesses-list">
-        ${interesses.map(i => `<span class="interesse-chip">${esc(PERGUNTAS[i.pergunta_id] || i.pergunta_id)} <b>${esc(i.resposta)}</b></span>`).join('')}
-      </div>
-    </div>
-  ` : '';
+  // Modo visualização
+  let html = '';
 
-  const contatoHtml = (p.instagram || p.website || (ehProprio && (p.email || p.celular))) ? `
-    <div class="card">
-      <div class="section-title">Contato</div>
-      ${p.instagram ? `<div style="margin-bottom:6px">📷 <a href="https://instagram.com/${esc(p.instagram.replace('@',''))}" target="_blank" style="color:var(--accent); text-decoration:none">@${esc(p.instagram.replace('@',''))}</a></div>` : ''}
-      ${p.website ? `<div style="margin-bottom:6px">🌐 <a href="${esc(p.website)}" target="_blank" style="color:var(--accent); text-decoration:none">${esc(p.website)}</a></div>` : ''}
-      ${ehProprio && p.email ? `<div style="margin-bottom:6px; color:var(--muted); font-size:12px">✉️ ${esc(p.email)} (só você vê)</div>` : ''}
-      ${ehProprio && p.celular ? `<div style="margin-bottom:6px; color:var(--muted); font-size:12px">📱 ${esc(p.celular)} (só você vê)</div>` : ''}
-    </div>
-  ` : '';
+  // Stats do cavaleiro
+  if (_stats) {
+    const s = _stats;
+    const pct = (n, total) => total > 0 ? Math.round((n/total)*100) : 0;
+    html += `
+      <div class="card">
+        <div class="section-title">Resumo do cavaleiro · ${esc(s.cavaleiro_nome)}</div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val">${s.total_participacoes}</div><div class="stat-lbl">Particip.<br>(${s.total_provas} provas)</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(s.zeros, s.total_participacoes)}%</div><div class="stat-lbl">Zero<br>(${s.zeros})</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(s.vitorias, s.total_participacoes)}%</div><div class="stat-lbl">Vitórias<br>(${s.vitorias})</div></div>
+          <div class="stat-box"><div class="stat-val">${pct(s.top6, s.total_participacoes)}%</div><div class="stat-lbl">Top 6<br>(${s.top6})</div></div>
+        </div>
+        ${s.cavalos?.length ? `<div style="margin-top:12px;font-size:11.5px;color:var(--muted)">Cavalos recentes: ${s.cavalos.slice(0,4).map(esc).join(' · ')}</div>` : ''}
+      </div>
+    `;
+  }
 
-  const editHtml = ehProprio ? `
-    <div class="card">
-      <div class="section-title">Editar perfil</div>
-      <div class="field">
-        <label>Bio</label>
-        <textarea id="edit-bio" class="textarea" placeholder="Conte um pouco sobre você">${esc(p.bio || '')}</textarea>
-      </div>
-      <div class="field">
-        <label>Instagram</label>
-        <input id="edit-instagram" class="input" placeholder="@seu_perfil" value="${esc(p.instagram || '')}">
-      </div>
-      <div class="field">
-        <label>Website</label>
-        <input id="edit-website" class="input" placeholder="https://..." value="${esc(p.website || '')}">
-      </div>
-      <div class="toggle-row">
-        <span class="toggle-label">Perfil público</span>
-        <div class="toggle-switch ${p.visibilidade === 'publico' ? 'on' : ''}" id="toggle-publico"></div>
-      </div>
-      <p class="privacy-note">Quando público, outros usuários podem ver seu perfil, bio, interesses e estatísticas. Email e celular ficam sempre privados.</p>
-      <div class="row-actions">
-        <button class="btn" id="btn-salvar">Salvar alterações</button>
-      </div>
-    </div>
-  ` : '';
+  // Contato
+  const temContato = p.instagram || p.website || (_ehProprio && (p.email || p.celular));
+  if (temContato) {
+    html += `<div class="card"><div class="section-title">Contato</div>`;
+    if (p.instagram) html += `<div class="contact-line">📷 <a href="https://instagram.com/${esc(p.instagram.replace('@',''))}" target="_blank">@${esc(p.instagram.replace('@',''))}</a></div>`;
+    if (p.website) html += `<div class="contact-line">🌐 <a href="${esc(p.website)}" target="_blank">${esc(p.website)}</a></div>`;
+    if (_ehProprio && p.email) html += `<div class="contact-line contact-private">✉️ ${esc(p.email)} <span style="opacity:.6">(só você vê)</span></div>`;
+    if (_ehProprio && p.celular) html += `<div class="contact-line contact-private">📱 ${esc(p.celular)} <span style="opacity:.6">(só você vê)</span></div>`;
+    html += `</div>`;
+  }
 
-  $('content').innerHTML = `
-    <div class="card profile-header">
-      <div class="avatar">${esc(inicial)}</div>
-      <div class="nome">${esc(p.nome_completo)}</div>
-      ${p.bio ? `<div class="bio">${esc(p.bio)}</div>` : ''}
-      ${tipos.length ? `<div class="meta">${tipos.map(t => `<span class="meta-chip">${esc(t)}</span>`).join('')}</div>` : ''}
-      ${p.estado ? `<div class="meta" style="margin-top:6px"><span class="meta-chip">📍 ${esc(p.estado)}${p.pais && p.pais !== 'Brasil' ? ', ' + esc(p.pais) : ''}</span></div>` : ''}
-    </div>
-    ${statsHtml}
-    ${contatoHtml}
-    ${interessesHtml}
-    ${editHtml}
-  `;
+  // Interesses
+  if (_interesses.length) {
+    html += `
+      <div class="card">
+        <div class="section-title">Interesses</div>
+        <div class="interesses-list">
+          ${_interesses.map(i => `<span class="interesse-chip">${esc(PERGUNTAS[i.pergunta_id] || i.pergunta_id)} <b>${esc(i.resposta)}</b></span>`).join('')}
+        </div>
+      </div>`;
+  }
 
-  if (ehProprio) wireEdit(p);
+  if (!html) html = `<div class="empty">Nada por aqui ainda${_ehProprio ? '. Clica em "Editar perfil" pra preencher!' : '.'}</div>`;
+  panel.innerHTML = html;
 }
 
-function wireEdit(p) {
-  let visibilidade = p.visibilidade;
-  $('toggle-publico').onclick = () => {
+// ─── Tabs ──────────────────────────────────────────────────────
+function setTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  if (name === 'feed') renderFeed();
+}
+
+// ─── Edit ──────────────────────────────────────────────────────
+function toggleEdit() {
+  if (!_ehProprio) return;
+  _editMode = !_editMode;
+  renderHead();
+  renderSobre();
+  if (_editMode) window.scrollTo({ top: document.querySelector('.tabs').offsetTop - 20, behavior: 'smooth' });
+}
+
+function wireEdit() {
+  let visibilidade = _profile.visibilidade;
+  const tog = $('e-toggle-publico');
+  tog.onclick = () => {
     visibilidade = visibilidade === 'publico' ? 'privado' : 'publico';
-    $('toggle-publico').classList.toggle('on', visibilidade === 'publico');
+    tog.classList.toggle('on', visibilidade === 'publico');
   };
   $('btn-salvar').onclick = async () => {
-    $('btn-salvar').disabled = true;
+    const btn = $('btn-salvar');
+    btn.disabled = true;
+    btn.textContent = 'Salvando…';
+    const nomeNovo = $('e-nome').value.trim();
+    if (nomeNovo.length < 3) { alert('Nome muito curto'); btn.disabled = false; btn.textContent = 'Salvar alterações'; return; }
     const updates = {
-      bio: $('edit-bio').value.trim() || null,
-      instagram: $('edit-instagram').value.trim() || null,
-      website: $('edit-website').value.trim() || null,
+      nome_completo: nomeNovo,
+      bio: $('e-bio').value.trim() || null,
+      instagram: $('e-instagram').value.trim() || null,
+      website: $('e-website').value.trim() || null,
+      estado: $('e-estado').value.trim().toUpperCase() || null,
       visibilidade,
     };
-    const { error } = await sb.from('profiles').update(updates).eq('id', p.id);
-    $('btn-salvar').disabled = false;
-    if (error) { alert('Erro ao salvar: ' + error.message); return; }
-    $('btn-salvar').textContent = '✓ Salvo';
-    setTimeout(() => location.reload(), 800);
+    const { error } = await sb.from('profiles').update(updates).eq('id', _profile.id);
+    if (error) {
+      alert('Erro ao salvar: ' + error.message);
+      btn.disabled = false; btn.textContent = 'Salvar alterações';
+      return;
+    }
+    // Atualiza state local + sai do modo edição
+    Object.assign(_profile, updates);
+    _editMode = false;
+    btn.textContent = '✓ Salvo';
+    setTimeout(() => renderAll(), 600);
   };
 }
 
+// ─── Upload de imagens ─────────────────────────────────────────
+async function uploadImagem(file, bucket) {
+  if (!file) return null;
+  if (file.size > 5 * 1024 * 1024) { alert('Imagem grande demais (máx 5MB)'); return null; }
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const path = `${_profile.id}/${Date.now()}.${ext}`;
+  const { error: upErr } = await sb.storage.from(bucket).upload(path, file, { upsert: false });
+  if (upErr) { alert('Erro no upload: ' + upErr.message); return null; }
+  const { data } = sb.storage.from(bucket).getPublicUrl(path);
+  return data?.publicUrl || null;
+}
+
+$('avatar-file')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]; e.target.value = '';
+  if (!file) return;
+  const url = await uploadImagem(file, 'avatars');
+  if (!url) return;
+  const { error } = await sb.from('profiles').update({ avatar_url: url }).eq('id', _profile.id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _profile.avatar_url = url;
+  renderAvatar();
+});
+
+$('cover-file')?.addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]; e.target.value = '';
+  if (!file) return;
+  const url = await uploadImagem(file, 'covers');
+  if (!url) return;
+  const { error } = await sb.from('profiles').update({ capa_url: url }).eq('id', _profile.id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _profile.capa_url = url;
+  renderCover();
+});
+
+// ─── FEED ──────────────────────────────────────────────────────
+let _feedPosts = [];
+let _composeTipo = 'recado';
+let _composeImgFile = null;
+
+async function renderFeed() {
+  const panel = $('panel-feed');
+  let html = '';
+
+  if (_ehProprio) {
+    html += `
+      <div class="compose-card">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.08em">Compartilhar algo</div>
+        <textarea id="c-texto" class="compose-textarea" placeholder="O que você quer compartilhar com a comunidade?"></textarea>
+        <img id="c-preview" class="compose-img-preview" style="display:none">
+        <div class="compose-actions">
+          <div class="compose-tipo">
+            <span class="compose-tipo-chip ${_composeTipo==='recado'?'active':''}" data-tipo="recado" onclick="setComposeTipo('recado')">💬 Recado</span>
+            <span class="compose-tipo-chip ${_composeTipo==='anuncio'?'active':''}" data-tipo="anuncio" onclick="setComposeTipo('anuncio')">📢 Anúncio</span>
+            <span class="compose-tipo-chip ${_composeTipo==='foto'?'active':''}" data-tipo="foto" onclick="setComposeTipo('foto')">📷 Foto</span>
+          </div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-outline" onclick="document.getElementById('c-imgfile').click()" title="Anexar foto">📷</button>
+            <button class="btn" id="btn-publicar" onclick="publicar()">Publicar</button>
+          </div>
+        </div>
+        <input type="file" id="c-imgfile" accept="image/*">
+      </div>
+    `;
+  }
+
+  html += `<div id="feed-list"><div class="empty">Carregando posts…</div></div>`;
+  panel.innerHTML = html;
+
+  if (_ehProprio) {
+    $('c-imgfile')?.addEventListener('change', (e) => {
+      _composeImgFile = e.target.files?.[0] || null;
+      const preview = $('c-preview');
+      if (_composeImgFile) {
+        preview.src = URL.createObjectURL(_composeImgFile);
+        preview.style.display = 'block';
+        _composeTipo = 'foto';
+        document.querySelectorAll('.compose-tipo-chip').forEach(c => c.classList.toggle('active', c.dataset.tipo === 'foto'));
+      } else {
+        preview.style.display = 'none';
+      }
+    });
+  }
+
+  // Carrega posts
+  const { data } = await sb.from('feed_posts')
+    .select('id,texto,imagem_url,tipo,criado_em')
+    .eq('profile_id', _alvoId)
+    .order('criado_em', { ascending: false })
+    .limit(50);
+  _feedPosts = data || [];
+  renderFeedList();
+}
+
+function setComposeTipo(t) {
+  _composeTipo = t;
+  document.querySelectorAll('.compose-tipo-chip').forEach(c => c.classList.toggle('active', c.dataset.tipo === t));
+}
+
+function renderFeedList() {
+  const list = $('feed-list');
+  if (!list) return;
+  if (_feedPosts.length === 0) {
+    list.innerHTML = `<div class="empty">${_ehProprio ? 'Você ainda não publicou nada. Compartilha algo!' : 'Esse usuário ainda não publicou nada.'}</div>`;
+    return;
+  }
+  const inicial = (_profile.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
+  list.innerHTML = _feedPosts.map(p => {
+    const tipoLabel = p.tipo === 'anuncio' ? '<span class="post-tipo anuncio">Anúncio</span>'
+                    : p.tipo === 'foto'    ? '<span class="post-tipo foto">Foto</span>' : '';
+    return `
+      <div class="post-card">
+        <div class="post-head">
+          <div class="post-avatar">${_profile.avatar_url ? `<img src="${esc(_profile.avatar_url)}">` : esc(inicial)}</div>
+          <div style="flex:1">
+            <div class="post-author-name">${esc(_profile.nome_completo || '')}${tipoLabel}</div>
+            <div class="post-time">${formatTempo(p.criado_em)}</div>
+          </div>
+          ${_ehProprio ? `<button class="post-action-btn" onclick="deletarPost(${p.id})" title="Excluir">🗑</button>` : ''}
+        </div>
+        ${p.texto ? `<div class="post-text">${esc(p.texto)}</div>` : ''}
+        ${p.imagem_url ? `<img class="post-img" src="${esc(p.imagem_url)}">` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+function formatTempo(iso) {
+  const t = new Date(iso);
+  const agora = new Date();
+  const diff = (agora - t) / 1000;
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return `${Math.floor(diff/60)} min`;
+  if (diff < 86400) return `${Math.floor(diff/3600)} h`;
+  if (diff < 604800) return `${Math.floor(diff/86400)} d`;
+  return t.toLocaleDateString('pt-BR');
+}
+
+async function publicar() {
+  if (!_ehProprio) return;
+  const texto = $('c-texto').value.trim();
+  if (!texto && !_composeImgFile) { alert('Escreva algo ou anexa uma foto'); return; }
+
+  const btn = $('btn-publicar');
+  btn.disabled = true; btn.textContent = 'Publicando…';
+
+  let imagem_url = null;
+  if (_composeImgFile) {
+    imagem_url = await uploadImagem(_composeImgFile, 'feed-imgs');
+    if (!imagem_url) { btn.disabled = false; btn.textContent = 'Publicar'; return; }
+  }
+
+  const { error } = await sb.from('feed_posts').insert({
+    profile_id: _profile.id,
+    texto: texto || null,
+    imagem_url,
+    tipo: _composeTipo,
+  });
+  if (error) { alert('Erro: ' + error.message); btn.disabled = false; btn.textContent = 'Publicar'; return; }
+  $('c-texto').value = '';
+  $('c-preview').style.display = 'none';
+  _composeImgFile = null;
+  _composeTipo = 'recado';
+  renderFeed();
+}
+
+async function deletarPost(id) {
+  if (!confirm('Excluir esse post?')) return;
+  const { error } = await sb.from('feed_posts').delete().eq('id', id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _feedPosts = _feedPosts.filter(p => p.id !== id);
+  renderFeedList();
+}
+
+// ─── Logout ────────────────────────────────────────────────────
+async function logout() {
+  if (!confirm('Sair da conta?')) return;
+  await sb.auth.signOut();
+  window.location.href = 'index.html';
+}
+
+// Boot
 carregar();
 </script>
 </body>
