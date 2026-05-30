@@ -251,6 +251,86 @@ body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-
 
 .row-actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
 
+/* ── Análise de desempenho (card destacado) ── */
+.analise-card {
+  background:linear-gradient(160deg, var(--surface2), var(--surface));
+  border:1px solid var(--accent-glow);
+}
+.analise-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px; }
+.analise-filtros {
+  font-size:11px; color:var(--accent); font-weight:700; letter-spacing:.02em;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.analise-cavalos-line { margin-top:12px; font-size:11.5px; color:var(--muted); line-height:1.5; }
+.analise-link {
+  display:inline-block; margin-top:12px; font-size:12px; font-weight:700;
+  color:var(--accent); text-decoration:none;
+}
+.analise-link:hover { text-decoration:underline; }
+.stat-box .stat-sub { font-size:9px; color:var(--muted); margin-top:1px; }
+
+/* ── Cavalos do criador/proprietário ── */
+.cavalo-card {
+  background:var(--bg); border:1px solid var(--border); border-radius:8px;
+  padding:14px; margin-bottom:10px;
+}
+.cavalo-card-head { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px; }
+.cavalo-nome { font-family:var(--font-display); font-size:18px; font-weight:900; line-height:1; }
+.cavalo-rel {
+  font-size:9.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
+  padding:3px 8px; border-radius:10px; white-space:nowrap;
+}
+.cavalo-rel.criador { background:#7c5cff22; color:#a48bff; }
+.cavalo-rel.proprietario { background:#3aa0ff22; color:#5db4ff; }
+.cavalo-stats-mini { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+.cavalo-stat { background:var(--surface); border-radius:5px; padding:8px 4px; text-align:center; }
+.cavalo-stat .v { font-size:15px; font-weight:900; color:var(--accent); }
+.cavalo-stat .l { font-size:8.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+.cavalo-riders { margin-top:9px; font-size:11px; color:var(--muted); line-height:1.4; }
+.cavalo-remove {
+  background:none; border:none; color:var(--muted); font-size:16px; cursor:pointer;
+  padding:0 4px; line-height:1;
+}
+.cavalo-remove:hover { color:#ff6b6b; }
+.mini-spin { width:18px; height:18px; border:2px solid var(--surface2); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; display:inline-block; vertical-align:middle; }
+
+/* ── Autocomplete de cavalos ── */
+.ac-wrap { position:relative; }
+.ac-drop {
+  position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:50;
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  max-height:260px; overflow-y:auto; box-shadow:0 12px 32px rgba(0,0,0,.5);
+  display:none;
+}
+.ac-drop.open { display:block; }
+.ac-item {
+  padding:10px 13px; font-size:13.5px; cursor:pointer;
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  border-bottom:1px solid var(--border);
+}
+.ac-item:last-child { border-bottom:none; }
+.ac-item:hover, .ac-item.active { background:var(--accent-dim); }
+.ac-item .ac-nome { font-weight:600; }
+.ac-item .ac-count { font-size:10.5px; color:var(--muted); white-space:nowrap; }
+.ac-empty { padding:12px 13px; font-size:12.5px; color:var(--muted); text-align:center; }
+
+/* ── Filtros de análise (edit) ── */
+.filtro-group { margin-bottom:16px; }
+.filtro-group > .filtro-lbl {
+  font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted); margin-bottom:8px; display:block;
+}
+.chip-row { display:flex; flex-wrap:wrap; gap:7px; }
+.fchip {
+  background:var(--surface2); color:var(--fg); border:1px solid var(--border);
+  padding:7px 13px; border-radius:16px; font-size:12px; font-weight:600;
+  cursor:pointer; user-select:none; transition:all .12s;
+}
+.fchip:hover { border-color:var(--accent-glow); }
+.fchip.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+.fchip.mes { min-width:46px; text-align:center; padding:7px 9px; }
+.rel-toggle { display:flex; gap:7px; margin-bottom:8px; }
+
 /* Hide file inputs */
 input[type=file] { display:none; }
 </style>
@@ -328,10 +408,17 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g
 
 const TIPOS_LABEL = {
   cavaleiro_amazona:'Cavaleiro / Amazona',
-  criador:'Criador(a)', treinador:'Treinador(a)',
+  criador:'Criador(a)', proprietario:'Proprietário(a)',
+  treinador:'Treinador(a)',
   profissional:'Profissional', amador:'Amador(a)',
   veterinario:'Veterinário(a)', amante:'Amante do esporte',
 };
+
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const MESES_NOME  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const ANO_ATUAL   = new Date().getFullYear();
+// Anos oferecidos no filtro de análise (atual → 2021)
+const ANOS_FILTRO = Array.from({ length: (ANO_ATUAL - 2021) + 1 }, (_, i) => ANO_ATUAL - i);
 
 const PERGUNTAS = {
   cavalo_temperamento: 'Cavalo:',
@@ -362,6 +449,47 @@ let _isFollowing = false;   // estou seguindo _alvoId?
 let _followersCount = 0;    // qtd que seguem _alvoId
 let _followingCount = 0;    // qtd que _alvoId segue
 let _composeVis = 'publico'; // publico | seguidores
+let _meusCavalos = [];       // profile_cavalos do _alvoId (criador/proprietário)
+let _analiseConfig = {};     // _profile.analise_config (filtros que o cavaleiro expõe)
+let _todosCavalos = null;    // cache: todos os cavalos do cavaleiro (pro picker, sem filtro)
+let _cavaloStats = {};       // cache de stats_cavalo por nome normalizado
+let _cfgEdit = {};           // cópia de trabalho da analise_config (modo edição)
+let _relSelecionada = 'proprietario'; // relação ativa no autocomplete de cavalos
+let _acClear = null;         // limpa o autocomplete (setado em wireCavalosEdit)
+
+// É criador ou proprietário? (mostra a seção "Meus cavalos")
+function ehCriadorOuProp(p) {
+  return (p?.tipos || []).some(t => t === 'criador' || t === 'proprietario');
+}
+
+// Converte analise_config → params do RPC stats_cavaleiro_filtrado
+function filtrosAnalise(nome, cfg) {
+  cfg = cfg || {};
+  return {
+    nome_input:    nome,
+    ano_input:     Number.isInteger(cfg.ano) ? cfg.ano : null,
+    meses_input:   (Array.isArray(cfg.meses)   && cfg.meses.length)   ? cfg.meses   : null,
+    cavalos_input: (Array.isArray(cfg.cavalos) && cfg.cavalos.length) ? cfg.cavalos : null,
+  };
+}
+
+// Texto-resumo dos filtros ativos (ex.: "2026 · Jan, Fev · 3 cavalos")
+function resumoFiltros(cfg) {
+  cfg = cfg || {};
+  const partes = [];
+  partes.push(Number.isInteger(cfg.ano) ? String(cfg.ano) : 'Todos os anos');
+  if (Array.isArray(cfg.meses) && cfg.meses.length && cfg.meses.length < 12) {
+    partes.push(cfg.meses.slice().sort((a,b)=>a-b).map(m => MESES_ABREV[m-1]).join(', '));
+  } else {
+    partes.push('Todos os meses');
+  }
+  if (Array.isArray(cfg.cavalos) && cfg.cavalos.length) {
+    partes.push(`${cfg.cavalos.length} ${cfg.cavalos.length === 1 ? 'cavalo' : 'cavalos'}`);
+  } else {
+    partes.push('Todos os cavalos');
+  }
+  return partes.join(' · ');
+}
 
 async function carregar() {
   const params = new URLSearchParams(window.location.search);
@@ -390,22 +518,27 @@ async function carregar() {
   }
   _profile = profile;
 
-  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes] = await Promise.all([
+  _analiseConfig = profile.analise_config || {};
+  const aVisivel = _analiseConfig.visivel !== false; // default: visível
+
+  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes, cavalosRes] = await Promise.all([
     sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', _alvoId),
-    profile.cavaleiro_nome
-      ? sb.rpc('match_cavaleiro', { nome_input: profile.cavaleiro_nome }).then(r => r.data?.[0])
+    (profile.cavaleiro_nome && aVisivel)
+      ? sb.rpc('stats_cavaleiro_filtrado', filtrosAnalise(profile.cavaleiro_nome, _analiseConfig)).then(r => r.data?.[0])
       : Promise.resolve(null),
     sb.from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', _alvoId),
     sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', _alvoId),
     _meuId && !_ehProprio
       ? sb.from('follows').select('follower_id').eq('follower_id', _meuId).eq('followed_id', _alvoId).maybeSingle()
       : Promise.resolve({ data: null }),
+    sb.from('profile_cavalos').select('*').eq('profile_id', _alvoId).order('criado_em', { ascending: true }),
   ]);
   _interesses = interessesRes.data || [];
   _stats = statsRes || null;
   _followersCount = followersRes.count || 0;
   _followingCount = followingRes.count || 0;
   _isFollowing = !!eusigoRes.data;
+  _meusCavalos = cavalosRes.data || [];
 
   $('loading').style.display = 'none';
   $('content').style.display = 'block';
@@ -531,6 +664,10 @@ function renderSobre() {
         </div>
       </div>
 
+      ${analiseConfigCardHtml()}
+
+      ${cavalosEditCardHtml()}
+
       <div class="card">
         <div class="section-title">Interesses (bate-bola)</div>
         <p class="privacy-note" style="margin-top:-4px;margin-bottom:14px">Clica numa opção pra trocar. Clica de novo na mesma pra desmarcar e remover essa preferência.</p>
@@ -548,23 +685,9 @@ function renderSobre() {
   // Modo visualização
   let html = '';
 
-  // Stats do cavaleiro
-  if (_stats) {
-    const s = _stats;
-    const pct = (n, total) => total > 0 ? Math.round((n/total)*100) : 0;
-    html += `
-      <div class="card">
-        <div class="section-title">Resumo do cavaleiro · ${esc(s.cavaleiro_nome)}</div>
-        <div class="stats-grid">
-          <div class="stat-box"><div class="stat-val">${s.total_participacoes}</div><div class="stat-lbl">Particip.<br>(${s.total_provas} provas)</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(s.zeros, s.total_participacoes)}%</div><div class="stat-lbl">Zero<br>(${s.zeros})</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(s.vitorias, s.total_participacoes)}%</div><div class="stat-lbl">Vitórias<br>(${s.vitorias})</div></div>
-          <div class="stat-box"><div class="stat-val">${pct(s.top6, s.total_participacoes)}%</div><div class="stat-lbl">Top 6<br>(${s.top6})</div></div>
-        </div>
-        ${s.cavalos?.length ? `<div style="margin-top:12px;font-size:11.5px;color:var(--muted)">Cavalos recentes: ${s.cavalos.slice(0,4).map(esc).join(' · ')}</div>` : ''}
-      </div>
-    `;
-  }
+  // Desempenho do cavaleiro (configurável) + cavalos de criador/proprietário
+  html += statsCardCavaleiroHtml();
+  html += cavalosSectionHtml();
 
   // Contato
   const temContato = p.instagram || p.website || (_ehProprio && (p.email || p.celular));
@@ -590,6 +713,103 @@ function renderSobre() {
 
   if (!html) html = `<div class="empty">Nada por aqui ainda${_ehProprio ? '. Clica em "Editar perfil" pra preencher!' : '.'}</div>`;
   panel.innerHTML = html;
+
+  // Carrega desempenho de cada cavalo de forma assíncrona
+  if (_meusCavalos.length) carregarStatsCavalos();
+}
+
+// ─── Builders de visualização: desempenho ──────────────────────
+function statsGridHtml(s) {
+  const pct = (n) => (s.total_participacoes || 0) > 0 ? Math.round((n / s.total_participacoes) * 100) : 0;
+  return `
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-val">${s.total_participacoes || 0}</div><div class="stat-lbl">Particip.</div><div class="stat-sub">${s.total_provas || 0} provas</div></div>
+      <div class="stat-box"><div class="stat-val">${pct(s.zeros || 0)}%</div><div class="stat-lbl">Zeros</div><div class="stat-sub">${s.zeros || 0}×</div></div>
+      <div class="stat-box"><div class="stat-val">${pct(s.vitorias || 0)}%</div><div class="stat-lbl">Vitórias</div><div class="stat-sub">${s.vitorias || 0}×</div></div>
+      <div class="stat-box"><div class="stat-val">${pct(s.top6 || 0)}%</div><div class="stat-lbl">Top 6</div><div class="stat-sub">${s.top6 || 0}×</div></div>
+    </div>`;
+}
+
+function statsCardCavaleiroHtml() {
+  if (!_stats) return ''; // não é cavaleiro vinculado OU análise oculta
+  const s = _stats;
+  const temResultados = (s.total_participacoes || 0) > 0;
+  let inner;
+  if (temResultados) {
+    inner = `
+      ${statsGridHtml(s)}
+      ${s.cavalos?.length ? `<div class="analise-cavalos-line">🐎 <b style="color:var(--fg);font-weight:600">Conjuntos:</b> ${s.cavalos.slice(0, 10).map(esc).join(' · ')}${s.cavalos.length > 10 ? ` <span style="opacity:.7">+${s.cavalos.length - 10}</span>` : ''}</div>` : ''}
+      <a class="analise-link" href="resultados.html?cavaleiro=${encodeURIComponent(s.cavaleiro_nome)}">Ver todos os resultados →</a>`;
+  } else {
+    inner = `<div class="empty" style="padding:14px 0 2px;text-align:left">Nenhum resultado encontrado para o filtro selecionado.</div>`;
+  }
+  return `
+    <div class="card analise-card">
+      <div class="analise-head">
+        <div style="min-width:0">
+          <div class="section-title" style="margin-bottom:5px">Desempenho em pista</div>
+          <div class="analise-filtros">📊 ${esc(resumoFiltros(_analiseConfig))}</div>
+        </div>
+        ${_profile.cavaleiro_match_confirmado ? '<span class="meta-chip verified" style="white-space:nowrap">✓ Verificado</span>' : ''}
+      </div>
+      ${inner}
+    </div>`;
+}
+
+function cavalosSectionHtml() {
+  if (!_meusCavalos.length) return '';
+  const cards = _meusCavalos.map(c => {
+    const relCls = c.relacao === 'criador' ? 'criador' : 'proprietario';
+    const relLbl = c.relacao === 'criador' ? 'Criação' : 'Proprietário';
+    return `
+      <div class="cavalo-card" id="cav-card-${c.id}">
+        <div class="cavalo-card-head">
+          <div class="cavalo-nome">${esc(c.cavalo_nome)}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+            <span class="cavalo-rel ${relCls}">${relLbl}</span>
+            ${_ehProprio ? `<button class="cavalo-remove" title="Remover cavalo" onclick="removerCavalo(${c.id})">×</button>` : ''}
+          </div>
+        </div>
+        <div id="cav-stats-${c.id}"><span class="mini-spin"></span> <span style="font-size:11.5px;color:var(--muted)">carregando desempenho…</span></div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="card">
+      <div class="section-title">${_ehProprio ? 'Meus cavalos' : 'Cavalos'} · desempenho</div>
+      ${cards}
+    </div>`;
+}
+
+async function carregarStatsCavalos() {
+  for (const c of _meusCavalos) {
+    const box = $(`cav-stats-${c.id}`);
+    if (!box) continue;
+    const key = c.cavalo_nome.toLowerCase();
+    let s;
+    if (key in _cavaloStats) {
+      s = _cavaloStats[key];
+    } else {
+      const { data } = await sb.rpc('stats_cavalo', { cavalo_input: c.cavalo_nome });
+      s = data?.[0] || null;
+      _cavaloStats[key] = s;
+    }
+    const box2 = $(`cav-stats-${c.id}`);
+    if (!box2) continue;
+    if (!s || (s.total_participacoes || 0) === 0) {
+      box2.innerHTML = `<div style="font-size:11.5px;color:var(--muted)">Ainda sem resultados registrados para este cavalo.</div>`;
+      continue;
+    }
+    const pct = (n) => s.total_participacoes > 0 ? Math.round((n / s.total_participacoes) * 100) : 0;
+    box2.innerHTML = `
+      <div class="cavalo-stats-mini">
+        <div class="cavalo-stat"><div class="v">${s.total_participacoes}</div><div class="l">Particip.</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.zeros)}%</div><div class="l">Zeros</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.vitorias)}%</div><div class="l">Vitórias</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.top6)}%</div><div class="l">Top 6</div></div>
+      </div>
+      ${s.cavaleiros?.length ? `<div class="cavalo-riders">🏇 ${s.cavaleiros.slice(0, 5).map(esc).join(' · ')}${s.cavaleiros.length > 5 ? ` <span style="opacity:.7">+${s.cavaleiros.length - 5}</span>` : ''}</div>` : ''}
+      <a class="analise-link" style="margin-top:8px;font-size:11.5px" href="resultados.html?cavalo=${encodeURIComponent(c.cavalo_nome)}">Ver resultados →</a>`;
+  }
 }
 
 // ─── Tabs ──────────────────────────────────────────────────────
@@ -628,6 +848,10 @@ function wireEdit() {
   let visibilidade = _profile.visibilidade;
   // Cópia dos tipos atuais — mutada pelos clicks
   let tiposAtuais = [...(_profile.tipos || [])];
+
+  // Cards extras (só existem se aplicáveis)
+  wireAnaliseConfig();
+  wireCavalosEdit();
 
   const tog = $('e-toggle-publico');
   tog.onclick = () => {
@@ -729,6 +953,309 @@ function wireEdit() {
       setTimeout(() => { $('ok-interesses').textContent = ''; }, 2500);
     };
   }
+}
+
+// ═══ ANÁLISE DE RESULTADOS (config do cavaleiro) ═══════════════
+function analiseConfigCardHtml() {
+  if (!_profile.cavaleiro_nome) return ''; // só pra cavaleiro vinculado
+  const cfg = _analiseConfig || {};
+  _cfgEdit = {
+    visivel: cfg.visivel !== false,
+    ano:     Number.isInteger(cfg.ano) ? cfg.ano : null,
+    meses:   Array.isArray(cfg.meses)   ? cfg.meses.slice()   : [],
+    cavalos: Array.isArray(cfg.cavalos) ? cfg.cavalos.slice() : [],
+  };
+  const anoChips = [
+    `<span class="fchip${_cfgEdit.ano === null ? ' active' : ''}" data-ano="todos">Todos os anos</span>`,
+    ...ANOS_FILTRO.map(a => `<span class="fchip${_cfgEdit.ano === a ? ' active' : ''}" data-ano="${a}">${a}</span>`),
+  ].join('');
+  const mesesTodos = _cfgEdit.meses.length === 0;
+  const mesChips = [
+    `<span class="fchip mes${mesesTodos ? ' active' : ''}" data-mes="todos">Todos</span>`,
+    ...MESES_ABREV.map((m, i) => `<span class="fchip mes${_cfgEdit.meses.includes(i + 1) ? ' active' : ''}" data-mes="${i + 1}">${m}</span>`),
+  ].join('');
+  return `
+    <div class="card" id="analise-config-card">
+      <div class="section-title">Análise de resultados</div>
+      <p class="privacy-note" style="margin-top:-4px;margin-bottom:14px">Você escolhe o que aparece no seu perfil. As estatísticas vêm dos resultados oficiais vinculados ao seu nome (<b style="color:var(--fg)">${esc(_profile.cavaleiro_nome)}</b>).</p>
+
+      <div class="toggle-row" style="padding-top:0">
+        <div class="toggle-label">Mostrar análise no meu perfil</div>
+        <div class="toggle-switch ${_cfgEdit.visivel ? 'on' : ''}" id="cfg-toggle-visivel"></div>
+      </div>
+
+      <div id="cfg-filtros" style="${_cfgEdit.visivel ? '' : 'opacity:.4;pointer-events:none'}">
+        <div class="filtro-group" style="margin-top:14px">
+          <label class="filtro-lbl">Ano</label>
+          <div class="chip-row" id="cfg-anos">${anoChips}</div>
+        </div>
+        <div class="filtro-group">
+          <label class="filtro-lbl">Meses <span style="text-transform:none;font-weight:400">(nenhum = todos)</span></label>
+          <div class="chip-row" id="cfg-meses">${mesChips}</div>
+        </div>
+        <div class="filtro-group">
+          <label class="filtro-lbl">Cavalos considerados</label>
+          <div class="chip-row" id="cfg-cavalos"><span class="mini-spin"></span> <span style="font-size:12px;color:var(--muted)">carregando seus cavalos…</span></div>
+        </div>
+      </div>
+
+      <div class="row-actions">
+        <button class="btn" id="btn-salvar-analise">Salvar análise</button>
+      </div>
+      <div id="ok-analise" style="font-size:12px;color:var(--accent);margin-top:8px"></div>
+    </div>`;
+}
+
+async function wireAnaliseConfig() {
+  const card = $('analise-config-card');
+  if (!card) return;
+
+  const tog = $('cfg-toggle-visivel');
+  const filtros = $('cfg-filtros');
+  tog.onclick = () => {
+    _cfgEdit.visivel = !_cfgEdit.visivel;
+    tog.classList.toggle('on', _cfgEdit.visivel);
+    filtros.style.opacity = _cfgEdit.visivel ? '' : '.4';
+    filtros.style.pointerEvents = _cfgEdit.visivel ? '' : 'none';
+  };
+
+  // Ano — seleção única
+  $('cfg-anos').querySelectorAll('.fchip').forEach(c => {
+    c.onclick = () => {
+      $('cfg-anos').querySelectorAll('.fchip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      _cfgEdit.ano = c.dataset.ano === 'todos' ? null : parseInt(c.dataset.ano);
+    };
+  });
+
+  // Meses — múltipla seleção (+ "Todos" limpa)
+  $('cfg-meses').querySelectorAll('.fchip').forEach(c => {
+    c.onclick = () => {
+      if (c.dataset.mes === 'todos') {
+        _cfgEdit.meses = [];
+      } else {
+        const m = parseInt(c.dataset.mes);
+        if (_cfgEdit.meses.includes(m)) _cfgEdit.meses = _cfgEdit.meses.filter(x => x !== m);
+        else _cfgEdit.meses.push(m);
+      }
+      syncMesesChips();
+    };
+  });
+
+  $('btn-salvar-analise').onclick = salvarAnalise;
+
+  // Carrega lista de cavalos do cavaleiro pro picker
+  const cavalos = await getTodosCavalos();
+  renderCfgCavalosChips(cavalos);
+}
+
+function syncMesesChips() {
+  const box = $('cfg-meses');
+  if (!box) return;
+  const todos = _cfgEdit.meses.length === 0;
+  box.querySelectorAll('.fchip').forEach(c => {
+    if (c.dataset.mes === 'todos') c.classList.toggle('active', todos);
+    else c.classList.toggle('active', _cfgEdit.meses.includes(parseInt(c.dataset.mes)));
+  });
+}
+
+function renderCfgCavalosChips(cavalos) {
+  const box = $('cfg-cavalos');
+  if (!box) return;
+  if (!cavalos.length) {
+    box.innerHTML = `<span style="font-size:12px;color:var(--muted)">Nenhum cavalo encontrado nos seus resultados.</span>`;
+    return;
+  }
+  const low = () => _cfgEdit.cavalos.map(x => x.toLowerCase());
+  const todos = _cfgEdit.cavalos.length === 0;
+  box.innerHTML = `<span class="fchip${todos ? ' active' : ''}" data-cav="__todos">Todos os cavalos</span>` +
+    cavalos.map(nm => `<span class="fchip${low().includes(nm.toLowerCase()) ? ' active' : ''}" data-cav="${esc(nm)}">${esc(nm)}</span>`).join('');
+  box.querySelectorAll('.fchip').forEach(c => {
+    c.onclick = () => {
+      const v = c.dataset.cav;
+      if (v === '__todos') {
+        _cfgEdit.cavalos = [];
+      } else {
+        const ex = _cfgEdit.cavalos.find(x => x.toLowerCase() === v.toLowerCase());
+        if (ex) _cfgEdit.cavalos = _cfgEdit.cavalos.filter(x => x.toLowerCase() !== v.toLowerCase());
+        else _cfgEdit.cavalos.push(v);
+      }
+      const todosNow = _cfgEdit.cavalos.length === 0;
+      box.querySelectorAll('.fchip').forEach(x => {
+        if (x.dataset.cav === '__todos') x.classList.toggle('active', todosNow);
+        else x.classList.toggle('active', low().includes(x.dataset.cav.toLowerCase()));
+      });
+    };
+  });
+}
+
+async function getTodosCavalos() {
+  if (_todosCavalos) return _todosCavalos;
+  if (!_profile.cavaleiro_nome) { _todosCavalos = []; return []; }
+  const { data } = await sb.rpc('stats_cavaleiro_filtrado', {
+    nome_input: _profile.cavaleiro_nome, ano_input: null, meses_input: null, cavalos_input: null,
+  });
+  _todosCavalos = (data?.[0]?.cavalos) || [];
+  return _todosCavalos;
+}
+
+async function salvarAnalise() {
+  const btn = $('btn-salvar-analise');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  const cfg = {
+    visivel: _cfgEdit.visivel,
+    ano:     _cfgEdit.ano,
+    meses:   _cfgEdit.meses.slice().sort((a, b) => a - b),
+    cavalos: _cfgEdit.cavalos.slice(),
+  };
+  const { error } = await sb.from('profiles').update({ analise_config: cfg }).eq('id', _profile.id);
+  if (error) { alert('Erro: ' + error.message); btn.disabled = false; btn.textContent = 'Salvar análise'; return; }
+  _profile.analise_config = cfg;
+  _analiseConfig = cfg;
+  await recarregarStatsCavaleiro();
+  $('ok-analise').textContent = '✓ Análise salva — já aparece no seu perfil';
+  btn.disabled = false; btn.textContent = 'Salvar análise';
+  setTimeout(() => { const o = $('ok-analise'); if (o) o.textContent = ''; }, 3000);
+}
+
+async function recarregarStatsCavaleiro() {
+  if (!_profile.cavaleiro_nome || _analiseConfig.visivel === false) { _stats = null; return; }
+  const { data } = await sb.rpc('stats_cavaleiro_filtrado', filtrosAnalise(_profile.cavaleiro_nome, _analiseConfig));
+  _stats = data?.[0] || null;
+}
+
+// ═══ CAVALOS DO CRIADOR / PROPRIETÁRIO ═════════════════════════
+function cavalosEditCardHtml() {
+  if (!ehCriadorOuProp(_profile)) return '';
+  const temCriador = (_profile.tipos || []).includes('criador');
+  const temProp    = (_profile.tipos || []).includes('proprietario');
+  const relToggle = (temCriador && temProp) ? `
+    <div class="rel-toggle">
+      <span class="fchip active" data-rel="proprietario">Proprietário</span>
+      <span class="fchip" data-rel="criador">Criação</span>
+    </div>` : '';
+  const verbo = (temCriador && !temProp) ? 'criou' : (temProp && !temCriador) ? 'possui' : 'criou ou possui';
+  return `
+    <div class="card" id="cavalos-edit-card">
+      <div class="section-title">Meus cavalos</div>
+      <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">Registre cavalos que você ${verbo} pra exibir o desempenho deles no seu perfil. Comece a digitar e escolha um nome que o sistema encontrou nos resultados.</p>
+      ${relToggle}
+      <div class="ac-wrap">
+        <input class="input" id="cav-search" placeholder="Buscar nome do cavalo…" autocomplete="off">
+        <div class="ac-drop" id="cav-drop"></div>
+      </div>
+      <div id="meus-cavalos-list" style="margin-top:14px"></div>
+    </div>`;
+}
+
+function wireCavalosEdit() {
+  const card = $('cavalos-edit-card');
+  if (!card) return;
+
+  // Relação default conforme tipo do usuário
+  _relSelecionada = (_profile.tipos || []).includes('proprietario') ? 'proprietario' : 'criador';
+  card.querySelectorAll('.rel-toggle .fchip').forEach(c => {
+    c.onclick = () => {
+      card.querySelectorAll('.rel-toggle .fchip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      _relSelecionada = c.dataset.rel;
+    };
+  });
+
+  const input = $('cav-search');
+  const drop = $('cav-drop');
+  let acTimer, acItems = [], acActive = -1;
+
+  const renderAcDrop = () => {
+    acActive = -1;
+    if (!acItems.length) {
+      drop.innerHTML = `<div class="ac-empty">Nenhum cavalo com resultados encontrado.</div>`;
+      drop.classList.add('open');
+      return;
+    }
+    drop.innerHTML = acItems.map((it, i) => `
+      <div class="ac-item" data-i="${i}">
+        <span class="ac-nome">${esc(it.nome)}</span>
+        <span class="ac-count">${it.total} ${it.total === 1 ? 'resultado' : 'resultados'}</span>
+      </div>`).join('');
+    drop.querySelectorAll('.ac-item').forEach(el => {
+      el.onclick = () => selecionarCavalo(acItems[parseInt(el.dataset.i)].nome);
+    });
+    drop.classList.add('open');
+  };
+  const marcaAc = () => {
+    drop.querySelectorAll('.ac-item').forEach((el, i) => el.classList.toggle('active', i === acActive));
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(acTimer);
+    const termo = input.value.trim();
+    if (termo.length < 2) { drop.classList.remove('open'); drop.innerHTML = ''; acItems = []; return; }
+    acTimer = setTimeout(async () => {
+      const { data } = await sb.rpc('buscar_cavalos', { termo });
+      acItems = data || [];
+      renderAcDrop();
+    }, 280);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (!drop.classList.contains('open')) return;
+    if (e.key === 'ArrowDown')      { e.preventDefault(); acActive = Math.min(acActive + 1, acItems.length - 1); marcaAc(); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); acActive = Math.max(acActive - 1, 0); marcaAc(); }
+    else if (e.key === 'Enter')     { e.preventDefault(); if (acActive >= 0 && acItems[acActive]) selecionarCavalo(acItems[acActive].nome); }
+    else if (e.key === 'Escape')    { drop.classList.remove('open'); }
+  });
+  document.addEventListener('click', (e) => { if (!card.contains(e.target)) drop.classList.remove('open'); });
+
+  _acClear = () => { input.value = ''; drop.classList.remove('open'); drop.innerHTML = ''; };
+  renderMeusCavalosList();
+}
+
+async function selecionarCavalo(nome) {
+  if (!_meuId || !_ehProprio) return;
+  nome = (nome || '').trim();
+  if (!nome) return;
+  // Já existe com essa relação?
+  if (_meusCavalos.some(c => c.cavalo_nome.toLowerCase() === nome.toLowerCase() && c.relacao === _relSelecionada)) {
+    if (_acClear) _acClear();
+    return;
+  }
+  const { data, error } = await sb.from('profile_cavalos')
+    .insert({ profile_id: _meuId, cavalo_nome: nome, relacao: _relSelecionada })
+    .select().single();
+  if (error) { alert('Erro ao adicionar: ' + error.message); return; }
+  _meusCavalos.push(data);
+  if (_acClear) _acClear();
+  renderMeusCavalosList();
+}
+
+function renderMeusCavalosList() {
+  const box = $('meus-cavalos-list');
+  if (!box) return;
+  if (!_meusCavalos.length) {
+    box.innerHTML = `<div style="font-size:12.5px;color:var(--muted)">Nenhum cavalo adicionado ainda.</div>`;
+    return;
+  }
+  box.innerHTML = _meusCavalos.map(c => {
+    const relLbl = c.relacao === 'criador' ? 'Criação' : 'Proprietário';
+    const relCls = c.relacao === 'criador' ? 'criador' : 'proprietario';
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap">
+          <span style="font-weight:600;font-size:13.5px">${esc(c.cavalo_nome)}</span>
+          <span class="cavalo-rel ${relCls}">${relLbl}</span>
+        </div>
+        <button class="cavalo-remove" onclick="removerCavalo(${c.id})" title="Remover">×</button>
+      </div>`;
+  }).join('');
+}
+
+async function removerCavalo(id) {
+  if (!confirm('Remover este cavalo do seu perfil?')) return;
+  const { error } = await sb.from('profile_cavalos').delete().eq('id', id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _meusCavalos = _meusCavalos.filter(c => c.id !== id);
+  if (_editMode) renderMeusCavalosList();
+  else renderSobre();
 }
 
 // ─── Upload de imagens ─────────────────────────────────────────

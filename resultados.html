@@ -1902,7 +1902,16 @@ if (_torneioParam) {
     }
   })();
 } else {
-  loadData();
+  // Deep-link de busca: ?cavaleiro=NOME ou ?cavalo=NOME (ex.: vindo da página de perfil)
+  const _cavaleiroParam = _urlParams.get('cavaleiro');
+  const _cavaloParam    = _urlParams.get('cavalo');
+  Promise.resolve(loadData()).then(() => {
+    if (_cavaleiroParam || _cavaloParam) {
+      if (_cavaleiroParam) $id('filter-cavaleiro').value = _cavaleiroParam;
+      if (_cavaloParam)    $id('filter-cavalo').value    = _cavaloParam;
+      onTextFilter(); // ativa o modo de busca global e renderiza
+    }
+  });
 }
 </script>
 </body>
