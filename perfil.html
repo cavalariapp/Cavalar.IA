@@ -213,6 +213,22 @@ body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-
 .btn-dm { background:transparent; color:var(--accent); border:1px solid var(--accent); padding:10px 14px; border-radius:5px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; cursor:pointer; }
 .btn-dm:hover { background:var(--accent-dim); }
 
+/* Chips editáveis (tipos + interesses) */
+.edit-chip {
+  background: var(--surface2); color: var(--fg); border: 1px solid var(--border);
+  padding: 8px 14px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; user-select: none; transition: all .15s;
+  display: inline-block;
+}
+.edit-chip:hover { border-color: var(--accent-glow); }
+.edit-chip.active {
+  background: var(--accent-dim); border-color: var(--accent); color: var(--accent);
+}
+.edit-pergunta-box { margin-bottom: 14px; }
+.edit-pergunta-q { font-family: var(--font-display); font-size: 16px; margin-bottom: 8px; }
+.edit-pergunta-opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.edit-pergunta-opts .edit-chip { flex: 1; text-align: center; min-width: 110px; padding: 11px 10px; }
+
 /* Crop modal */
 .crop-modal {
   position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000;
@@ -324,6 +340,15 @@ const PERGUNTAS = {
   luva: 'Luva:',
   treino: 'Treino:',
 };
+
+// Pergunta completa + opções, pra editar interesses
+const PERGUNTAS_FULL = [
+  { id: 'cavalo_temperamento', q: 'Cavalo quente ou cavalo frio?',  opts: ['Quente', 'Frio'] },
+  { id: 'cron_ou_desempate',   q: 'Cronômetro ou desempate?',        opts: ['Cronômetro', 'Desempate'] },
+  { id: 'pista',               q: 'Pista de areia ou pista de grama?', opts: ['Areia', 'Grama'] },
+  { id: 'luva',                q: 'Com luva ou sem luva?',            opts: ['Com luva', 'Sem luva'] },
+  { id: 'treino',              q: 'Trabalho de plano ou dias de salto?', opts: ['Plano', 'Salto'] },
+];
 
 // State
 let _profile = null;
@@ -485,6 +510,14 @@ function renderSobre() {
           <label>Estado (UF)</label>
           <input id="e-estado" class="input" maxlength="2" placeholder="SP" value="${esc(p.estado || '')}">
         </div>
+        <div class="field">
+          <label>O que você é? (pode marcar mais de um)</label>
+          <div class="chips edit-tipos-chips" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">
+            ${Object.entries(TIPOS_LABEL).map(([k, lbl]) => `
+              <span class="edit-chip${(p.tipos || []).includes(k) ? ' active' : ''}" data-tipo="${k}">${esc(lbl)}</span>
+            `).join('')}
+          </div>
+        </div>
         <div class="toggle-row">
           <div>
             <div class="toggle-label">Perfil público</div>
@@ -496,6 +529,16 @@ function renderSobre() {
           <button class="btn" id="btn-salvar">Salvar alterações</button>
           <button class="btn btn-outline" onclick="toggleEdit()">Cancelar</button>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Interesses (bate-bola)</div>
+        <p class="privacy-note" style="margin-top:-4px;margin-bottom:14px">Clica numa opção pra trocar. Clica de novo na mesma pra desmarcar e remover essa preferência.</p>
+        ${renderInteressesEdit()}
+        <div class="row-actions" style="margin-top:14px">
+          <button class="btn" id="btn-salvar-interesses">Salvar interesses</button>
+        </div>
+        <div class="ok" id="ok-interesses"></div>
       </div>
     `;
     wireEdit();
@@ -565,13 +608,68 @@ function toggleEdit() {
   if (_editMode) window.scrollTo({ top: document.querySelector('.tabs').offsetTop - 20, behavior: 'smooth' });
 }
 
+function renderInteressesEdit() {
+  return PERGUNTAS_FULL.map(p => {
+    const atual = _interesses.find(i => i.pergunta_id === p.id)?.resposta || null;
+    return `
+      <div class="edit-pergunta-box">
+        <div class="edit-pergunta-q">${esc(p.q)}</div>
+        <div class="edit-pergunta-opts" data-pid="${p.id}">
+          ${p.opts.map(opt => `
+            <span class="edit-chip${atual === opt ? ' active' : ''}" data-resposta="${esc(opt)}">${esc(opt)}</span>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function wireEdit() {
   let visibilidade = _profile.visibilidade;
+  // Cópia dos tipos atuais — mutada pelos clicks
+  let tiposAtuais = [...(_profile.tipos || [])];
+
   const tog = $('e-toggle-publico');
   tog.onclick = () => {
     visibilidade = visibilidade === 'publico' ? 'privado' : 'publico';
     tog.classList.toggle('on', visibilidade === 'publico');
   };
+
+  // Toggle dos chips de TIPOS
+  document.querySelectorAll('.edit-tipos-chips .edit-chip').forEach(c => {
+    c.onclick = () => {
+      const t = c.dataset.tipo;
+      c.classList.toggle('active');
+      if (c.classList.contains('active')) {
+        if (!tiposAtuais.includes(t)) tiposAtuais.push(t);
+      } else {
+        tiposAtuais = tiposAtuais.filter(x => x !== t);
+      }
+    };
+  });
+
+  // Toggle dos chips de INTERESSES (5 grupos)
+  // Mutate _interesses array localmente: clica numa opção → seleciona;
+  // clica na opção JÁ ativa → desmarca (remove)
+  document.querySelectorAll('.edit-pergunta-opts').forEach(grupo => {
+    const pid = grupo.dataset.pid;
+    grupo.querySelectorAll('.edit-chip').forEach(chip => {
+      chip.onclick = () => {
+        const resposta = chip.dataset.resposta;
+        const jaAtiva = chip.classList.contains('active');
+        // limpa todas do grupo
+        grupo.querySelectorAll('.edit-chip').forEach(c => c.classList.remove('active'));
+        // remove a pergunta atual do array local
+        _interesses = _interesses.filter(i => i.pergunta_id !== pid);
+        if (!jaAtiva) {
+          // ativa essa opção + adiciona ao array
+          chip.classList.add('active');
+          _interesses.push({ pergunta_id: pid, resposta });
+        }
+      };
+    });
+  });
+
   $('btn-salvar').onclick = async () => {
     const btn = $('btn-salvar');
     btn.disabled = true;
@@ -584,6 +682,7 @@ function wireEdit() {
       instagram: $('e-instagram').value.trim() || null,
       website: $('e-website').value.trim() || null,
       estado: $('e-estado').value.trim().toUpperCase() || null,
+      tipos: tiposAtuais,
       visibilidade,
     };
     const { error } = await sb.from('profiles').update(updates).eq('id', _profile.id);
@@ -598,6 +697,38 @@ function wireEdit() {
     btn.textContent = '✓ Salvo';
     setTimeout(() => renderAll(), 600);
   };
+
+  // Salvar interesses (botão separado pra dar feedback rápido)
+  const btnInt = $('btn-salvar-interesses');
+  if (btnInt) {
+    btnInt.onclick = async () => {
+      btnInt.disabled = true;
+      btnInt.textContent = 'Salvando…';
+      // Apaga todas e re-insere — mais simples que diff
+      const { error: delErr } = await sb.from('profile_interesses').delete().eq('profile_id', _profile.id);
+      if (delErr) {
+        alert('Erro: ' + delErr.message);
+        btnInt.disabled = false; btnInt.textContent = 'Salvar interesses';
+        return;
+      }
+      if (_interesses.length) {
+        const rows = _interesses.map(i => ({
+          profile_id: _profile.id,
+          pergunta_id: i.pergunta_id,
+          resposta: i.resposta,
+        }));
+        const { error: insErr } = await sb.from('profile_interesses').insert(rows);
+        if (insErr) {
+          alert('Erro: ' + insErr.message);
+          btnInt.disabled = false; btnInt.textContent = 'Salvar interesses';
+          return;
+        }
+      }
+      $('ok-interesses').textContent = '✓ Interesses salvos';
+      btnInt.disabled = false; btnInt.textContent = 'Salvar interesses';
+      setTimeout(() => { $('ok-interesses').textContent = ''; }, 2500);
+    };
+  }
 }
 
 // ─── Upload de imagens ─────────────────────────────────────────
