@@ -3578,12 +3578,12 @@ async function initComunidade() {
     const search = document.getElementById('comunidade-search');
     search.oninput = (e) => { _comunidadeQuery = e.target.value.trim().toLowerCase(); renderComunidade(); };
   }
-  // Carrega perfis públicos (só uma vez por sessão)
+  // Carrega TODOS os perfis (view pública, não vaza email/celular).
+  // Perfis privados aparecem na lista com um cadeado.
   if (_comunidadeProfiles.length === 0) {
     try {
-      const { data } = await sb.from('profiles')
-        .select('id,nome_completo,tipos,cavaleiro_nome,cavaleiro_match_confirmado,estado,bio')
-        .eq('visibilidade', 'publico')
+      const { data } = await sb.from('profiles_publicos')
+        .select('id,nome_completo,avatar_url,tipos,cavaleiro_nome,cavaleiro_match_confirmado,estado,bio,visibilidade')
         .order('nome_completo');
       _comunidadeProfiles = data || [];
     } catch (e) { console.warn('[comunidade]', e); }
@@ -3612,19 +3612,24 @@ function renderComunidade() {
     items = items.filter(p => (p.nome_completo || '').toLowerCase().includes(_comunidadeQuery));
   }
   if (!items.length) {
-    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:30px 20px;font-size:13px">Nenhum perfil público${_comunidadeQuery ? ' com esse nome' : ''}${_comunidadeTipoFilter ? ' nesse tipo' : ''}.</div>`;
+    list.innerHTML = `<div style="text-align:center;color:var(--muted);padding:30px 20px;font-size:13px">Nenhum perfil${_comunidadeQuery ? ' com esse nome' : ''}${_comunidadeTipoFilter ? ' nesse tipo' : ''}.</div>`;
     return;
   }
   list.innerHTML = items.map(p => {
     const iniciais = (p.nome_completo || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
     const tiposLabels = (p.tipos || []).map(t => TIPO_LABELS[t] || t).slice(0, 2).join(' · ');
+    const privado = p.visibilidade === 'privado';
+    const avatarHtml = p.avatar_url
+      ? `<div class="com-avatar" style="background-image:url('${escHtml(p.avatar_url)}');background-size:cover;background-position:center"></div>`
+      : `<div class="com-avatar">${iniciais}</div>`;
     return `
       <div class="com-card" onclick="window.location.href='perfil.html?u=${p.id}'">
-        <div class="com-avatar">${iniciais}</div>
+        ${avatarHtml}
         <div class="com-info">
-          <div class="com-name">${escHtml(p.nome_completo || '')}</div>
+          <div class="com-name">${escHtml(p.nome_completo || '')}${privado ? ' 🔒' : ''}</div>
           <div class="com-meta">${escHtml(tiposLabels)}${p.estado ? ' · ' + escHtml(p.estado) : ''}</div>
           ${p.cavaleiro_match_confirmado ? `<div class="com-cavaleiro-badge">✓ Cavaleiro verificado</div>` : ''}
+          ${privado ? `<div class="com-cavaleiro-badge" style="background:rgba(148,163,184,.15);color:var(--muted)">Perfil só para seguidores</div>` : ''}
         </div>
       </div>`;
   }).join('');

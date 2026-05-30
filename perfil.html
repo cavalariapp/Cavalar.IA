@@ -456,11 +456,29 @@ let _cavaloStats = {};       // cache de stats_cavalo por nome normalizado
 let _cfgEdit = {};           // cópia de trabalho da analise_config (modo edição)
 let _relSelecionada = 'proprietario'; // relação ativa no autocomplete de cavalos
 let _acClear = null;         // limpa o autocomplete (setado em wireCavalosEdit)
+let _meusAnimais = [];       // criador_animais do _alvoId (matrizes/garanhões/produtos)
+let _bloqueado = false;      // perfil privado e eu não sigo → conteúdo escondido
+let _animalStats = {};       // cache de stats_cavalo por nome (Área do Criador)
+let _animalTipoNovo = 'matriz'; // tipo selecionado no form de novo animal
+let _animalFotosNovas = [];  // URLs de fotos já enviadas no form de novo animal
+let _animalResultadoOk = false; // o nome digitado tem resultados no sistema?
+let _animalStatsLigado = false; // toggle "exibir estatísticas" no form de novo animal
 
 // É criador ou proprietário? (mostra a seção "Meus cavalos")
 function ehCriadorOuProp(p) {
   return (p?.tipos || []).some(t => t === 'criador' || t === 'proprietario');
 }
+
+// É criador? (mostra a "Área do Criador")
+function ehCriador(p) {
+  return (p?.tipos || []).includes('criador');
+}
+
+const ANIMAL_GRUPOS = [
+  { tipo: 'matriz',   titulo: 'Matrizes',  singular: 'matriz',   emoji: '🐴' },
+  { tipo: 'garanhao', titulo: 'Garanhões', singular: 'garanhão', emoji: '🐎' },
+  { tipo: 'produto',  titulo: 'Produtos',  singular: 'produto',  emoji: '🦄' },
+];
 
 // Converte analise_config → params do RPC stats_cavaleiro_filtrado
 function filtrosAnalise(nome, cfg) {
@@ -507,7 +525,10 @@ async function carregar() {
 
   _ehProprio = _meuId && (_meuId === _alvoId);
 
-  const { data: profile, error } = await sb.from('profiles').select('*').eq('id', _alvoId).single();
+  // Próprio perfil: lê profiles (inclui email/celular/idade só pra você).
+  // Outros: lê a view profiles_publicos (não traz dados sensíveis).
+  const fonteProfile = _ehProprio ? 'profiles' : 'profiles_publicos';
+  const { data: profile, error } = await sb.from(fonteProfile).select('*').eq('id', _alvoId).single();
   if (error || !profile) {
     $('loading').style.display = 'none';
     $('content').style.display = 'block';
@@ -521,7 +542,7 @@ async function carregar() {
   _analiseConfig = profile.analise_config || {};
   const aVisivel = _analiseConfig.visivel !== false; // default: visível
 
-  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes, cavalosRes] = await Promise.all([
+  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes, cavalosRes, animaisRes] = await Promise.all([
     sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', _alvoId),
     (profile.cavaleiro_nome && aVisivel)
       ? sb.rpc('stats_cavaleiro_filtrado', filtrosAnalise(profile.cavaleiro_nome, _analiseConfig)).then(r => r.data?.[0])
@@ -532,6 +553,7 @@ async function carregar() {
       ? sb.from('follows').select('follower_id').eq('follower_id', _meuId).eq('followed_id', _alvoId).maybeSingle()
       : Promise.resolve({ data: null }),
     sb.from('profile_cavalos').select('*').eq('profile_id', _alvoId).order('criado_em', { ascending: true }),
+    sb.from('criador_animais').select('*').eq('profile_id', _alvoId).order('criado_em', { ascending: true }),
   ]);
   _interesses = interessesRes.data || [];
   _stats = statsRes || null;
@@ -539,6 +561,10 @@ async function carregar() {
   _followingCount = followingRes.count || 0;
   _isFollowing = !!eusigoRes.data;
   _meusCavalos = cavalosRes.data || [];
+  _meusAnimais = animaisRes.data || [];
+
+  // Perfil privado de outra pessoa que eu não sigo → conteúdo só pra seguidores.
+  _bloqueado = !_ehProprio && profile.visibilidade === 'privado' && !_isFollowing;
 
   $('loading').style.display = 'none';
   $('content').style.display = 'block';
@@ -668,6 +694,8 @@ function renderSobre() {
 
       ${cavalosEditCardHtml()}
 
+      ${areaCriadorEditHtml()}
+
       <div class="card">
         <div class="section-title">Interesses (bate-bola)</div>
         <p class="privacy-note" style="margin-top:-4px;margin-bottom:14px">Clica numa opção pra trocar. Clica de novo na mesma pra desmarcar e remover essa preferência.</p>
@@ -682,12 +710,33 @@ function renderSobre() {
     return;
   }
 
+  // Perfil privado de outra pessoa que eu não sigo → gate "só para seguidores"
+  if (_bloqueado) {
+    panel.innerHTML = `
+      <div class="card" style="text-align:center;padding:30px 22px">
+        <div style="font-size:34px;margin-bottom:8px">🔒</div>
+        <div class="section-title" style="justify-content:center">Perfil só para seguidores</div>
+        <p class="privacy-note" style="margin-top:6px">
+          ${esc(_profile.nome_completo || 'Este usuário')} mantém o perfil privado.
+          ${_meuId ? 'Siga para ver o desempenho, os cavalos e as publicações.' : 'Entre e siga para ver o conteúdo.'}
+        </p>
+        <div class="row-actions" style="justify-content:center;margin-top:14px">
+          ${_meuId
+            ? `<button class="btn" onclick="toggleFollow()">+ Seguir</button>`
+            : `<a href="login.html" class="btn">Entrar</a>`}
+        </div>
+      </div>`;
+    return;
+  }
+
   // Modo visualização
   let html = '';
 
   // Desempenho do cavaleiro (configurável) + cavalos de criador/proprietário
   html += statsCardCavaleiroHtml();
   html += cavalosSectionHtml();
+  // Área do Criador (matrizes / garanhões / produtos)
+  html += areaCriadorHtml();
 
   // Contato
   const temContato = p.instagram || p.website || (_ehProprio && (p.email || p.celular));
@@ -716,6 +765,8 @@ function renderSobre() {
 
   // Carrega desempenho de cada cavalo de forma assíncrona
   if (_meusCavalos.length) carregarStatsCavalos();
+  // Carrega stats dos animais da criação que optaram por exibir
+  if (_meusAnimais.some(a => a.mostrar_stats)) carregarStatsAnimais();
 }
 
 // ─── Builders de visualização: desempenho ──────────────────────
@@ -852,6 +903,7 @@ function wireEdit() {
   // Cards extras (só existem se aplicáveis)
   wireAnaliseConfig();
   wireCavalosEdit();
+  wireAreaCriador();
 
   const tog = $('e-toggle-publico');
   tog.onclick = () => {
@@ -1282,6 +1334,338 @@ async function trocarRelacao(id) {
   else renderSobre();
 }
 
+// ═══ ÁREA DO CRIADOR (matrizes / garanhões / produtos) ═════════
+// ── Visualização ──
+function areaCriadorHtml() {
+  if (!ehCriador(_profile) || !_meusAnimais.length) return '';
+  const grupos = ANIMAL_GRUPOS.map(g => {
+    const itens = _meusAnimais.filter(a => a.tipo === g.tipo);
+    if (!itens.length) return '';
+    return `
+      <div style="margin-top:14px">
+        <div class="filtro-lbl" style="margin-bottom:8px">${g.emoji} ${g.titulo} <span style="opacity:.6">(${itens.length})</span></div>
+        ${itens.map(animalCardHtml).join('')}
+      </div>`;
+  }).join('');
+  return `
+    <div class="card">
+      <div class="section-title">🏠 Área do Criador</div>
+      ${grupos}
+    </div>`;
+}
+
+function animalCardHtml(a) {
+  const fotos = Array.isArray(a.fotos) ? a.fotos : [];
+  const fotosHtml = fotos.length
+    ? `<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin:8px 0">${fotos.map(u => `<img src="${esc(u)}" loading="lazy" onclick="window.open('${esc(u)}','_blank')" style="height:130px;border-radius:8px;flex-shrink:0;cursor:pointer">`).join('')}</div>`
+    : '';
+  const gen = [];
+  if (a.pai)         gen.push(`<span><b style="color:var(--fg);font-weight:600">Pai:</b> ${esc(a.pai)}</span>`);
+  if (a.mae)         gen.push(`<span><b style="color:var(--fg);font-weight:600">Mãe:</b> ${esc(a.mae)}</span>`);
+  if (a.avo_materno) gen.push(`<span><b style="color:var(--fg);font-weight:600">Avô materno:</b> ${esc(a.avo_materno)}</span>`);
+  const genHtml = gen.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);margin-bottom:6px">${gen.join('')}</div>` : '';
+  const sobreHtml = a.sobre ? `<div style="font-size:13px;line-height:1.55;white-space:pre-wrap;color:var(--fg);margin-bottom:6px">${esc(a.sobre)}</div>` : '';
+  const statsHtml = a.mostrar_stats
+    ? `<div id="animal-stats-${a.id}" style="margin-top:8px"><span class="mini-spin"></span> <span style="font-size:11.5px;color:var(--muted)">carregando desempenho…</span></div>`
+    : '';
+  return `
+    <div style="border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px">
+      <div style="font-weight:700;font-size:14.5px">${esc(a.nome)}${a.raca ? ` <span style="font-size:11.5px;font-weight:500;color:var(--muted)">· ${esc(a.raca)}</span>` : ''}</div>
+      ${fotosHtml}
+      ${genHtml}
+      ${sobreHtml}
+      ${statsHtml}
+    </div>`;
+}
+
+async function carregarStatsAnimais() {
+  for (const a of _meusAnimais) {
+    if (!a.mostrar_stats) continue;
+    const box = $(`animal-stats-${a.id}`);
+    if (!box) continue;
+    const key = a.nome.toLowerCase();
+    let s;
+    if (key in _animalStats) s = _animalStats[key];
+    else {
+      const { data } = await sb.rpc('stats_cavalo', { cavalo_input: a.nome });
+      s = data?.[0] || null;
+      _animalStats[key] = s;
+    }
+    const box2 = $(`animal-stats-${a.id}`);
+    if (!box2) continue;
+    if (!s || (s.total_participacoes || 0) === 0) {
+      box2.innerHTML = `<div style="font-size:11.5px;color:var(--muted)">Sem resultados registrados.</div>`;
+      continue;
+    }
+    const pct = (n) => s.total_participacoes > 0 ? Math.round((n / s.total_participacoes) * 100) : 0;
+    box2.innerHTML = `
+      <div class="cavalo-stats-mini">
+        <div class="cavalo-stat"><div class="v">${s.total_participacoes}</div><div class="l">Particip.</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.zeros)}%</div><div class="l">Zeros</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.vitorias)}%</div><div class="l">Vitórias</div></div>
+        <div class="cavalo-stat"><div class="v">${pct(s.top6)}%</div><div class="l">Top 6</div></div>
+      </div>
+      ${s.cavaleiros?.length ? `<div class="cavalo-riders">🏇 ${s.cavaleiros.slice(0, 5).map(esc).join(' · ')}${s.cavaleiros.length > 5 ? ` <span style="opacity:.7">+${s.cavaleiros.length - 5}</span>` : ''}</div>` : ''}
+      <a class="analise-link" style="margin-top:8px;font-size:11.5px" href="resultados.html?cavalo=${encodeURIComponent(a.nome)}">Ver resultados →</a>`;
+  }
+}
+
+// ── Edição ──
+function areaCriadorEditHtml() {
+  if (!ehCriador(_profile)) return '';
+  return `
+    <div class="card" id="criador-edit-card">
+      <div class="section-title">🏠 Área do Criador</div>
+      <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">Cadastre as matrizes, garanhões e produtos da sua criação. Se o animal tiver resultados reconhecidos pelo sistema, você pode optar por exibir as estatísticas dele.</p>
+
+      <div class="filtro-lbl" style="margin-bottom:6px">Tipo</div>
+      <div class="rel-toggle" id="animal-tipo-toggle" style="margin-bottom:12px">
+        <span class="fchip active" data-tipo="matriz">🐴 Matriz</span>
+        <span class="fchip" data-tipo="garanhao">🐎 Garanhão</span>
+        <span class="fchip" data-tipo="produto">🦄 Produto</span>
+      </div>
+
+      <div class="field">
+        <label>Nome</label>
+        <div class="ac-wrap">
+          <input class="input" id="animal-nome" placeholder="Nome do animal…" autocomplete="off">
+          <div class="ac-drop" id="animal-drop"></div>
+        </div>
+        <div id="animal-result-hint" class="privacy-note" style="margin-top:6px"></div>
+      </div>
+
+      <div class="field"><label>Raça</label><input class="input" id="animal-raca" placeholder="Ex.: BH, Holsteiner, KWPN…"></div>
+      <div class="field"><label>Pai (garanhão)</label><input class="input" id="animal-pai" placeholder="Nome do pai"></div>
+      <div class="field"><label>Mãe</label><input class="input" id="animal-mae" placeholder="Nome da mãe"></div>
+      <div class="field"><label>Avô materno</label><input class="input" id="animal-avo" placeholder="Nome do avô materno"></div>
+      <div class="field"><label>Sobre o animal / linha materna</label><textarea class="textarea" id="animal-sobre" placeholder="Conte a história, a linha materna, conquistas, características…"></textarea></div>
+
+      <div class="field">
+        <label>Fotos</label>
+        <input type="file" id="animal-fotos-input" accept="image/*" multiple style="font-size:13px">
+        <div id="animal-fotos-preview" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+      </div>
+
+      <div class="toggle-row" id="animal-stats-row" style="opacity:.5">
+        <div>
+          <div class="toggle-label">Exibir estatísticas de desempenho</div>
+          <div class="privacy-note" style="margin-top:2px" id="animal-stats-note">Disponível só quando o sistema reconhece resultados pra esse nome.</div>
+        </div>
+        <div class="toggle-switch" id="animal-stats-toggle"></div>
+      </div>
+
+      <div class="row-actions" style="margin-top:6px">
+        <button class="btn" id="btn-add-animal">Adicionar animal</button>
+      </div>
+      <div class="ok" id="ok-animal"></div>
+
+      <div id="meus-animais-list" style="margin-top:16px"></div>
+    </div>`;
+}
+
+function atualizaStatsDisponivel() {
+  const statsRow = $('animal-stats-row');
+  const statsTog = $('animal-stats-toggle');
+  const statsNote = $('animal-stats-note');
+  if (!statsRow) return;
+  statsRow.style.opacity = _animalResultadoOk ? '1' : '.5';
+  if (!_animalResultadoOk) {
+    _animalStatsLigado = false;
+    statsTog.classList.remove('on');
+    statsNote.textContent = 'Disponível só quando o sistema reconhece resultados pra esse nome.';
+  } else {
+    statsNote.textContent = 'O sistema encontrou resultados pra esse nome. Ligue para exibir as estatísticas.';
+  }
+}
+
+function wireAreaCriador() {
+  const card = $('criador-edit-card');
+  if (!card) return;
+
+  _animalTipoNovo = 'matriz';
+  _animalFotosNovas = [];
+  _animalResultadoOk = false;
+  _animalStatsLigado = false;
+
+  // Seletor de tipo
+  card.querySelectorAll('#animal-tipo-toggle .fchip').forEach(c => {
+    c.onclick = () => {
+      card.querySelectorAll('#animal-tipo-toggle .fchip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      _animalTipoNovo = c.dataset.tipo;
+    };
+  });
+
+  // Toggle de exibir stats (só funciona quando há resultados)
+  const statsTog = $('animal-stats-toggle');
+  statsTog.onclick = () => {
+    if (!_animalResultadoOk) return;
+    _animalStatsLigado = !_animalStatsLigado;
+    statsTog.classList.toggle('on', _animalStatsLigado);
+  };
+
+  // Autocomplete do nome + detecção de resultados
+  const input = $('animal-nome');
+  const drop = $('animal-drop');
+  const hint = $('animal-result-hint');
+  let acTimer, acItems = [];
+
+  const checaResultados = async (nome) => {
+    nome = (nome || '').trim();
+    _animalResultadoOk = false;
+    if (nome.length >= 2) {
+      const { data } = await sb.rpc('stats_cavalo', { cavalo_input: nome });
+      const s = data?.[0];
+      if (s && (s.total_participacoes || 0) > 0) {
+        _animalResultadoOk = true;
+        hint.textContent = `✓ ${s.total_participacoes} resultado(s) reconhecido(s) — dá pra exibir as estatísticas.`;
+        hint.style.color = 'var(--accent)';
+      } else {
+        hint.textContent = 'Sem resultados reconhecidos pra esse nome (tudo bem, pode cadastrar mesmo assim).';
+        hint.style.color = '';
+      }
+    } else {
+      hint.textContent = '';
+    }
+    atualizaStatsDisponivel();
+  };
+
+  input.addEventListener('input', () => {
+    clearTimeout(acTimer);
+    const termo = input.value.trim();
+    _animalResultadoOk = false; atualizaStatsDisponivel();
+    if (termo.length < 2) { drop.classList.remove('open'); drop.innerHTML = ''; hint.textContent = ''; return; }
+    acTimer = setTimeout(async () => {
+      const { data } = await sb.rpc('buscar_cavalos', { termo });
+      acItems = data || [];
+      if (acItems.length) {
+        drop.innerHTML = acItems.map((it, i) => `
+          <div class="ac-item" data-i="${i}">
+            <span class="ac-nome">${esc(it.nome)}</span>
+            <span class="ac-count">${it.total} ${it.total === 1 ? 'resultado' : 'resultados'}</span>
+          </div>`).join('');
+        drop.querySelectorAll('.ac-item').forEach(el => {
+          el.onclick = () => {
+            input.value = acItems[parseInt(el.dataset.i)].nome;
+            drop.classList.remove('open');
+            checaResultados(input.value);
+          };
+        });
+        drop.classList.add('open');
+      } else {
+        drop.classList.remove('open'); drop.innerHTML = '';
+      }
+      checaResultados(termo);
+    }, 300);
+  });
+  document.addEventListener('click', (e) => { if (!card.contains(e.target)) drop.classList.remove('open'); });
+
+  // Upload de fotos
+  const fotosInput = $('animal-fotos-input');
+  fotosInput.onchange = async () => {
+    const files = Array.from(fotosInput.files || []);
+    if (!files.length) return;
+    fotosInput.disabled = true;
+    for (const f of files) {
+      const url = await uploadImagem(f, 'criador-imgs');
+      if (url) _animalFotosNovas.push(url);
+    }
+    fotosInput.value = '';
+    fotosInput.disabled = false;
+    renderFotosPreview();
+  };
+
+  $('btn-add-animal').onclick = salvarAnimal;
+
+  renderFotosPreview();
+  renderMeusAnimaisList();
+}
+
+function renderFotosPreview() {
+  const box = $('animal-fotos-preview');
+  if (!box) return;
+  box.innerHTML = _animalFotosNovas.map((u, i) => `
+    <div style="position:relative">
+      <img src="${esc(u)}" style="width:66px;height:66px;object-fit:cover;border-radius:8px">
+      <button class="cavalo-remove" onclick="removerFotoNova(${i})" title="Remover foto" style="position:absolute;top:-7px;right:-7px">×</button>
+    </div>`).join('');
+}
+
+function removerFotoNova(i) {
+  _animalFotosNovas.splice(i, 1);
+  renderFotosPreview();
+}
+
+async function salvarAnimal() {
+  if (!_ehProprio) return;
+  const nome = $('animal-nome').value.trim();
+  if (nome.length < 2) { alert('Informe o nome do animal'); return; }
+  const btn = $('btn-add-animal');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+  const row = {
+    profile_id:    _meuId,
+    tipo:          _animalTipoNovo,
+    nome,
+    raca:          $('animal-raca').value.trim() || null,
+    pai:           $('animal-pai').value.trim() || null,
+    mae:           $('animal-mae').value.trim() || null,
+    avo_materno:   $('animal-avo').value.trim() || null,
+    sobre:         $('animal-sobre').value.trim() || null,
+    fotos:         _animalFotosNovas.slice(),
+    mostrar_stats: _animalResultadoOk && _animalStatsLigado,
+  };
+  const { data, error } = await sb.from('criador_animais').insert(row).select().single();
+  if (error) { alert('Erro ao salvar: ' + error.message); btn.disabled = false; btn.textContent = 'Adicionar animal'; return; }
+  _meusAnimais.push(data);
+  // Limpa o formulário
+  _animalFotosNovas = [];
+  _animalResultadoOk = false; _animalStatsLigado = false;
+  ['animal-nome', 'animal-raca', 'animal-pai', 'animal-mae', 'animal-avo', 'animal-sobre'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+  $('animal-result-hint').textContent = '';
+  atualizaStatsDisponivel();
+  renderFotosPreview();
+  renderMeusAnimaisList();
+  $('ok-animal').textContent = '✓ Animal adicionado';
+  btn.disabled = false; btn.textContent = 'Adicionar animal';
+  setTimeout(() => { const o = $('ok-animal'); if (o) o.textContent = ''; }, 2500);
+}
+
+function renderMeusAnimaisList() {
+  const box = $('meus-animais-list');
+  if (!box) return;
+  if (!_meusAnimais.length) {
+    box.innerHTML = `<div style="font-size:12.5px;color:var(--muted)">Nenhum animal cadastrado ainda.</div>`;
+    return;
+  }
+  box.innerHTML = ANIMAL_GRUPOS.map(g => {
+    const itens = _meusAnimais.filter(a => a.tipo === g.tipo);
+    if (!itens.length) return '';
+    return `
+      <div style="margin-top:10px">
+        <div class="filtro-lbl" style="margin-bottom:4px">${g.emoji} ${g.titulo}</div>
+        ${itens.map(a => `
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+            <div style="min-width:0">
+              <span style="font-weight:600;font-size:13.5px">${esc(a.nome)}</span>
+              ${a.raca ? `<span style="font-size:12px;color:var(--muted)"> · ${esc(a.raca)}</span>` : ''}
+              ${a.mostrar_stats ? `<span class="cavalo-rel proprietario" style="margin-left:6px">📊 stats</span>` : ''}
+              ${(a.fotos || []).length ? `<span style="font-size:11.5px;color:var(--muted);margin-left:6px">📷 ${(a.fotos || []).length}</span>` : ''}
+            </div>
+            <button class="cavalo-remove" onclick="removerAnimal(${a.id})" title="Remover">×</button>
+          </div>`).join('')}
+      </div>`;
+  }).join('');
+}
+
+async function removerAnimal(id) {
+  if (!confirm('Remover este animal da sua criação?')) return;
+  const { error } = await sb.from('criador_animais').delete().eq('id', id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _meusAnimais = _meusAnimais.filter(a => a.id !== id);
+  if (_editMode) renderMeusAnimaisList();
+  else renderSobre();
+}
+
 // ─── Upload de imagens ─────────────────────────────────────────
 async function uploadImagem(file, bucket) {
   if (!file) return null;
@@ -1370,6 +1754,12 @@ let _composeImgFile = null;
 async function renderFeed() {
   const panel = $('panel-feed');
   let html = '';
+
+  // Perfil privado que eu não sigo → nada de feed
+  if (_bloqueado) {
+    panel.innerHTML = `<div class="empty">🔒 As publicações deste perfil são só para seguidores.</div>`;
+    return;
+  }
 
   if (_ehProprio) {
     html += `
@@ -1626,12 +2016,37 @@ async function toggleFollow() {
     const { error } = await sb.from('follows').delete().eq('follower_id', _meuId).eq('followed_id', _alvoId);
     if (error) { alert('Erro: ' + error.message); return; }
     _isFollowing = false; _followersCount = Math.max(0, _followersCount - 1);
+    // Deixei de seguir um perfil privado → reesconde o conteúdo
+    if (!_ehProprio && _profile.visibilidade === 'privado') { _bloqueado = true; renderSobre(); renderFeed(); }
   } else {
     const { error } = await sb.from('follows').insert({ follower_id: _meuId, followed_id: _alvoId });
     if (error) { alert('Erro: ' + error.message); return; }
     _isFollowing = true; _followersCount++;
+    // Avisa o seguido por DM (best-effort — não bloqueia o follow se falhar)
+    avisarSeguidorDM();
+    // Se eu estava bloqueado por ser privado, agora libero o conteúdo
+    if (_bloqueado) { _bloqueado = false; renderSobre(); renderFeed(); }
   }
   renderHead();
+}
+
+// Insere uma DM avisando que comecei a seguir. Pega meu nome do meu próprio
+// profile (não do _profile, que pode ser o alvo). Silencioso em caso de erro.
+async function avisarSeguidorDM() {
+  try {
+    let meuNome = 'Alguém';
+    if (_ehProprio) {
+      meuNome = _profile.nome_completo || meuNome;
+    } else {
+      const { data } = await sb.from('profiles_publicos').select('nome_completo').eq('id', _meuId).single();
+      meuNome = data?.nome_completo || meuNome;
+    }
+    await sb.from('direct_messages').insert({
+      remetente: _meuId,
+      destinatario: _alvoId,
+      texto: `👋 ${meuNome} começou a te seguir!`,
+    });
+  } catch (e) { console.warn('[dm-seguir]', e); }
 }
 
 // ─── DM ────────────────────────────────────────────────────────

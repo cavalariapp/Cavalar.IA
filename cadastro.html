@@ -373,7 +373,7 @@ async function confirmOtp() {
     estado: dados.estado,
     pais: dados.pais,
     tipos: dados.tipos,
-    visibilidade: 'privado',
+    visibilidade: 'publico',
   });
   if (errProf) { $('err-3').textContent = errProf.message; return; }
   // Próximo: reconhecer cavaleiro
