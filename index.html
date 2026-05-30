@@ -4039,7 +4039,11 @@ function placeBid() {
 
 // ─── INIT ─────────────────────────────────────────────────────
 async function init() {
-  // Load all data into local state
+  // 1. PRIMEIRO: bindar hamburger e auth — coisas críticas de UX
+  bindHamburgers();
+  await updateAuthButton(); // popula _currentUser, _currentProfile e ham-menu
+
+  // 2. Carrega dados em background
   STATE.localPodcasts = await DB.podcasts();
   STATE.localHorses = await DB.horses();
   // Carrega map de profiles ANTES dos rankings/news pra já linkificar nomes
@@ -4055,14 +4059,10 @@ async function init() {
   initCategories();
   initPills();
   initNoticias();
-  bindHamburgers();
   document.getElementById('bottom-nav').style.display = 'none';
 
-  // Auto-skip onboarding se já logado
-  try {
-    const { data: { user } } = await sb.auth.getUser();
-    if (user) nav('home');
-  } catch (_) {}
+  // 3. Auto-skip onboarding se já logado
+  if (_currentUser) nav('home');
 
   if (!document.getElementById('shake-style')) {
     const s = document.createElement('style');

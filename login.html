@@ -108,12 +108,14 @@ async function enviarOtp() {
 
 async function confirmar() {
   const code = $('f-otp').value.trim();
-  if (code.length !== 6) { $('err-2').textContent = 'Digite os 6 dígitos'; return; }
+  if (code.length < 6 || code.length > 8 || !/^\d+$/.test(code)) {
+    $('err-2').textContent = 'Digite o código (6 a 8 dígitos)'; return;
+  }
   $('err-2').textContent = 'Verificando…';
   const { data, error } = await sb.auth.verifyOtp({ email, token: code, type: 'email' });
   if (error || !data.user) { $('err-2').textContent = error?.message || 'Código inválido'; return; }
   $('ok-2').textContent = '✓ Entrando…';
-  window.location.href = 'perfil.html';
+  window.location.href = 'index.html';
 }
 
 function voltarEmail() {
@@ -121,9 +123,9 @@ function voltarEmail() {
   $('step-otp').style.display = 'none';
 }
 
-// Se já logado, redireciona
+// Se já logado, manda pra home (não pra perfil)
 sb.auth.getUser().then(({ data: { user } }) => {
-  if (user) window.location.href = 'perfil.html';
+  if (user) window.location.href = 'index.html';
 });
 </script>
 </body>
