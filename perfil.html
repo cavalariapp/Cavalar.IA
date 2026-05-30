@@ -372,6 +372,8 @@ input[type=file] { display:none; }
     <div class="tabs">
       <button class="tab active" data-tab="sobre" onclick="setTab('sobre')">Sobre</button>
       <button class="tab" data-tab="feed" onclick="setTab('feed')">Feed</button>
+      <!-- Aba Criação: só aparece pra perfis "criador" (atualizarAbas decide) -->
+      <button class="tab" data-tab="criador" id="tab-criador" onclick="setTab('criador')" style="display:none">Criação</button>
     </div>
 
     <!-- TAB: SOBRE -->
@@ -379,6 +381,9 @@ input[type=file] { display:none; }
 
     <!-- TAB: FEED -->
     <div class="tab-panel" id="panel-feed"></div>
+
+    <!-- TAB: CRIAÇÃO (Área do Criador) -->
+    <div class="tab-panel" id="panel-criador"></div>
   </div>
 </div>
 
@@ -463,6 +468,8 @@ let _animalTipoNovo = 'matriz'; // tipo selecionado no form de novo animal
 let _animalFotosNovas = [];  // URLs de fotos já enviadas no form de novo animal
 let _animalResultadoOk = false; // o nome digitado tem resultados no sistema?
 let _animalStatsLigado = false; // toggle "exibir estatísticas" no form de novo animal
+let _followPendente = false;    // solicitei seguir _alvoId (privado) e aguardo aprovação
+let _solicitacoes = [];         // follows pendentes ao MEU perfil (quando _ehProprio)
 
 // É criador ou proprietário? (mostra a seção "Meus cavalos")
 function ehCriadorOuProp(p) {
@@ -542,28 +549,45 @@ async function carregar() {
   _analiseConfig = profile.analise_config || {};
   const aVisivel = _analiseConfig.visivel !== false; // default: visível
 
-  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes, cavalosRes, animaisRes] = await Promise.all([
+  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes, cavalosRes, animaisRes, solicRes] = await Promise.all([
     sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', _alvoId),
     (profile.cavaleiro_nome && aVisivel)
       ? sb.rpc('stats_cavaleiro_filtrado', filtrosAnalise(profile.cavaleiro_nome, _analiseConfig)).then(r => r.data?.[0])
       : Promise.resolve(null),
-    sb.from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', _alvoId),
-    sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', _alvoId),
+    // Contadores: só follows ACEITOS contam (pendentes ainda não são seguidores)
+    sb.from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', _alvoId).eq('status', 'aceito'),
+    sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', _alvoId).eq('status', 'aceito'),
+    // Meu vínculo com o alvo: traz o status (aceito | pendente) se existir
     _meuId && !_ehProprio
-      ? sb.from('follows').select('follower_id').eq('follower_id', _meuId).eq('followed_id', _alvoId).maybeSingle()
+      ? sb.from('follows').select('status').eq('follower_id', _meuId).eq('followed_id', _alvoId).maybeSingle()
       : Promise.resolve({ data: null }),
     sb.from('profile_cavalos').select('*').eq('profile_id', _alvoId).order('criado_em', { ascending: true }),
     sb.from('criador_animais').select('*').eq('profile_id', _alvoId).order('criado_em', { ascending: true }),
+    // Solicitações pendentes ao MEU perfil (só quando vejo meu próprio perfil)
+    _ehProprio
+      ? sb.from('follows').select('follower_id, criado_em').eq('followed_id', _alvoId).eq('status', 'pendente').order('criado_em', { ascending: false })
+      : Promise.resolve({ data: [] }),
   ]);
   _interesses = interessesRes.data || [];
   _stats = statsRes || null;
   _followersCount = followersRes.count || 0;
   _followingCount = followingRes.count || 0;
-  _isFollowing = !!eusigoRes.data;
+  _isFollowing    = eusigoRes.data?.status === 'aceito';
+  _followPendente = eusigoRes.data?.status === 'pendente';
   _meusCavalos = cavalosRes.data || [];
   _meusAnimais = animaisRes.data || [];
 
-  // Perfil privado de outra pessoa que eu não sigo → conteúdo só pra seguidores.
+  // Enriquece as solicitações com nome/avatar do solicitante (view pública)
+  _solicitacoes = [];
+  const pendentes = solicRes.data || [];
+  if (_ehProprio && pendentes.length) {
+    const ids = pendentes.map(r => r.follower_id);
+    const { data: profs } = await sb.from('profiles_publicos').select('id,nome_completo,avatar_url').in('id', ids);
+    const pmap = new Map((profs || []).map(p => [p.id, p]));
+    _solicitacoes = pendentes.map(r => ({ ...r, prof: pmap.get(r.follower_id) || {} }));
+  }
+
+  // Perfil privado de outra pessoa que eu não sigo (aceito) → só pra seguidores.
   _bloqueado = !_ehProprio && profile.visibilidade === 'privado' && !_isFollowing;
 
   $('loading').style.display = 'none';
@@ -578,8 +602,20 @@ function renderAll() {
   renderCover();
   renderAvatar();
   renderHead();
+  atualizarAbas();
   renderSobre();
   renderFeed();
+}
+
+// Mostra/esconde a aba "Criação". Aparece pra perfis criador; visitantes só
+// veem se houver pelo menos um animal cadastrado (e o perfil não estiver bloqueado).
+function atualizarAbas() {
+  const tab = $('tab-criador');
+  if (!tab) return;
+  const mostra = ehCriador(_profile) && !_bloqueado && (_ehProprio || _meusAnimais.length > 0);
+  tab.style.display = mostra ? '' : 'none';
+  // Se a aba sumiu enquanto estava ativa, volta pra "Sobre"
+  if (!mostra && tab.classList.contains('active')) setTab('sobre');
 }
 
 function renderCover() {
@@ -629,9 +665,10 @@ function renderHead() {
       <button class="btn-outline btn" onclick="logout()">Sair</button>
     `;
   } else if (_meuId) {
+    const seguindoOuPend = _isFollowing || _followPendente;
     actions.innerHTML = `
-      <button class="btn ${_isFollowing ? 'btn-outline' : ''}" onclick="toggleFollow()">
-        ${_isFollowing ? '✓ Seguindo' : '+ Seguir'}
+      <button class="btn ${seguindoOuPend ? 'btn-outline' : ''}" onclick="toggleFollow()">
+        ${followBtnLabel()}
       </button>
       <button class="btn-dm" onclick="abrirDM()">💬 Mensagem</button>
     `;
@@ -694,8 +731,6 @@ function renderSobre() {
 
       ${cavalosEditCardHtml()}
 
-      ${areaCriadorEditHtml()}
-
       <div class="card">
         <div class="section-title">Interesses (bate-bola)</div>
         <p class="privacy-note" style="margin-top:-4px;margin-bottom:14px">Clica numa opção pra trocar. Clica de novo na mesma pra desmarcar e remover essa preferência.</p>
@@ -712,19 +747,20 @@ function renderSobre() {
 
   // Perfil privado de outra pessoa que eu não sigo → gate "só para seguidores"
   if (_bloqueado) {
+    const txt = _followPendente
+      ? `Sua solicitação foi enviada. Você verá o conteúdo assim que ${esc(_profile.nome_completo || 'o usuário')} aprovar.`
+      : `${esc(_profile.nome_completo || 'Este usuário')} mantém o perfil privado. ${_meuId ? 'Solicite para seguir e ver o desempenho, os cavalos e as publicações.' : 'Entre e solicite para seguir.'}`;
+    const btn = !_meuId
+      ? `<a href="login.html" class="btn">Entrar</a>`
+      : _followPendente
+        ? `<button class="btn btn-outline" onclick="toggleFollow()">⏳ Solicitado — cancelar</button>`
+        : `<button class="btn" onclick="toggleFollow()">+ Solicitar para seguir</button>`;
     panel.innerHTML = `
       <div class="card" style="text-align:center;padding:30px 22px">
         <div style="font-size:34px;margin-bottom:8px">🔒</div>
         <div class="section-title" style="justify-content:center">Perfil só para seguidores</div>
-        <p class="privacy-note" style="margin-top:6px">
-          ${esc(_profile.nome_completo || 'Este usuário')} mantém o perfil privado.
-          ${_meuId ? 'Siga para ver o desempenho, os cavalos e as publicações.' : 'Entre e siga para ver o conteúdo.'}
-        </p>
-        <div class="row-actions" style="justify-content:center;margin-top:14px">
-          ${_meuId
-            ? `<button class="btn" onclick="toggleFollow()">+ Seguir</button>`
-            : `<a href="login.html" class="btn">Entrar</a>`}
-        </div>
+        <p class="privacy-note" style="margin-top:6px">${txt}</p>
+        <div class="row-actions" style="justify-content:center;margin-top:14px">${btn}</div>
       </div>`;
     return;
   }
@@ -732,11 +768,11 @@ function renderSobre() {
   // Modo visualização
   let html = '';
 
+  // Solicitações de seguir pendentes (aparece só no meu próprio perfil)
+  html += solicitacoesCardHtml();
   // Desempenho do cavaleiro (configurável) + cavalos de criador/proprietário
   html += statsCardCavaleiroHtml();
   html += cavalosSectionHtml();
-  // Área do Criador (matrizes / garanhões / produtos)
-  html += areaCriadorHtml();
 
   // Contato
   const temContato = p.instagram || p.website || (_ehProprio && (p.email || p.celular));
@@ -765,8 +801,6 @@ function renderSobre() {
 
   // Carrega desempenho de cada cavalo de forma assíncrona
   if (_meusCavalos.length) carregarStatsCavalos();
-  // Carrega stats dos animais da criação que optaram por exibir
-  if (_meusAnimais.some(a => a.mostrar_stats)) carregarStatsAnimais();
 }
 
 // ─── Builders de visualização: desempenho ──────────────────────
@@ -868,6 +902,7 @@ function setTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
   if (name === 'feed') renderFeed();
+  if (name === 'criador') renderCriador();
 }
 
 // ─── Edit ──────────────────────────────────────────────────────
@@ -903,7 +938,6 @@ function wireEdit() {
   // Cards extras (só existem se aplicáveis)
   wireAnaliseConfig();
   wireCavalosEdit();
-  wireAreaCriador();
 
   const tog = $('e-toggle-publico');
   tog.onclick = () => {
@@ -1335,23 +1369,47 @@ async function trocarRelacao(id) {
 }
 
 // ═══ ÁREA DO CRIADOR (matrizes / garanhões / produtos) ═════════
-// ── Visualização ──
-function areaCriadorHtml() {
-  if (!ehCriador(_profile) || !_meusAnimais.length) return '';
-  const grupos = ANIMAL_GRUPOS.map(g => {
+// Aba própria "Criação". O dono vê o formulário + os cards (autogerencia);
+// o visitante vê só os cards (somente leitura).
+function renderCriador() {
+  const panel = $('panel-criador');
+  if (!panel) return;
+  if (_bloqueado) {
+    panel.innerHTML = `<div class="empty">🔒 A Área do Criador é só para seguidores.</div>`;
+    return;
+  }
+  if (!ehCriador(_profile)) {
+    panel.innerHTML = `<div class="empty">Este perfil não tem Área do Criador.</div>`;
+    return;
+  }
+  let html = '';
+  if (_ehProprio) html += areaCriadorFormHtml();
+  html += `<div id="criador-cards"></div>`;
+  panel.innerHTML = html;
+  if (_ehProprio) wireAreaCriador();
+  renderCriadorCards();
+}
+
+// Renderiza só os cards de animais (agrupados por tipo). Re-renderizável
+// isoladamente — não toca no formulário, preservando o que o dono digita.
+function renderCriadorCards() {
+  const box = $('criador-cards');
+  if (!box) return;
+  if (!_meusAnimais.length) {
+    box.innerHTML = `<div class="empty">${_ehProprio ? 'Você ainda não cadastrou nenhum animal. Use o formulário acima.' : 'Nenhum animal cadastrado ainda.'}</div>`;
+    return;
+  }
+  box.innerHTML = ANIMAL_GRUPOS.map(g => {
     const itens = _meusAnimais.filter(a => a.tipo === g.tipo);
     if (!itens.length) return '';
     return `
-      <div style="margin-top:14px">
-        <div class="filtro-lbl" style="margin-bottom:8px">${g.emoji} ${g.titulo} <span style="opacity:.6">(${itens.length})</span></div>
+      <div style="margin-bottom:18px">
+        <div class="section-title" style="margin-bottom:10px">${g.emoji} ${g.titulo} <span style="opacity:.6">(${itens.length})</span></div>
         ${itens.map(animalCardHtml).join('')}
       </div>`;
   }).join('');
-  return `
-    <div class="card">
-      <div class="section-title">🏠 Área do Criador</div>
-      ${grupos}
-    </div>`;
+  // Carrega stats dos animais que optaram por exibir
+  if (_meusAnimais.some(a => a.mostrar_stats)) carregarStatsAnimais();
 }
 
 function animalCardHtml(a) {
@@ -1368,9 +1426,15 @@ function animalCardHtml(a) {
   const statsHtml = a.mostrar_stats
     ? `<div id="animal-stats-${a.id}" style="margin-top:8px"><span class="mini-spin"></span> <span style="font-size:11.5px;color:var(--muted)">carregando desempenho…</span></div>`
     : '';
+  const delBtn = _ehProprio
+    ? `<button class="cavalo-remove" onclick="removerAnimal(${a.id})" title="Remover" style="flex-shrink:0">×</button>`
+    : '';
   return `
     <div style="border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:10px">
-      <div style="font-weight:700;font-size:14.5px">${esc(a.nome)}${a.raca ? ` <span style="font-size:11.5px;font-weight:500;color:var(--muted)">· ${esc(a.raca)}</span>` : ''}</div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="font-weight:700;font-size:14.5px">${esc(a.nome)}${a.raca ? ` <span style="font-size:11.5px;font-weight:500;color:var(--muted)">· ${esc(a.raca)}</span>` : ''}</div>
+        ${delBtn}
+      </div>
       ${fotosHtml}
       ${genHtml}
       ${sobreHtml}
@@ -1410,12 +1474,12 @@ async function carregarStatsAnimais() {
   }
 }
 
-// ── Edição ──
-function areaCriadorEditHtml() {
+// ── Formulário de cadastro (só o dono, no topo da aba "Criação") ──
+function areaCriadorFormHtml() {
   if (!ehCriador(_profile)) return '';
   return `
     <div class="card" id="criador-edit-card">
-      <div class="section-title">🏠 Área do Criador</div>
+      <div class="section-title">🏠 Cadastrar animal da criação</div>
       <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">Cadastre as matrizes, garanhões e produtos da sua criação. Se o animal tiver resultados reconhecidos pelo sistema, você pode optar por exibir as estatísticas dele.</p>
 
       <div class="filtro-lbl" style="margin-bottom:6px">Tipo</div>
@@ -1458,8 +1522,6 @@ function areaCriadorEditHtml() {
         <button class="btn" id="btn-add-animal">Adicionar animal</button>
       </div>
       <div class="ok" id="ok-animal"></div>
-
-      <div id="meus-animais-list" style="margin-top:16px"></div>
     </div>`;
 }
 
@@ -1578,7 +1640,6 @@ function wireAreaCriador() {
   $('btn-add-animal').onclick = salvarAnimal;
 
   renderFotosPreview();
-  renderMeusAnimaisList();
 }
 
 function renderFotosPreview() {
@@ -1624,37 +1685,10 @@ async function salvarAnimal() {
   $('animal-result-hint').textContent = '';
   atualizaStatsDisponivel();
   renderFotosPreview();
-  renderMeusAnimaisList();
+  renderCriadorCards();
   $('ok-animal').textContent = '✓ Animal adicionado';
   btn.disabled = false; btn.textContent = 'Adicionar animal';
   setTimeout(() => { const o = $('ok-animal'); if (o) o.textContent = ''; }, 2500);
-}
-
-function renderMeusAnimaisList() {
-  const box = $('meus-animais-list');
-  if (!box) return;
-  if (!_meusAnimais.length) {
-    box.innerHTML = `<div style="font-size:12.5px;color:var(--muted)">Nenhum animal cadastrado ainda.</div>`;
-    return;
-  }
-  box.innerHTML = ANIMAL_GRUPOS.map(g => {
-    const itens = _meusAnimais.filter(a => a.tipo === g.tipo);
-    if (!itens.length) return '';
-    return `
-      <div style="margin-top:10px">
-        <div class="filtro-lbl" style="margin-bottom:4px">${g.emoji} ${g.titulo}</div>
-        ${itens.map(a => `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
-            <div style="min-width:0">
-              <span style="font-weight:600;font-size:13.5px">${esc(a.nome)}</span>
-              ${a.raca ? `<span style="font-size:12px;color:var(--muted)"> · ${esc(a.raca)}</span>` : ''}
-              ${a.mostrar_stats ? `<span class="cavalo-rel proprietario" style="margin-left:6px">📊 stats</span>` : ''}
-              ${(a.fotos || []).length ? `<span style="font-size:11.5px;color:var(--muted);margin-left:6px">📷 ${(a.fotos || []).length}</span>` : ''}
-            </div>
-            <button class="cavalo-remove" onclick="removerAnimal(${a.id})" title="Remover">×</button>
-          </div>`).join('')}
-      </div>`;
-  }).join('');
 }
 
 async function removerAnimal(id) {
@@ -1662,8 +1696,8 @@ async function removerAnimal(id) {
   const { error } = await sb.from('criador_animais').delete().eq('id', id);
   if (error) { alert('Erro: ' + error.message); return; }
   _meusAnimais = _meusAnimais.filter(a => a.id !== id);
-  if (_editMode) renderMeusAnimaisList();
-  else renderSobre();
+  renderCriadorCards();
+  atualizarAbas();
 }
 
 // ─── Upload de imagens ─────────────────────────────────────────
@@ -2008,45 +2042,109 @@ async function deletarPost(id) {
   renderFeedList();
 }
 
-// ─── Follow ────────────────────────────────────────────────────
+// ─── Follow (com aprovação pra perfis privados) ────────────────
+// Texto do botão de seguir conforme o estado atual.
+function followBtnLabel() {
+  if (_isFollowing)    return '✓ Seguindo';
+  if (_followPendente) return '⏳ Solicitado';
+  return _profile.visibilidade === 'privado' ? '+ Solicitar' : '+ Seguir';
+}
+
 async function toggleFollow() {
   if (!_meuId) { window.location.href = 'login.html'; return; }
   if (_ehProprio) return;
-  if (_isFollowing) {
+  const ehPrivado = _profile.visibilidade === 'privado';
+
+  // Já sigo (aceito) OU já solicitei (pendente) → desfaz / cancela
+  if (_isFollowing || _followPendente) {
+    const eraAceito = _isFollowing;
     const { error } = await sb.from('follows').delete().eq('follower_id', _meuId).eq('followed_id', _alvoId);
     if (error) { alert('Erro: ' + error.message); return; }
-    _isFollowing = false; _followersCount = Math.max(0, _followersCount - 1);
-    // Deixei de seguir um perfil privado → reesconde o conteúdo
-    if (!_ehProprio && _profile.visibilidade === 'privado') { _bloqueado = true; renderSobre(); renderFeed(); }
+    _isFollowing = false; _followPendente = false;
+    if (eraAceito) _followersCount = Math.max(0, _followersCount - 1);
+    // Saí de um perfil privado (seguindo ou pendente) → reesconde o conteúdo
+    if (ehPrivado) { _bloqueado = true; renderSobre(); renderFeed(); atualizarAbas(); }
+    renderHead();
+    return;
+  }
+
+  // Novo follow. Privado → entra como 'pendente' (precisa aprovação do dono);
+  // público → entra direto como 'aceito'. (A RLS no banco também garante isso.)
+  const status = ehPrivado ? 'pendente' : 'aceito';
+  const { error } = await sb.from('follows').insert({ follower_id: _meuId, followed_id: _alvoId, status });
+  if (error) { alert('Erro: ' + error.message); return; }
+  if (ehPrivado) {
+    _followPendente = true;
+    meuNomeExibicao().then(nome => dmSistema(_alvoId, `🔔 ${nome} solicitou seguir seu perfil — aprove na sua página de perfil.`));
+    renderSobre(); // atualiza o gate: "solicitação enviada, aguarde aprovação"
   } else {
-    const { error } = await sb.from('follows').insert({ follower_id: _meuId, followed_id: _alvoId });
-    if (error) { alert('Erro: ' + error.message); return; }
     _isFollowing = true; _followersCount++;
-    // Avisa o seguido por DM (best-effort — não bloqueia o follow se falhar)
-    avisarSeguidorDM();
-    // Se eu estava bloqueado por ser privado, agora libero o conteúdo
-    if (_bloqueado) { _bloqueado = false; renderSobre(); renderFeed(); }
+    meuNomeExibicao().then(nome => dmSistema(_alvoId, `👋 ${nome} começou a te seguir!`));
+    if (_bloqueado) { _bloqueado = false; renderSobre(); renderFeed(); atualizarAbas(); }
   }
   renderHead();
 }
 
-// Insere uma DM avisando que comecei a seguir. Pega meu nome do meu próprio
-// profile (não do _profile, que pode ser o alvo). Silencioso em caso de erro.
-async function avisarSeguidorDM() {
+// Nome de exibição do usuário LOGADO (eu mesmo ou um visitante).
+async function meuNomeExibicao() {
+  if (_ehProprio) return _profile.nome_completo || 'Alguém';
+  const { data } = await sb.from('profiles_publicos').select('nome_completo').eq('id', _meuId).single();
+  return data?.nome_completo || 'Alguém';
+}
+
+// Envia uma DM de sistema (best-effort, silenciosa em caso de erro).
+async function dmSistema(destinatario, texto) {
   try {
-    let meuNome = 'Alguém';
-    if (_ehProprio) {
-      meuNome = _profile.nome_completo || meuNome;
-    } else {
-      const { data } = await sb.from('profiles_publicos').select('nome_completo').eq('id', _meuId).single();
-      meuNome = data?.nome_completo || meuNome;
-    }
-    await sb.from('direct_messages').insert({
-      remetente: _meuId,
-      destinatario: _alvoId,
-      texto: `👋 ${meuNome} começou a te seguir!`,
-    });
-  } catch (e) { console.warn('[dm-seguir]', e); }
+    await sb.from('direct_messages').insert({ remetente: _meuId, destinatario, texto });
+  } catch (e) { console.warn('[dm-sistema]', e); }
+}
+
+// ─── Solicitações de seguir (lado do dono do perfil) ───────────
+function solicitacoesCardHtml() {
+  if (!_ehProprio || !_solicitacoes.length) return '';
+  const itens = _solicitacoes.map(s => {
+    const p = s.prof || {};
+    const uid = p.id || s.follower_id;
+    const ini = (p.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
+    const av = p.avatar_url ? `<img src="${esc(p.avatar_url)}" style="width:100%;height:100%;object-fit:cover">` : esc(ini);
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <a href="perfil.html?u=${uid}" style="text-decoration:none"><div class="post-avatar">${av}</div></a>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13.5px"><a href="perfil.html?u=${uid}" style="color:#fff;text-decoration:none">${esc(p.nome_completo || 'Usuário')}</a></div>
+          <div style="font-size:11px;color:var(--muted)">quer seguir você</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn" style="padding:7px 12px" onclick="aprovarSolicitacao('${s.follower_id}')">Aceitar</button>
+          <button class="btn btn-outline" style="padding:7px 12px" onclick="recusarSolicitacao('${s.follower_id}')">Recusar</button>
+        </div>
+      </div>`;
+  }).join('');
+  return `
+    <div class="card">
+      <div class="section-title">🔔 Solicitações de seguir <span style="opacity:.6">(${_solicitacoes.length})</span></div>
+      ${itens}
+    </div>`;
+}
+
+async function aprovarSolicitacao(followerId) {
+  const { error } = await sb.from('follows').update({ status: 'aceito' })
+    .eq('follower_id', followerId).eq('followed_id', _meuId);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _solicitacoes = _solicitacoes.filter(s => s.follower_id !== followerId);
+  _followersCount++;
+  meuNomeExibicao().then(nome => dmSistema(followerId, `✅ ${nome} aceitou sua solicitação. Agora você está seguindo!`));
+  renderHead();
+  renderSobre();
+}
+
+async function recusarSolicitacao(followerId) {
+  if (!confirm('Recusar esta solicitação?')) return;
+  const { error } = await sb.from('follows').delete()
+    .eq('follower_id', followerId).eq('followed_id', _meuId);
+  if (error) { alert('Erro: ' + error.message); return; }
+  _solicitacoes = _solicitacoes.filter(s => s.follower_id !== followerId);
+  renderSobre();
 }
 
 // ─── DM ────────────────────────────────────────────────────────

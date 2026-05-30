@@ -2960,10 +2960,12 @@ sb.auth.onAuthStateChange((event, session) => {
   console.log('[auth event]', event, !!session?.user);
   if (session?.user) {
     _currentUser = session.user;
-    // Se ainda tá no onboarding, força ir pra home
+    // Se ainda tá no onboarding, sai dele — mas respeita o deep-link ?msg=
+    // (vem de "💬 Mensagem" no perfil) pra abrir as Mensagens, não a home.
     const onboarding = document.getElementById('scr-onboarding');
     if (onboarding?.classList.contains('active') && typeof nav === 'function') {
-      try { nav('home'); } catch (_) {}
+      const querMsg = new URLSearchParams(window.location.search).has('msg');
+      try { nav(querMsg ? 'mensagens' : 'home'); } catch (_) {}
     }
     if (typeof updateAuthButton === 'function') {
       try { updateAuthButton(); } catch (_) {}
@@ -3062,7 +3064,9 @@ const Util = {
 async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 
 // ─── NAVIGATION ───────────────────────────────────────────────
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao'];
+// Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
+// elas não recebem remove('active') e ficam empilhadas por cima da home.
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'feed-global', 'mensagens', 'comunidade'];
 
 function nav(id) {
   SCREENS.forEach(s => {
@@ -4697,8 +4701,11 @@ async function init() {
   initNoticias();
   document.getElementById('bottom-nav').style.display = 'none';
 
-  // 3. Auto-skip onboarding se já logado
-  if (_currentUser) nav('home');
+  // 3. Roteamento inicial. Deep-link ?msg=<id> abre as Mensagens (a própria
+  //    tela trata logado/deslogado); senão, pula o onboarding se já logado.
+  const _params = new URLSearchParams(window.location.search);
+  if (_params.has('msg')) nav('mensagens');
+  else if (_currentUser) nav('home');
 
   if (!document.getElementById('shake-style')) {
     const s = document.createElement('style');
