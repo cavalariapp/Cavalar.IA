@@ -142,8 +142,22 @@ body {
   justify-content: center;
   gap: 5px;
   flex-shrink: 0;
+  position: relative;
 }
 .btn-hamburger span { display: block; width: 18px; height: 2px; background: #fff; border-radius: 1px; }
+/* Ponto de notificação — aparece quando há mensagens não lidas (classe no body) */
+body.tem-notif .btn-hamburger::after {
+  content: ''; position: absolute; top: -3px; right: -3px;
+  width: 11px; height: 11px; border-radius: 50%;
+  background: #ff3b30; border: 2px solid var(--bg, #080d18);
+}
+/* Contador ao lado de "Mensagens" no menu */
+.ham-badge {
+  display: none; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: auto;
+  background: #ff3b30; color: #fff; font-size: 11px; font-weight: 800;
+  border-radius: 9px; line-height: 1;
+}
 
 /* HAMBURGER DROPDOWN MENU */
 .ham-menu {
@@ -2950,6 +2964,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }
 });
 
+// Service worker — só pra notificações (NÃO faz cache, pra nunca servir versão velha).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('[sw]', e));
+  });
+}
+
 // Cache global do usuário logado — declarado AQUI pra estar disponível pro listener
 let _currentUser = null;
 let _currentProfile = null;
@@ -2964,7 +2985,8 @@ sb.auth.onAuthStateChange((event, session) => {
     // (vem de "💬 Mensagem" no perfil) pra abrir as Mensagens, não a home.
     const onboarding = document.getElementById('scr-onboarding');
     if (onboarding?.classList.contains('active') && typeof nav === 'function') {
-      const querMsg = new URLSearchParams(window.location.search).has('msg');
+      const _sp = new URLSearchParams(window.location.search);
+      const querMsg = _sp.has('msg') || _sp.get('go') === 'mensagens';
       try { nav(querMsg ? 'mensagens' : 'home'); } catch (_) {}
     }
     if (typeof updateAuthButton === 'function') {
@@ -3149,7 +3171,9 @@ async function renderDmInbox() {
   }
 
   // Carrega profiles
-  const { data: profs } = await sb.from('profiles')
+  // profiles_publicos (view): a tabela profiles é bloqueada por RLS pra outros
+  // usuários, então a contraparte vinha vazia ("perfil não existente").
+  const { data: profs } = await sb.from('profiles_publicos')
     .select('id,nome_completo,avatar_url').in('id', outrosIds);
   const profMap = new Map((profs || []).map(p => [p.id, p]));
 
@@ -3195,8 +3219,9 @@ async function renderDmChat() {
   const area = document.getElementById('dm-area');
   area.innerHTML = '<div style="text-align:center;color:var(--muted);padding:30px;font-size:13px">Carregando…</div>';
 
-  // Busca profile do outro
-  const { data: outroProf } = await sb.from('profiles').select('id,nome_completo,avatar_url').eq('id', _dmAbertoCom).maybeSingle();
+  // Busca profile do outro pela VIEW pública (profiles é bloqueada por RLS pra
+  // terceiros — era isso que deixava o chat vazio e sem caixa de escrever).
+  const { data: outroProf } = await sb.from('profiles_publicos').select('id,nome_completo,avatar_url').eq('id', _dmAbertoCom).maybeSingle();
   if (!outroProf) { area.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted)">Perfil não encontrado.</div>'; return; }
 
   // Busca mensagens das 2 direções
@@ -3210,7 +3235,7 @@ async function renderDmChat() {
   // Marca não-lidas como lidas
   const naoLidas = _dmMensagens.filter(m => m.destinatario === _currentUser.id && !m.lido).map(m => m.id);
   if (naoLidas.length) {
-    sb.from('direct_messages').update({ lido: true }).in('id', naoLidas).then(() => {});
+    sb.from('direct_messages').update({ lido: true }).in('id', naoLidas).then(() => contarNaoLidas());
   }
 
   const ini = (outroProf.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
@@ -3261,6 +3286,104 @@ async function enviarDM() {
   });
   if (error) { alert('Erro: ' + error.message); return; }
   renderDmChat();
+}
+
+// ─── REALTIME + NOTIFICAÇÕES ──────────────────────────────────
+// Assina o Supabase Realtime (mensagens novas + solicitações/seguidores) e,
+// a cada evento, atualiza a tela ao vivo, mostra toast no app e — se o app
+// estiver em segundo plano — dispara notificação no celular.
+let _rtCanal = null;        // canal realtime ativo (1 por usuário)
+let _dmNaoLidas = 0;        // total de DMs não lidas → badge
+let _notifPedida = false;   // já pedimos permissão de notificação nesta sessão?
+
+async function iniciarRealtime() {
+  if (!_currentUser) return;
+  pedirPermissaoNotif();
+  await contarNaoLidas();
+  if (_rtCanal) return;     // já assinado — não duplica
+  _rtCanal = sb.channel('rt-user-' + _currentUser.id)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'direct_messages', filter: 'destinatario=eq.' + _currentUser.id },
+      (p) => onRtNovaDM(p.new))
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'follows', filter: 'followed_id=eq.' + _currentUser.id },
+      (p) => onRtNovoFollow(p.new))
+    .subscribe();
+}
+
+function pararRealtime() {
+  if (_rtCanal) { try { sb.removeChannel(_rtCanal); } catch (_) {} _rtCanal = null; }
+  _dmNaoLidas = 0; pintarBadge();
+}
+
+async function onRtNovaDM(msg) {
+  if (!msg || msg.remetente === _currentUser.id) return;
+  const naTelaMsg = document.getElementById('scr-mensagens')?.classList.contains('active');
+  if (naTelaMsg && _dmAbertoCom === msg.remetente) { renderDmChat(); return; } // conversa aberta → atualiza + marca lido
+  _dmNaoLidas++; pintarBadge();
+  if (naTelaMsg && !_dmAbertoCom) renderDmInbox();   // inbox aberta → atualiza lista
+  const nome = await nomePublico(msg.remetente);
+  const corpo = msg.texto || '📷 Foto';
+  showToast('💬 ' + nome + ': ' + corpo, 4200);
+  notificarCelular('💬 ' + nome, corpo, 'mensagens');
+}
+
+async function onRtNovoFollow(f) {
+  if (!f) return;
+  const nome = await nomePublico(f.follower_id);
+  if (f.status === 'pendente') {
+    showToast('🔔 ' + nome + ' quer te seguir', 4500);
+    notificarCelular('🔔 Nova solicitação', nome + ' quer te seguir', 'perfil');
+  } else {
+    showToast('👋 ' + nome + ' começou a te seguir', 4200);
+    notificarCelular('👋 Novo seguidor', nome + ' começou a te seguir', 'perfil');
+  }
+}
+
+async function nomePublico(id) {
+  try {
+    const { data } = await sb.from('profiles_publicos').select('nome_completo').eq('id', id).maybeSingle();
+    return data?.nome_completo || 'Alguém';
+  } catch (_) { return 'Alguém'; }
+}
+
+// ── Badge de mensagens não lidas ──────────────────────────────
+async function contarNaoLidas() {
+  if (!_currentUser) { _dmNaoLidas = 0; pintarBadge(); return; }
+  const { count } = await sb.from('direct_messages')
+    .select('*', { count: 'exact', head: true })
+    .eq('destinatario', _currentUser.id).eq('lido', false);
+  _dmNaoLidas = count || 0;
+  pintarBadge();
+}
+
+function pintarBadge() {
+  document.body.classList.toggle('tem-notif', _dmNaoLidas > 0);
+  document.querySelectorAll('[data-badge="msg"]').forEach(el => {
+    if (_dmNaoLidas > 0) { el.textContent = _dmNaoLidas > 9 ? '9+' : String(_dmNaoLidas); el.style.display = 'inline-flex'; }
+    else { el.textContent = ''; el.style.display = 'none'; }
+  });
+}
+
+// ── Notificação no celular (Notifications API via service worker) ──
+function pedirPermissaoNotif() {
+  if (_notifPedida || !('Notification' in window)) return;
+  _notifPedida = true;
+  if (Notification.permission === 'default') {
+    setTimeout(() => { try { Notification.requestPermission(); } catch (_) {} }, 2500);
+  }
+}
+
+function notificarCelular(titulo, corpo, destino) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    // Se a pessoa já está olhando o app, o toast basta — evita notificação redundante.
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    const opts = { body: corpo, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'cavalaria-' + destino, renotify: true, data: { destino } };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(reg => reg.showNotification(titulo, opts)).catch(() => { try { new Notification(titulo, opts); } catch (_) {} });
+    } else { new Notification(titulo, opts); }
+  } catch (e) { console.warn('[notif]', e); }
 }
 
 // ─── FEED GLOBAL ──────────────────────────────────────────────
@@ -3792,8 +3915,10 @@ async function updateAuthButton() {
     if (user) {
       const { data: profile } = await sb.from('profiles').select('nome_completo,email,cavaleiro_nome,avatar_url').eq('id', user.id).maybeSingle();
       _currentProfile = profile;
+      iniciarRealtime();   // assina mensagens/solicitações em tempo real
     } else {
       _currentProfile = null;
+      pararRealtime();
     }
 
     // Atualiza todos os botões "ENTRAR" do app (têm vários nos diversos screens)
@@ -3843,6 +3968,7 @@ function updateHamMenu() {
       <button class="ham-menu-item" onclick="closeHamMenu();nav('mensagens')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         Mensagens
+        <span class="ham-badge" data-badge="msg"></span>
       </button>
       <button class="ham-menu-item" onclick="closeHamMenu();nav('comunidade')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="7" r="3"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
@@ -3870,6 +3996,7 @@ function updateHamMenu() {
     `;
   }
   menu.innerHTML = html;
+  pintarBadge(); // repinta o contador de mensagens no item recém-criado
 }
 
 function toggleHamMenu() {
@@ -3886,6 +4013,7 @@ async function logout() {
   await sb.auth.signOut();
   _currentUser = null;
   _currentProfile = null;
+  pararRealtime();
   closeHamMenu();
   window.location.href = 'index.html';
 }
@@ -4704,7 +4832,7 @@ async function init() {
   // 3. Roteamento inicial. Deep-link ?msg=<id> abre as Mensagens (a própria
   //    tela trata logado/deslogado); senão, pula o onboarding se já logado.
   const _params = new URLSearchParams(window.location.search);
-  if (_params.has('msg')) nav('mensagens');
+  if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
   else if (_currentUser) nav('home');
 
   if (!document.getElementById('shake-style')) {

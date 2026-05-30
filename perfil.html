@@ -30,7 +30,10 @@ body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-
 
 /* Cover + Avatar */
 .cover-wrap { position:relative; height:220px; background:linear-gradient(135deg, #1a2540, #0f1623); overflow:hidden; }
-.cover-img { width:100%; height:100%; object-fit:cover; display:block; }
+/* #cover-content precisa preencher o wrap, senão o height:100% da imagem não
+   resolve (fica com altura intrínseca) e sobra um vão acima do avatar. */
+#cover-content { position:absolute; inset:0; }
+.cover-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; display:block; }
 .cover-edit-btn {
   position:absolute; top:12px; right:12px;
   background:rgba(8,13,24,.8); border:1px solid var(--border); color:#fff;
@@ -408,6 +411,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }
 });
 
+// Service worker — só pra notificações (não faz cache).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(e => console.warn('[sw]', e));
+  });
+}
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -596,6 +606,7 @@ async function carregar() {
   if (_ehProprio && startEdit) _editMode = true;
 
   renderAll();
+  iniciarRealtimePerfil();   // solicitações/seguidores em tempo real
 }
 
 function renderAll() {
@@ -2159,6 +2170,95 @@ async function logout() {
   if (!confirm('Sair da conta?')) return;
   await sb.auth.signOut();
   window.location.href = 'index.html';
+}
+
+// ─── REALTIME + NOTIFICAÇÕES (perfil) ──────────────────────────
+// Assina as mudanças em follows pro MEU usuário (followed_id = eu). Atualiza
+// ao vivo o card de solicitações e os contadores, com toast + notificação.
+let _rtPerfil = null;
+let _notifPedidaP = false;
+
+function iniciarRealtimePerfil() {
+  if (!_meuId) return;
+  pedirPermissaoNotifP();
+  if (_rtPerfil) return;
+  _rtPerfil = sb.channel('rtp-' + _meuId)
+    .on('postgres_changes',
+      { event: '*', schema: 'public', table: 'follows', filter: 'followed_id=eq.' + _meuId },
+      (p) => onFollowRealtime(p))
+    .subscribe();
+}
+
+async function onFollowRealtime(payload) {
+  if (!_meuId) return;
+  // Reconcilia contadores + solicitações com o banco (idempotente — não conta
+  // em dobro quando fui eu que aprovei/recusei).
+  await recarregarSocial();
+  // Avisa só quando ENTRA uma solicitação/seguidor novo.
+  const novo = payload.new || {};
+  if (payload.eventType === 'INSERT' && novo.follower_id && novo.follower_id !== _meuId) {
+    const nome = await nomePublicoP(novo.follower_id);
+    if (novo.status === 'pendente') { toastPerfil('🔔 ' + nome + ' quer te seguir'); notificarCelularP('🔔 Nova solicitação', nome + ' quer te seguir'); }
+    else { toastPerfil('👋 ' + nome + ' começou a te seguir'); notificarCelularP('👋 Novo seguidor', nome + ' começou a te seguir'); }
+  }
+}
+
+async function recarregarSocial() {
+  const [fcRes, solicRes] = await Promise.all([
+    sb.from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', _alvoId).eq('status', 'aceito'),
+    _ehProprio
+      ? sb.from('follows').select('follower_id, criado_em').eq('followed_id', _meuId).eq('status', 'pendente').order('criado_em', { ascending: false })
+      : Promise.resolve({ data: [] }),
+  ]);
+  _followersCount = fcRes.count || 0;
+  if (_ehProprio) {
+    const pend = solicRes.data || [];
+    if (pend.length) {
+      const { data: profs } = await sb.from('profiles_publicos').select('id,nome_completo,avatar_url').in('id', pend.map(r => r.follower_id));
+      const pmap = new Map((profs || []).map(p => [p.id, p]));
+      _solicitacoes = pend.map(r => ({ ...r, prof: pmap.get(r.follower_id) || {} }));
+    } else {
+      _solicitacoes = [];
+    }
+    renderSobre();
+  }
+  renderHead();
+}
+
+async function nomePublicoP(id) {
+  try { const { data } = await sb.from('profiles_publicos').select('nome_completo').eq('id', id).maybeSingle(); return data?.nome_completo || 'Alguém'; }
+  catch (_) { return 'Alguém'; }
+}
+
+// Toast simples (perfil.html não tinha um).
+function toastPerfil(msg) {
+  let t = $('toast-perfil');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast-perfil';
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:9999;background:var(--surface,#10182a);border:1px solid var(--accent,#e85d04);color:#fff;font-size:13px;font-weight:600;padding:12px 18px;border-radius:8px;max-width:90%;text-align:center;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1'; t.style.transform = 'translateX(-50%) translateY(0)';
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.opacity = '0'; t.style.transform = 'translateX(-50%) translateY(8px)'; }, 4200);
+}
+
+function pedirPermissaoNotifP() {
+  if (_notifPedidaP || !('Notification' in window)) return;
+  _notifPedidaP = true;
+  if (Notification.permission === 'default') setTimeout(() => { try { Notification.requestPermission(); } catch (_) {} }, 2500);
+}
+
+function notificarCelularP(titulo, corpo) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (document.visibilityState === 'visible' && document.hasFocus()) return;
+    const opts = { body: corpo, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'cavalaria-perfil', renotify: true, data: { destino: 'perfil' } };
+    if (navigator.serviceWorker && navigator.serviceWorker.ready) navigator.serviceWorker.ready.then(reg => reg.showNotification(titulo, opts)).catch(() => { try { new Notification(titulo, opts); } catch (_) {} });
+    else new Notification(titulo, opts);
+  } catch (e) { console.warn('[notif]', e); }
 }
 
 // Boot
