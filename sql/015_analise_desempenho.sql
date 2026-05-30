@@ -116,8 +116,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT r.colocacao, r.penalidade, r.prova_id,
            normaliza_cavalo(r.cavalo_nome) AS cnome
     FROM resultados r
-    JOIN provas p   ON p.id = r.prova_id
-    JOIN torneios t ON t.id = p.torneio_id
+    LEFT JOIN provas p   ON p.id = r.prova_id
+    LEFT JOIN torneios t ON t.id = p.torneio_id
     WHERE upper(normaliza_cavaleiro(r.cavaleiro_nome)) = upper(trim(nome_input))
       AND (ano_input  IS NULL OR ano_de(t.data_inicio::text) = ano_input)
       AND (meses_input IS NULL OR mes_de(t.data_inicio::text) = ANY(meses_input))
@@ -158,8 +158,8 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
     SELECT r.colocacao, r.penalidade, r.prova_id,
            normaliza_cavaleiro(r.cavaleiro_nome) AS rnome
     FROM resultados r
-    JOIN provas p   ON p.id = r.prova_id
-    JOIN torneios t ON t.id = p.torneio_id
+    LEFT JOIN provas p   ON p.id = r.prova_id
+    LEFT JOIN torneios t ON t.id = p.torneio_id
     WHERE upper(normaliza_cavalo(r.cavalo_nome)) = upper(trim(cavalo_input))
       AND (ano_input  IS NULL OR ano_de(t.data_inicio::text) = ano_input)
       AND (meses_input IS NULL OR mes_de(t.data_inicio::text) = ANY(meses_input))

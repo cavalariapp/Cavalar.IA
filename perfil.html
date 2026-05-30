@@ -1127,18 +1127,16 @@ async function recarregarStatsCavaleiro() {
 // ═══ CAVALOS DO CRIADOR / PROPRIETÁRIO ═════════════════════════
 function cavalosEditCardHtml() {
   if (!ehCriadorOuProp(_profile)) return '';
-  const temCriador = (_profile.tipos || []).includes('criador');
-  const temProp    = (_profile.tipos || []).includes('proprietario');
-  const relToggle = (temCriador && temProp) ? `
+  const relToggle = `
+    <div class="filtro-lbl" style="margin-bottom:6px">Relação com o cavalo (escolha antes de adicionar):</div>
     <div class="rel-toggle">
       <span class="fchip active" data-rel="proprietario">Proprietário</span>
       <span class="fchip" data-rel="criador">Criação</span>
-    </div>` : '';
-  const verbo = (temCriador && !temProp) ? 'criou' : (temProp && !temCriador) ? 'possui' : 'criou ou possui';
+    </div>`;
   return `
     <div class="card" id="cavalos-edit-card">
       <div class="section-title">Meus cavalos</div>
-      <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">Registre cavalos que você ${verbo} pra exibir o desempenho deles no seu perfil. Comece a digitar e escolha um nome que o sistema encontrou nos resultados.</p>
+      <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">Registre cavalos que você criou ou possui pra exibir o desempenho deles no seu perfil. Comece a digitar e escolha um nome que o sistema encontrou nos resultados.</p>
       ${relToggle}
       <div class="ac-wrap">
         <input class="input" id="cav-search" placeholder="Buscar nome do cavalo…" autocomplete="off">
@@ -1152,8 +1150,8 @@ function wireCavalosEdit() {
   const card = $('cavalos-edit-card');
   if (!card) return;
 
-  // Relação default conforme tipo do usuário
-  _relSelecionada = (_profile.tipos || []).includes('proprietario') ? 'proprietario' : 'criador';
+  // Default: proprietário (relação mais comum); o usuário troca por cavalo no seletor
+  _relSelecionada = 'proprietario';
   card.querySelectorAll('.rel-toggle .fchip').forEach(c => {
     c.onclick = () => {
       card.querySelectorAll('.rel-toggle .fchip').forEach(x => x.classList.remove('active'));
@@ -1242,7 +1240,7 @@ function renderMeusCavalosList() {
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
         <div style="display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap">
           <span style="font-weight:600;font-size:13.5px">${esc(c.cavalo_nome)}</span>
-          <span class="cavalo-rel ${relCls}">${relLbl}</span>
+          <span class="cavalo-rel ${relCls}" onclick="trocarRelacao(${c.id})" title="Clique para alternar Proprietário / Criação" style="cursor:pointer">${relLbl} ⇄</span>
         </div>
         <button class="cavalo-remove" onclick="removerCavalo(${c.id})" title="Remover">×</button>
       </div>`;
@@ -1254,6 +1252,32 @@ async function removerCavalo(id) {
   const { error } = await sb.from('profile_cavalos').delete().eq('id', id);
   if (error) { alert('Erro: ' + error.message); return; }
   _meusCavalos = _meusCavalos.filter(c => c.id !== id);
+  if (_editMode) renderMeusCavalosList();
+  else renderSobre();
+}
+
+// Alterna proprietário ⇄ criação de um cavalo já salvo.
+// RLS de profile_cavalos só tem INSERT/DELETE/SELECT (sem UPDATE),
+// então a troca é feita via delete + insert da nova relação.
+async function trocarRelacao(id) {
+  if (!_ehProprio) return;
+  const c = _meusCavalos.find(x => x.id === id);
+  if (!c) return;
+  const nova = c.relacao === 'criador' ? 'proprietario' : 'criador';
+  // Se o mesmo cavalo já existe com a relação destino, só descarta a duplicata.
+  const jaTem = _meusCavalos.some(x => x.id !== id
+    && x.cavalo_nome.toLowerCase() === c.cavalo_nome.toLowerCase()
+    && x.relacao === nova);
+  const { error: delErr } = await sb.from('profile_cavalos').delete().eq('id', id);
+  if (delErr) { alert('Erro: ' + delErr.message); return; }
+  _meusCavalos = _meusCavalos.filter(x => x.id !== id);
+  if (!jaTem) {
+    const { data, error } = await sb.from('profile_cavalos')
+      .insert({ profile_id: _meuId, cavalo_nome: c.cavalo_nome, relacao: nova })
+      .select().single();
+    if (error) { alert('Erro: ' + error.message); return; }
+    _meusCavalos.push(data);
+  }
   if (_editMode) renderMeusCavalosList();
   else renderSobre();
 }
