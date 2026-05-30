@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.css">
 <style>
 :root {
   --bg:#080d18; --surface:#0f1623; --surface2:#141e2e; --fg:#fff; --muted:#7a8ba8;
@@ -159,6 +160,74 @@ body { background:var(--bg); color:var(--fg); font-family:var(--font-body); min-
 .spinner { width:36px; height:36px; border:3px solid var(--surface2); border-top-color:var(--accent); border-radius:50%; animation:spin 1s linear infinite; margin:80px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
+/* Follower stats */
+.follow-stats { display:flex; gap:18px; margin-top:14px; }
+.follow-stat { font-size:13px; color:var(--muted); cursor:pointer; }
+.follow-stat b { color:var(--fg); font-weight:700; }
+.follow-stat:hover b { color:var(--accent); }
+
+/* Compose: visibility selector */
+.compose-vis { display:flex; gap:6px; margin-top:8px; }
+.compose-vis-chip {
+  background:var(--surface2); border:1px solid var(--border); color:var(--muted);
+  padding:5px 10px; border-radius:12px; font-size:10.5px; font-weight:700;
+  cursor:pointer; text-transform:uppercase; letter-spacing:.06em;
+}
+.compose-vis-chip.active { background:var(--accent-dim); border-color:var(--accent); color:var(--accent); }
+
+/* Likes/comments */
+.post-stats { display:flex; gap:14px; margin-top:8px; padding-top:8px; border-top:1px solid var(--border); align-items:center; }
+.post-stat-btn {
+  background:none; border:none; color:var(--muted); font-size:12.5px;
+  cursor:pointer; display:flex; align-items:center; gap:5px;
+  padding:3px 0; font-family:inherit;
+}
+.post-stat-btn:hover { color:var(--accent); }
+.post-stat-btn.liked { color:#ff4a6b; }
+.post-stat-btn.liked:hover { color:#ff4a6b; }
+.post-stat-btn svg { width:16px; height:16px; }
+
+.post-comments { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:none; }
+.post-comments.open { display:block; }
+.comment-item { display:flex; gap:8px; margin-bottom:8px; align-items:flex-start; }
+.comment-avatar { width:28px; height:28px; border-radius:50%; background:linear-gradient(135deg,var(--accent),#d44309); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:900; color:#fff; flex-shrink:0; overflow:hidden; }
+.comment-avatar img { width:100%; height:100%; object-fit:cover; }
+.comment-bubble { background:var(--surface2); padding:7px 11px; border-radius:14px; font-size:12.5px; line-height:1.4; flex:1; word-break:break-word; }
+.comment-bubble b { font-weight:700; margin-right:4px; }
+.comment-bubble b a { color:#fff; text-decoration:none; }
+.comment-time { font-size:10px; color:var(--muted); margin-top:2px; padding-left:11px; }
+.comment-del { background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer; padding:0 4px; }
+.comment-del:hover { color:#ff6b6b; }
+.comment-input-wrap { display:flex; gap:8px; align-items:center; margin-top:6px; }
+.comment-input {
+  flex:1; background:var(--bg); border:1px solid var(--border); color:#fff;
+  border-radius:14px; padding:7px 12px; font-size:12.5px; font-family:inherit; outline:none;
+}
+.comment-input:focus { border-color:var(--accent); }
+.comment-send-btn {
+  background:var(--accent); color:#fff; border:none; border-radius:14px;
+  padding:7px 12px; font-size:11px; font-weight:700; cursor:pointer;
+}
+
+/* DM button */
+.btn-dm { background:transparent; color:var(--accent); border:1px solid var(--accent); padding:10px 14px; border-radius:5px; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; cursor:pointer; }
+.btn-dm:hover { background:var(--accent-dim); }
+
+/* Crop modal */
+.crop-modal {
+  position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:1000;
+  display:none; align-items:center; justify-content:center; padding:14px;
+}
+.crop-modal.open { display:flex; }
+.crop-modal-inner {
+  background:var(--surface); border-radius:8px; padding:18px;
+  max-width:480px; width:100%;
+}
+.crop-modal-title { font-family:var(--font-display); font-size:20px; font-weight:900; margin-bottom:12px; }
+.crop-img-wrap { max-height:60vh; overflow:hidden; background:#000; border-radius:5px; }
+.crop-img-wrap img { display:block; max-width:100%; }
+.crop-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+
 .contact-line { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13.5px; }
 .contact-line a { color:var(--accent); text-decoration:none; }
 .contact-line a:hover { text-decoration:underline; }
@@ -217,6 +286,19 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- Modal de crop -->
+<div class="crop-modal" id="crop-modal">
+  <div class="crop-modal-inner">
+    <div class="crop-modal-title" id="crop-modal-title">Ajustar imagem</div>
+    <div class="crop-img-wrap"><img id="crop-img" src=""></div>
+    <div class="crop-actions">
+      <button class="btn btn-outline" onclick="cancelCrop()">Cancelar</button>
+      <button class="btn" id="crop-confirm-btn" onclick="confirmCrop()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.1/dist/cropper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPABASE_URL = 'https://vetkgrksvbegifotmltv.supabase.co';
@@ -250,6 +332,11 @@ let _interesses = [];
 let _stats = null;
 let _editMode = false;
 let _alvoId = null;
+let _meuId = null;          // ID do usuário logado (pode ser diferente do _alvoId)
+let _isFollowing = false;   // estou seguindo _alvoId?
+let _followersCount = 0;    // qtd que seguem _alvoId
+let _followingCount = 0;    // qtd que _alvoId segue
+let _composeVis = 'publico'; // publico | seguidores
 
 async function carregar() {
   const params = new URLSearchParams(window.location.search);
@@ -257,15 +344,15 @@ async function carregar() {
   const startEdit = params.get('edit') === '1';
 
   const { data: { session } } = await sb.auth.getSession();
-  const meuId = session?.user?.id || null;
-  _alvoId = userIdParam || meuId;
+  _meuId = session?.user?.id || null;
+  _alvoId = userIdParam || _meuId;
 
   if (!_alvoId) {
     window.location.href = 'login.html';
     return;
   }
 
-  _ehProprio = meuId && (meuId === _alvoId);
+  _ehProprio = _meuId && (_meuId === _alvoId);
 
   const { data: profile, error } = await sb.from('profiles').select('*').eq('id', _alvoId).single();
   if (error || !profile) {
@@ -278,14 +365,22 @@ async function carregar() {
   }
   _profile = profile;
 
-  const [interessesRes, statsRes] = await Promise.all([
+  const [interessesRes, statsRes, followersRes, followingRes, eusigoRes] = await Promise.all([
     sb.from('profile_interesses').select('pergunta_id, resposta').eq('profile_id', _alvoId),
     profile.cavaleiro_nome
       ? sb.rpc('match_cavaleiro', { nome_input: profile.cavaleiro_nome }).then(r => r.data?.[0])
       : Promise.resolve(null),
+    sb.from('follows').select('*', { count: 'exact', head: true }).eq('followed_id', _alvoId),
+    sb.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', _alvoId),
+    _meuId && !_ehProprio
+      ? sb.from('follows').select('follower_id').eq('follower_id', _meuId).eq('followed_id', _alvoId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   _interesses = interessesRes.data || [];
   _stats = statsRes || null;
+  _followersCount = followersRes.count || 0;
+  _followingCount = followingRes.count || 0;
+  _isFollowing = !!eusigoRes.data;
 
   $('loading').style.display = 'none';
   $('content').style.display = 'block';
@@ -334,7 +429,12 @@ function renderHead() {
     _profile.estado ? `<span class="meta-chip">📍 ${esc(_profile.estado)}</span>` : '',
     _profile.cavaleiro_match_confirmado ? `<span class="meta-chip verified">✓ Cavaleiro verificado</span>` : '',
   ].join('');
-  $('profile-meta').innerHTML = metaHtml;
+  $('profile-meta').innerHTML = metaHtml + `
+    <div class="follow-stats" style="width:100%">
+      <div class="follow-stat"><b>${_followersCount}</b> seguidores</div>
+      <div class="follow-stat"><b>${_followingCount}</b> seguindo</div>
+    </div>
+  `;
 
   const actions = $('head-actions');
   if (_ehProprio) {
@@ -344,8 +444,15 @@ function renderHead() {
       </button>
       <button class="btn-outline btn" onclick="logout()">Sair</button>
     `;
+  } else if (_meuId) {
+    actions.innerHTML = `
+      <button class="btn ${_isFollowing ? 'btn-outline' : ''}" onclick="toggleFollow()">
+        ${_isFollowing ? '✓ Seguindo' : '+ Seguir'}
+      </button>
+      <button class="btn-dm" onclick="abrirDM()">💬 Mensagem</button>
+    `;
   } else {
-    actions.innerHTML = `<span class="meta-chip">Visualizando perfil público</span>`;
+    actions.innerHTML = `<a href="login.html" class="btn">Entrar pra seguir</a>`;
   }
 }
 
@@ -505,26 +612,72 @@ async function uploadImagem(file, bucket) {
   return data?.publicUrl || null;
 }
 
-$('avatar-file')?.addEventListener('change', async (e) => {
+// ─── Crop ──────────────────────────────────────────────────────
+let _cropper = null;
+let _cropTarget = null; // 'avatar' ou 'cover'
+
+function abrirCrop(file, target) {
+  _cropTarget = target;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    $('crop-img').src = e.target.result;
+    $('crop-modal-title').textContent = target === 'avatar' ? 'Ajustar foto de perfil (quadrado)' : 'Ajustar capa (banner 16:6)';
+    $('crop-modal').classList.add('open');
+    if (_cropper) _cropper.destroy();
+    setTimeout(() => {
+      _cropper = new Cropper($('crop-img'), {
+        aspectRatio: target === 'avatar' ? 1 : 16/6,
+        viewMode: 1,
+        autoCropArea: 1,
+        background: false,
+        movable: true, zoomable: true, rotatable: false, scalable: false,
+      });
+    }, 50);
+  };
+  reader.readAsDataURL(file);
+}
+
+function cancelCrop() {
+  if (_cropper) { _cropper.destroy(); _cropper = null; }
+  $('crop-modal').classList.remove('open');
+}
+
+async function confirmCrop() {
+  if (!_cropper) return;
+  const btn = $('crop-confirm-btn');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+
+  const targetSize = _cropTarget === 'avatar' ? { w: 400, h: 400 } : { w: 1200, h: 450 };
+  const canvas = _cropper.getCroppedCanvas({ width: targetSize.w, height: targetSize.h, imageSmoothingQuality: 'high' });
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.88));
+  const file = new File([blob], 'crop.jpg', { type: 'image/jpeg' });
+
+  const bucket = _cropTarget === 'avatar' ? 'avatars' : 'covers';
+  const url = await uploadImagem(file, bucket);
+  if (!url) { btn.disabled = false; btn.textContent = 'Confirmar'; return; }
+
+  const updateField = _cropTarget === 'avatar' ? 'avatar_url' : 'capa_url';
+  const { error } = await sb.from('profiles').update({ [updateField]: url }).eq('id', _profile.id);
+  if (error) { alert('Erro: ' + error.message); btn.disabled = false; btn.textContent = 'Confirmar'; return; }
+
+  _profile[updateField] = url;
+  if (_cropTarget === 'avatar') renderAvatar(); else renderCover();
+  cancelCrop();
+  btn.disabled = false; btn.textContent = 'Confirmar';
+}
+
+$('avatar-file')?.addEventListener('change', (e) => {
   const file = e.target.files?.[0]; e.target.value = '';
   if (!file) return;
-  const url = await uploadImagem(file, 'avatars');
-  if (!url) return;
-  const { error } = await sb.from('profiles').update({ avatar_url: url }).eq('id', _profile.id);
-  if (error) { alert('Erro: ' + error.message); return; }
-  _profile.avatar_url = url;
-  renderAvatar();
+  if (file.size > 8 * 1024 * 1024) { alert('Imagem muito grande (máx 8MB)'); return; }
+  abrirCrop(file, 'avatar');
 });
 
-$('cover-file')?.addEventListener('change', async (e) => {
+$('cover-file')?.addEventListener('change', (e) => {
   const file = e.target.files?.[0]; e.target.value = '';
   if (!file) return;
-  const url = await uploadImagem(file, 'covers');
-  if (!url) return;
-  const { error } = await sb.from('profiles').update({ capa_url: url }).eq('id', _profile.id);
-  if (error) { alert('Erro: ' + error.message); return; }
-  _profile.capa_url = url;
-  renderCover();
+  if (file.size > 8 * 1024 * 1024) { alert('Imagem muito grande (máx 8MB)'); return; }
+  abrirCrop(file, 'cover');
 });
 
 // ─── FEED ──────────────────────────────────────────────────────
@@ -553,6 +706,11 @@ async function renderFeed() {
             <button class="btn" id="btn-publicar" onclick="publicar()">Publicar</button>
           </div>
         </div>
+        <div class="compose-vis">
+          <span style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-right:4px;align-self:center">Quem vê:</span>
+          <span class="compose-vis-chip ${_composeVis==='publico'?'active':''}" onclick="setComposeVis('publico')">🌐 Todos</span>
+          <span class="compose-vis-chip ${_composeVis==='seguidores'?'active':''}" onclick="setComposeVis('seguidores')">👥 Só seguidores</span>
+        </div>
         <input type="file" id="c-imgfile" accept="image/*">
       </div>
     `;
@@ -576,14 +734,31 @@ async function renderFeed() {
     });
   }
 
-  // Carrega posts
-  const { data } = await sb.from('feed_posts')
-    .select('id,texto,imagem_url,tipo,criado_em')
+  // Carrega posts com contadores agregados
+  const { data } = await sb.from('feed_posts_aggregated')
+    .select('id,texto,imagem_url,tipo,criado_em,visibilidade,likes_count,comments_count')
     .eq('profile_id', _alvoId)
     .order('criado_em', { ascending: false })
     .limit(50);
   _feedPosts = data || [];
+
+  // Carrega que posts eu curti (se logado)
+  if (_meuId && _feedPosts.length) {
+    const ids = _feedPosts.map(p => p.id);
+    const { data: meusLikes } = await sb.from('post_likes')
+      .select('post_id').eq('profile_id', _meuId).in('post_id', ids);
+    const meusLikesSet = new Set((meusLikes || []).map(l => l.post_id));
+    _feedPosts.forEach(p => { p._liked_by_me = meusLikesSet.has(p.id); });
+  }
+
   renderFeedList();
+}
+
+function setComposeVis(v) {
+  _composeVis = v;
+  document.querySelectorAll('.compose-vis-chip').forEach(c => {
+    c.classList.toggle('active', (v==='publico' && c.textContent.includes('Todos')) || (v==='seguidores' && c.textContent.includes('seguidores')));
+  });
 }
 
 function setComposeTipo(t) {
@@ -602,18 +777,28 @@ function renderFeedList() {
   list.innerHTML = _feedPosts.map(p => {
     const tipoLabel = p.tipo === 'anuncio' ? '<span class="post-tipo anuncio">Anúncio</span>'
                     : p.tipo === 'foto'    ? '<span class="post-tipo foto">Foto</span>' : '';
+    const visIcon = p.visibilidade === 'seguidores' ? ' 👥' : '';
+    const heartFill = p._liked_by_me ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`;
     return `
-      <div class="post-card">
+      <div class="post-card" id="post-${p.id}">
         <div class="post-head">
           <div class="post-avatar">${_profile.avatar_url ? `<img src="${esc(_profile.avatar_url)}">` : esc(inicial)}</div>
           <div style="flex:1">
             <div class="post-author-name">${esc(_profile.nome_completo || '')}${tipoLabel}</div>
-            <div class="post-time">${formatTempo(p.criado_em)}</div>
+            <div class="post-time">${formatTempo(p.criado_em)}${visIcon}</div>
           </div>
           ${_ehProprio ? `<button class="post-action-btn" onclick="deletarPost(${p.id})" title="Excluir">🗑</button>` : ''}
         </div>
         ${p.texto ? `<div class="post-text">${esc(p.texto)}</div>` : ''}
         ${p.imagem_url ? `<img class="post-img" src="${esc(p.imagem_url)}">` : ''}
+        <div class="post-stats">
+          <button class="post-stat-btn ${p._liked_by_me ? 'liked' : ''}" onclick="toggleLike(${p.id})">${heartFill}<span id="likes-${p.id}">${p.likes_count || 0}</span></button>
+          <button class="post-stat-btn" onclick="toggleComments(${p.id})">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span id="comments-${p.id}">${p.comments_count || 0}</span>
+          </button>
+        </div>
+        <div class="post-comments" id="comments-box-${p.id}"></div>
       </div>
     `;
   }).join('');
@@ -649,13 +834,98 @@ async function publicar() {
     texto: texto || null,
     imagem_url,
     tipo: _composeTipo,
+    visibilidade: _composeVis,
   });
   if (error) { alert('Erro: ' + error.message); btn.disabled = false; btn.textContent = 'Publicar'; return; }
   $('c-texto').value = '';
   $('c-preview').style.display = 'none';
   _composeImgFile = null;
   _composeTipo = 'recado';
+  _composeVis = 'publico';
   renderFeed();
+}
+
+// ─── Likes + Comments ──────────────────────────────────────────
+async function toggleLike(postId) {
+  if (!_meuId) { window.location.href = 'login.html'; return; }
+  const post = _feedPosts.find(p => p.id === postId);
+  if (!post) return;
+  if (post._liked_by_me) {
+    await sb.from('post_likes').delete().eq('post_id', postId).eq('profile_id', _meuId);
+    post._liked_by_me = false; post.likes_count = Math.max(0, (post.likes_count||0) - 1);
+  } else {
+    await sb.from('post_likes').insert({ post_id: postId, profile_id: _meuId });
+    post._liked_by_me = true; post.likes_count = (post.likes_count||0) + 1;
+  }
+  renderFeedList();
+}
+
+async function toggleComments(postId) {
+  const box = $(`comments-box-${postId}`);
+  if (!box) return;
+  if (box.classList.contains('open')) { box.classList.remove('open'); box.innerHTML = ''; return; }
+  box.classList.add('open');
+  box.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:6px">Carregando comentários…</div>';
+  const { data } = await sb.from('post_comments')
+    .select('id,texto,criado_em,profile_id,profiles!inner(id,nome_completo,avatar_url)')
+    .eq('post_id', postId)
+    .order('criado_em', { ascending: true });
+  renderComments(postId, data || []);
+}
+
+function renderComments(postId, list) {
+  const box = $(`comments-box-${postId}`);
+  if (!box) return;
+  const itemsHtml = list.map(c => {
+    const prof = c.profiles || {};
+    const ini = (prof.nome_completo || '?').trim().split(/\s+/)[0]?.[0]?.toUpperCase() || '?';
+    const av = prof.avatar_url ? `<img src="${esc(prof.avatar_url)}">` : esc(ini);
+    const podeDeletar = _meuId === c.profile_id;
+    return `
+      <div class="comment-item">
+        <div class="comment-avatar">${av}</div>
+        <div style="flex:1;min-width:0">
+          <div class="comment-bubble"><b><a href="perfil.html?u=${prof.id}">${esc(prof.nome_completo || '')}</a></b>${esc(c.texto)}</div>
+          <div class="comment-time">${formatTempo(c.criado_em)}</div>
+        </div>
+        ${podeDeletar ? `<button class="comment-del" onclick="deletarComment(${c.id},${postId})">×</button>` : ''}
+      </div>
+    `;
+  }).join('');
+  const inputHtml = _meuId ? `
+    <div class="comment-input-wrap">
+      <input class="comment-input" id="ci-${postId}" placeholder="Escreva um comentário…" onkeydown="if(event.key==='Enter')enviarComment(${postId})">
+      <button class="comment-send-btn" onclick="enviarComment(${postId})">Enviar</button>
+    </div>
+  ` : '';
+  box.innerHTML = itemsHtml + inputHtml;
+}
+
+async function enviarComment(postId) {
+  const input = $(`ci-${postId}`);
+  if (!input) return;
+  const texto = input.value.trim();
+  if (!texto) return;
+  input.value = '';
+  const { error } = await sb.from('post_comments').insert({ post_id: postId, profile_id: _meuId, texto });
+  if (error) { alert('Erro: ' + error.message); return; }
+  // Atualiza contador local
+  const post = _feedPosts.find(p => p.id === postId);
+  if (post) post.comments_count = (post.comments_count || 0) + 1;
+  const cnt = $(`comments-${postId}`); if (cnt) cnt.textContent = post.comments_count;
+  // Recarrega lista de comments
+  toggleComments(postId); // fecha
+  setTimeout(() => toggleComments(postId), 50); // reabre
+}
+
+async function deletarComment(commentId, postId) {
+  if (!confirm('Excluir esse comentário?')) return;
+  const { error } = await sb.from('post_comments').delete().eq('id', commentId);
+  if (error) { alert('Erro: ' + error.message); return; }
+  const post = _feedPosts.find(p => p.id === postId);
+  if (post) post.comments_count = Math.max(0, (post.comments_count || 0) - 1);
+  const cnt = $(`comments-${postId}`); if (cnt) cnt.textContent = post.comments_count;
+  toggleComments(postId); setTimeout(() => toggleComments(postId), 50);
 }
 
 async function deletarPost(id) {
@@ -664,6 +934,29 @@ async function deletarPost(id) {
   if (error) { alert('Erro: ' + error.message); return; }
   _feedPosts = _feedPosts.filter(p => p.id !== id);
   renderFeedList();
+}
+
+// ─── Follow ────────────────────────────────────────────────────
+async function toggleFollow() {
+  if (!_meuId) { window.location.href = 'login.html'; return; }
+  if (_ehProprio) return;
+  if (_isFollowing) {
+    const { error } = await sb.from('follows').delete().eq('follower_id', _meuId).eq('followed_id', _alvoId);
+    if (error) { alert('Erro: ' + error.message); return; }
+    _isFollowing = false; _followersCount = Math.max(0, _followersCount - 1);
+  } else {
+    const { error } = await sb.from('follows').insert({ follower_id: _meuId, followed_id: _alvoId });
+    if (error) { alert('Erro: ' + error.message); return; }
+    _isFollowing = true; _followersCount++;
+  }
+  renderHead();
+}
+
+// ─── DM ────────────────────────────────────────────────────────
+function abrirDM() {
+  if (!_meuId) { window.location.href = 'login.html'; return; }
+  // Vai pra app principal com query pra abrir conversa
+  window.location.href = `index.html?msg=${_alvoId}`;
 }
 
 // ─── Logout ────────────────────────────────────────────────────
