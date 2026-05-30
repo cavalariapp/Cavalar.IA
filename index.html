@@ -2847,6 +2847,30 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage }
 });
 
+// Cache global do usuário logado — declarado AQUI pra estar disponível pro listener
+let _currentUser = null;
+let _currentProfile = null;
+let _profileLinkMap = new Map();
+
+// Listener REATIVO de auth — pega SIGNED_IN, INITIAL_SESSION, TOKEN_REFRESHED
+sb.auth.onAuthStateChange((event, session) => {
+  console.log('[auth event]', event, !!session?.user);
+  if (session?.user) {
+    _currentUser = session.user;
+    // Se ainda tá no onboarding, força ir pra home
+    const onboarding = document.getElementById('scr-onboarding');
+    if (onboarding?.classList.contains('active') && typeof nav === 'function') {
+      try { nav('home'); } catch (_) {}
+    }
+    if (typeof updateAuthButton === 'function') {
+      try { updateAuthButton(); } catch (_) {}
+    }
+  } else {
+    _currentUser = null;
+    _currentProfile = null;
+  }
+});
+
 const THUMB_GRADIENTS = [
   'linear-gradient(135deg,#1a1028,#2a1010)',
   'linear-gradient(135deg,#101828,#1a1028)',
@@ -3304,12 +3328,6 @@ function initCategories() {
 async function renderHomeContent() {
   await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton()]);
 }
-
-// Cache global do usuário logado (preenchido por updateAuthButton)
-let _currentUser = null;
-let _currentProfile = null;
-// Map: cavaleiro_canonical_lower → profile_id (pra linkificar nomes)
-let _profileLinkMap = new Map();
 
 // Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
 async function loadProfileLinkMap() {
