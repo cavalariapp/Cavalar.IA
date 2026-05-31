@@ -2178,6 +2178,10 @@ async function logout() {
 let _rtPerfil = null;
 let _notifPedidaP = false;
 
+// Chave PÚBLICA VAPID (não é segredo). Cole a MESMA do index.html.
+// Com o placeholder, o push fica desligado e o resto funciona normal.
+const VAPID_PUBLIC_KEY = 'BLQVYePHoUeDt3KrBlqGbI1vwYPo2BqOoUFHfn4mLfSyMdTDsIsfduiBjvZchdjn9Nk8Exc72goFqqWZNAgxO_I';
+
 function iniciarRealtimePerfil() {
   if (!_meuId) return;
   pedirPermissaoNotifP();
@@ -2246,9 +2250,50 @@ function toastPerfil(msg) {
 }
 
 function pedirPermissaoNotifP() {
-  if (_notifPedidaP || !('Notification' in window)) return;
-  _notifPedidaP = true;
-  if (Notification.permission === 'default') setTimeout(() => { try { Notification.requestPermission(); } catch (_) {} }, 2500);
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') { inscreverPush(); return; }
+  if (Notification.permission === 'default' && !_notifPedidaP) {
+    _notifPedidaP = true;
+    setTimeout(() => {
+      try { Promise.resolve(Notification.requestPermission()).then(p => { if (p === 'granted') inscreverPush(); }); } catch (_) {}
+    }, 2500);
+  }
+}
+
+// ── Web Push: inscreve o dispositivo e guarda no Supabase ─────────
+async function inscreverPush() {
+  try {
+    if (!_meuId) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.startsWith('COLE_AQUI')) return;
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    const j = sub.toJSON();
+    if (!j || !j.endpoint || !j.keys) return;
+    await sb.from('push_subscriptions').upsert({
+      user_id: _meuId,
+      endpoint: j.endpoint,
+      p256dh: j.keys.p256dh,
+      auth: j.keys.auth,
+      user_agent: (navigator.userAgent || '').slice(0, 300),
+    }, { onConflict: 'endpoint' });
+  } catch (e) { console.warn('[push]', e); }
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
 }
 
 function notificarCelularP(titulo, corpo) {
