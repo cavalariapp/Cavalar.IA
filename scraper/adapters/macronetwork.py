@@ -270,6 +270,23 @@ def _id_from_query(href):
     return m.group(1) if m else None
 
 
+def _clean(s):
+    """Colapsa espaços/quebras e tira as bordas. '-' e '' viram None (a fonte usa
+    '-' como 'vazio' em equipe/categoria). Preserva o conteúdo real."""
+    if s is None:
+        return None
+    s = re.sub(r"\s+", " ", s).strip()
+    return None if s in ("", "-") else s
+
+
+def _so_digitos(s):
+    """'1 °' / '10º' → 10 (int). None se não houver dígito."""
+    if not s:
+        return None
+    m = re.search(r"\d+", s)
+    return int(m.group()) if m else None
+
+
 def _dedup_segmentos(texto):
     """'1,30M - JCT - 1,30M - JCT' → '1,30M - JCT' (tira repetição, preserva ordem)."""
     if not texto:
@@ -393,4 +410,192 @@ def parse_documentos(html, base_url=None):
                 "data_publicacao": _br_date_to_iso(
                     sp_data.get_text(strip=True) if sp_data else None),
             })
+    return out
+
+
+# ── RESULTADOS (Resultados.aspx?ID=N) — Fase C ────────────────────────
+# DESCOBERTAS DA RECON AO VIVO (FPH 2026-06; PR03 do 3436 = id_origem 14009):
+#   • A página RENDERIZA NO GET SIMPLES (sem postback/Playwright!) — ao contrário
+#     da sanfona de provas. ViewState vem VAZIO (a FPH o desativou). Capturável
+#     com requests → fixture local fph_resultados_14009.html.
+#   • Tipo da prova: div.tipo-prova → "Tipo de Prova: CRONÔMETRO".
+#   • UMA <table>. As linhas REAIS de resultado são <tr class="table-row-styling">;
+#     entre elas há <tr class="detalhe-conjunto hide"> (só um <hr/> escondido —
+#     IGNORAR). Cada linha de resultado:
+#       td.classfic-data[id=499150] > b   → COLOCAÇÃO ("1º"); o id é a CHAVE NATIVA
+#                                            do resultado na fonte (id_origem p/ upsert)
+#       td.colunaCavaleiro .format-coluna-competidor strong → CAVALEIRO
+#         + span.descCompetidor                              → ENTIDADE/clube
+#         + input[id$=hfIDCavaleiro][value]                  → id do cavaleiro na fonte
+#       td.colunaCavalo strong            → CAVALO
+#         + span.descCavalo               → genealogia (Nasc | Sexo | UF | Criador | ...)
+#       td.border-mobile-data (texto)     → CATEGORIA ("JCA")
+#       td.is-desktop                     → EQUIPE ("SHRP" ou "-")
+#       b.falta-soma-color                → PENALIDADE/faltas ("0"/"4"/"16")
+#         OU td.error                     → status ("Eliminado") quando sem faltas
+#       td c/ img.icon-tempo > span       → TEMPO ("63,13"); ausente p/ eliminado
+#   • Cruza 1:1 com a Ordem de Entrada (mesmos 18 conjuntos cavaleiro+cavalo).
+#   ⚠ Layout confirmado p/ CRONÔMETRO. Outros tipos (Duas Fases/Desempate) têm
+#     colunas extras de falta/tempo — endereçar com fixtures próprias antes de
+#     escrever no banco (ver task #14).
+
+def parse_resultados(html, base_url=None):
+    """Extrai os RESULTADOS de uma prova (Resultados.aspx?ID=N), já renderizada
+    no GET. Devolve lista de dicts (uma por conjunto cavaleiro+cavalo), na ordem
+    de classificação. Campos:
+      id_origem          id do resultado na fonte (td.classfic-data[id]) — chave upsert
+      colocacao          "1º"… (formato que resultados.html/RPCs esperam)
+      cavaleiro_nome     nome do competidor
+      entidade           clube/entidade do competidor
+      id_cavaleiro_fonte id do cavaleiro na fonte (hfIDCavaleiro) — futuro cruzamento
+      cavalo_nome        nome do cavalo
+      cavalo_genealogia  "Nasc | Sexo | UF | Criador | …" (texto colapsado)
+      categoria          ex.: "JCA"
+      equipe             ex.: "SHRP" (ou None)
+      penalidade         "0"/"4"/… ou "Eliminado" (status quando sem faltas)
+      tempo              "63,13" (vírgula decimal BR) ou None
+    Tolerante: célula/linha faltando não quebra (campos viram None).
+    """
+    soup = _soup(html)
+    out = []
+    for r in soup.select("tr.table-row-styling"):
+        cl = r.select_one("td.classfic-data")
+        coloc = _clean(cl.find("b").get_text() if cl and cl.find("b") else None)
+        rid = cl.get("id") if cl else None
+
+        cav_el = (r.select_one("td.colunaCavaleiro .format-coluna-competidor strong")
+                  or r.select_one("td.colunaCavaleiro strong"))
+        ent_el = r.select_one("span.descCompetidor")
+        idc_el = r.select_one("td.colunaCavaleiro input[id$=hfIDCavaleiro]")
+
+        cavalo_el = r.select_one("td.colunaCavalo strong")
+        gen_el = r.select_one("td.colunaCavalo span.descCavalo")
+
+        cat_el = r.select_one("td.border-mobile-data")
+        categoria = None
+        if cat_el:
+            direto = cat_el.find(string=True, recursive=False)  # texto antes do span mobile
+            categoria = _clean(direto) or _clean(cat_el.get_text(" ", strip=True))
+        eq_el = r.select_one("td.is-desktop")
+
+        # penalidade: a soma de faltas; se eliminado, o status (td.error)
+        falta_el = r.select_one("b.falta-soma-color") or r.select_one("td.error")
+        # tempo: a td que tem o ícone de relógio (ausente p/ eliminado)
+        tempo = None
+        tempo_td = r.select_one("td:has(img.icon-tempo)")
+        if tempo_td is None:  # :has pode não existir no html.parser — fallback manual
+            for td in r.find_all("td", recursive=False):
+                if td.find("img", class_="icon-tempo"):
+                    tempo_td = td
+                    break
+        if tempo_td is not None:
+            sp = tempo_td.find("span")
+            tempo = _clean(sp.get_text() if sp else None)
+
+        out.append({
+            "id_origem": rid,
+            "colocacao": coloc,
+            "cavaleiro_nome": _clean(cav_el.get_text() if cav_el else None),
+            "entidade": _clean(ent_el.get_text() if ent_el else None),
+            "id_cavaleiro_fonte": (idc_el.get("value") if idc_el else None) or None,
+            "cavalo_nome": _clean(cavalo_el.get_text() if cavalo_el else None),
+            "cavalo_genealogia": _clean(gen_el.get_text(" ") if gen_el else None),
+            "categoria": categoria,
+            "equipe": _clean(eq_el.get_text() if eq_el else None),
+            "penalidade": _clean(falta_el.get_text() if falta_el else None),
+            "tempo": tempo,
+        })
+    return out
+
+
+def parse_prova_tipo(html):
+    """Lê 'Tipo de Prova: CRONÔMETRO' do cabeçalho (div.tipo-prova). Serve de GUARDA:
+    layouts de resultado mudam por tipo. Devolve a string crua do tipo ou None."""
+    soup = _soup(html)
+    el = soup.select_one("div.tipo-prova")
+    if not el:
+        return None
+    t = el.get_text(" ", strip=True)
+    m = re.search(r"tipo de prova\s*:?\s*(.+)$", t, re.IGNORECASE)
+    return _clean(m.group(1)) if m else _clean(t)
+
+
+# ── ORDEM DE ENTRADA (OrdemEntrada.aspx?ID=N) — Fase C ────────────────
+# DESCOBERTAS DA RECON AO VIVO (FPH 2026-06; PR03 do 3436 = id_origem 14009):
+#   • Também RENDERIZA NO GET SIMPLES (sem Playwright). ViewState vazio.
+#   • UMA <table>. As linhas de ordem são <tr> com td.ordem-font-classific;
+#     separadas por <tr class="detalhe-conjunto hide"> (hr escondido — IGNORAR).
+#     Cada linha:
+#       td.ordem-font-classific > b                 → ORDEM ("1 °") → int 1
+#       td.colunaCavaleiro .orderm-coluna-cavaleiro strong → CAVALEIRO
+#         + input[id$=hfIDCavaleiro][value]         → id do cavaleiro na fonte
+#       td.colunaCavalo strong                      → CAVALO
+#         + resto do div                            → genealogia
+#       td.align_center > b (1ª)                    → CATEGORIA ("JCA")
+#       última td > strong                          → PONTUAÇÃO/ranking ("19")
+#   • A ordem de entrada SAI no início do dia e PODE ser corrigida (re-publicada);
+#     a chave estável por linha é (prova, cavaleiro+cavalo). Posições podem ter
+#     gaps (conjunto retirado) — normal.
+
+def parse_ordem_entrada(html, base_url=None):
+    """Extrai a ORDEM DE ENTRADA de uma prova (OrdemEntrada.aspx?ID=N), no GET.
+    Devolve lista de dicts (uma por conjunto), na ordem publicada. Campos:
+      ordem              posição de entrada (int) — pode ter gaps
+      cavaleiro_nome     competidor
+      id_cavaleiro_fonte id do cavaleiro na fonte (hfIDCavaleiro)
+      cavalo_nome        cavalo
+      cavalo_genealogia  texto da genealogia (colapsado)
+      categoria          ex.: "JCA"
+      pontuacao          pontos de ranking exibidos ("19") ou None
+    Tolerante a célula/linha faltando.
+    """
+    soup = _soup(html)
+    tbl = soup.find("table")
+    if not tbl:
+        return []
+    out = []
+    for r in tbl.find_all("tr"):
+        oc = r.select_one("td.ordem-font-classific")
+        if oc is None:               # só as linhas de ordem têm essa td
+            continue
+        ordem = _so_digitos(oc.find("b").get_text() if oc.find("b") else oc.get_text())
+
+        cav_el = (r.select_one("td.colunaCavaleiro .orderm-coluna-cavaleiro strong")
+                  or r.select_one("td.colunaCavaleiro strong"))
+        idc_el = r.select_one("td.colunaCavaleiro input[id$=hfIDCavaleiro]")
+        cavalo_el = r.select_one("td.colunaCavalo strong")
+
+        gen = None
+        gd = r.select_one("td.colunaCavalo div") or r.select_one("td.colunaCavalo")
+        if gd:
+            # genealogia = texto do bloco MENOS o nome do cavalo (o strong)
+            full = _clean(gd.get_text(" "))
+            nome = _clean(cavalo_el.get_text() if cavalo_el else None)
+            if full and nome and full.upper().startswith(nome.upper()):
+                gen = _clean(full[len(nome):])
+            else:
+                gen = full
+
+        # categoria = <b> de uma td.align_center que NÃO é a da ordem
+        # (a td.ordem-font-classific também tem a classe align_center → casaria 1º)
+        cat_el = None
+        for td in r.select("td.align_center"):
+            if "ordem-font-classific" in (td.get("class") or []):
+                continue
+            b = td.find("b")
+            if b and _clean(b.get_text()):
+                cat_el = b
+                break
+        tds = r.find_all("td")
+        pont_el = tds[-1].find("strong") if tds else None
+
+        out.append({
+            "ordem": ordem,
+            "cavaleiro_nome": _clean(cav_el.get_text() if cav_el else None),
+            "id_cavaleiro_fonte": (idc_el.get("value") if idc_el else None) or None,
+            "cavalo_nome": _clean(cavalo_el.get_text() if cavalo_el else None),
+            "cavalo_genealogia": gen,
+            "categoria": _clean(cat_el.get_text() if cat_el else None),
+            "pontuacao": _clean(pont_el.get_text() if pont_el else None),
+        })
     return out

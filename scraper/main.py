@@ -137,6 +137,44 @@ def detalhar(src, native_id, args, writer):
     return 0
 
 
+def inspecionar_prova(src, prova_id, args):
+    """Fase C (dry-run): lê RESULTADOS + ORDEM DE ENTRADA de UMA prova pelo
+    id_origem (GET simples, sem navegador) e imprime o que extrairia. A gravação
+    entra depois (precisa do schema de `resultados` confirmado e de uma tabela de
+    ordem de entrada criada). Imprime as duas listas pra conferência ao vivo."""
+    from scraper import fetch
+    res_url = src["resultados_url"].format(id=prova_id)
+    ord_url = src["ordem_url"].format(id=prova_id)
+
+    res_html = fetch.fetch_resultados(src, prova_id)
+    tipo = mn.parse_prova_tipo(res_html)
+    R = mn.parse_resultados(res_html)
+    print(f"\n══ RESULTADOS {src['codigo']} prova={prova_id}  [tipo: {tipo or '?'}] ══")
+    print(f"  {res_url}")
+    print(f"  {len(R)} colocações")
+    for r in R:
+        print(f"   {str(r['colocacao'] or '?'):>4} | falta {str(r['penalidade'] or '-'):>9} "
+              f"| tempo {str(r['tempo'] or '--'):>7} | id_res {r['id_origem']} "
+              f"| {r['cavaleiro_nome']} >> {r['cavalo_nome']} ({r['categoria'] or '?'})")
+
+    ord_html = fetch.fetch_ordem_entrada(src, prova_id)
+    O = mn.parse_ordem_entrada(ord_html)
+    print(f"\n══ ORDEM DE ENTRADA {src['codigo']} prova={prova_id} ══")
+    print(f"  {ord_url}")
+    print(f"  {len(O)} entradas")
+    for o in O:
+        print(f"   {str(o['ordem'] or '?'):>3}ª | {o['cavaleiro_nome']} >> {o['cavalo_nome']} "
+              f"({o['categoria'] or '?'}) | pont {o['pontuacao'] or '-'}")
+
+    if not R and not O:
+        print("  ⚠ sem resultados e sem ordem — prova ainda não disputada/publicada?")
+    if args.write:
+        print("\n  (—write ignorado p/ --prova: a GRAVAÇÃO de resultados/ordem ainda não "
+              "está habilitada. Falta confirmar o schema de `resultados` e criar a tabela "
+              "de ordem de entrada. Por ora, --prova é sempre dry-run.)")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -156,6 +194,11 @@ def main(argv=None):
                          "provas+documentos e, com --write, faz upsert FK-safe. Sem "
                          "--write é dry-run (imprime o que gravaria). Exige que o "
                          "torneio já exista em `torneios` (rode o calendário antes).")
+    ap.add_argument("--prova", type=str, metavar="ID",
+                    help="Fase C (dry-run): lê RESULTADOS + ORDEM DE ENTRADA da prova ID "
+                         "(id_origem, GET simples — sem navegador) e imprime. A gravação "
+                         "ainda não está habilitada (aguarda schema de `resultados` + "
+                         "tabela de ordem de entrada).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -201,6 +244,18 @@ def main(argv=None):
                   "Abortando (nada gravado).", file=sys.stderr)
             return 3
         return detalhar(src, args.detail, args, writer)
+
+    # Fase C: resultados + ordem de entrada de UMA prova (dry-run, GET simples).
+    if args.prova:
+        src = SRC.get(args.source) if args.source else SRC.get("FPH")
+        if not src:
+            print(f"--prova: fonte inválida: {args.source}", file=sys.stderr)
+            return 2
+        if not src.get("resultados_url"):
+            print(f"--prova: fonte {src['codigo']} sem resultados_url configurado.",
+                  file=sys.stderr)
+            return 2
+        return inspecionar_prova(src, args.prova, args)
 
     if args.source:
         s = SRC.get(args.source)

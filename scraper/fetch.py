@@ -75,6 +75,19 @@ def fetch_calendar_current(source):
     return http_get(source["calendario_url"])
 
 
+# ── Fase C: resultados/ordem POR PROVA — GET simples (sem navegador) ──
+# A página de provas (sanfona) exige Playwright, MAS Resultados.aspx/OrdemEntrada.aspx
+# renderizam no GET puro (recon 2026-06). Logo, basta http_get pelo id_origem da prova.
+def fetch_resultados(source, prova_id):
+    """HTML de Resultados.aspx?ID={id_origem} (GET simples)."""
+    return http_get(source["resultados_url"].format(id=prova_id))
+
+
+def fetch_ordem_entrada(source, prova_id):
+    """HTML de OrdemEntrada.aspx?ID={id_origem} (GET simples)."""
+    return http_get(source["ordem_url"].format(id=prova_id))
+
+
 # ── caminho 2: Playwright (navegador) ────────────────────────────────
 def _new_page(pw, headless=True):
     browser = pw.chromium.launch(headless=headless)

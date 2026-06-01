@@ -10,6 +10,7 @@ import os
 from scraper.adapters.macronetwork import (
     parse_date_range, parse_calendar, read_selected_month, read_pager_pages,
     parse_detalhe_header, parse_documentos, parse_provas,
+    parse_resultados, parse_ordem_entrada, parse_prova_tipo,
 )
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -137,6 +138,70 @@ def test_provas_resultado_url_absoluta_com_base():
         base_url="https://www.fph.com.br/calendario/ListaProvas?ID=3436")
     assert provas[0]["resultado_url"] == \
         "https://www.fph.com.br/calendario/Resultados.aspx?ID=14017"
+
+
+# ── Fase C: RESULTADOS (Resultados.aspx?ID=N) — fixture ao vivo (PR03/14009) ──
+def test_prova_tipo_cronometro():
+    assert parse_prova_tipo(_fixture("fph_resultados_14009.html")) == "CRONÔMETRO"
+
+def test_resultados_extrai_18_linhas_ids_unicos():
+    R = parse_resultados(_fixture("fph_resultados_14009.html"))
+    assert len(R) == 18
+    ids = [r["id_origem"] for r in R]
+    # id do resultado na fonte (td.classfic-data[id]) — chave de upsert FK-safe
+    assert len(set(ids)) == 18 and all(ids)
+
+def test_resultados_primeira_linha_campos():
+    r = parse_resultados(_fixture("fph_resultados_14009.html"))[0]
+    assert r["id_origem"] == "499150"
+    assert r["colocacao"] == "1º"            # formato que resultados.html/RPCs esperam
+    assert r["cavaleiro_nome"] == "RICARDO MASSAITI KOSHIBA DO AMARAL"
+    assert r["entidade"] == "SOCIEDADE HIPICA DE RIBEIRAO PRETO"
+    assert r["cavalo_nome"] == "CARTHEZINA JMEN I (TE)"
+    assert r["categoria"] == "JCA"
+    assert r["equipe"] == "SHRP"
+    assert r["penalidade"] == "0"            # a RPC casa penalidade ~ '^0' (volta limpa)
+    assert r["tempo"] == "63,13"             # vírgula decimal BR preservada
+    assert r["id_cavaleiro_fonte"] == "35326"
+
+def test_resultados_faltas_variam():
+    R = parse_resultados(_fixture("fph_resultados_14009.html"))
+    assert (R[8]["colocacao"], R[8]["penalidade"], R[8]["tempo"]) == ("9º", "4", "60,24")
+    assert R[15]["penalidade"] == "16"
+
+def test_resultados_eliminado_sem_tempo():
+    # eliminado: sem b.falta-soma-color e sem tempo → penalidade="Eliminado", tempo=None
+    R = parse_resultados(_fixture("fph_resultados_14009.html"))
+    elim = [r for r in R if r["tempo"] is None]
+    assert len(elim) == 2
+    assert all(r["penalidade"] == "Eliminado" and r["colocacao"] == "17º" for r in elim)
+
+
+# ── Fase C: ORDEM DE ENTRADA (OrdemEntrada.aspx?ID=N) — fixture ao vivo ──
+def test_ordem_extrai_18_linhas():
+    O = parse_ordem_entrada(_fixture("fph_ordem_14009.html"))
+    assert len(O) == 18
+    assert all(o["cavaleiro_nome"] and o["cavalo_nome"] for o in O)
+
+def test_ordem_primeira_linha_campos():
+    o = parse_ordem_entrada(_fixture("fph_ordem_14009.html"))[0]
+    assert o["ordem"] == 1 and isinstance(o["ordem"], int)
+    assert o["cavaleiro_nome"] == "GUILHERMINA VICTORYA CALDAS LIMA"
+    assert o["cavalo_nome"] == "FADA DA CABANA"
+    assert o["categoria"] == "JCA"           # NÃO pode ser "1 °" (a td da ordem tb é align_center)
+    assert o["pontuacao"] == "19"
+
+def test_ordem_posicoes_podem_ter_gap():
+    # a 9ª posição foi retirada antes da publicação → gap é normal
+    O = parse_ordem_entrada(_fixture("fph_ordem_14009.html"))
+    assert [o["ordem"] for o in O] == [1,2,3,4,5,6,7,8,10,11,12,13,14,15,16,17,18,19]
+
+def test_ordem_cruza_1a1_com_resultados():
+    # FIDELIDADE: ordem e resultados descrevem a MESMA prova → mesmos 18 conjuntos
+    R = parse_resultados(_fixture("fph_resultados_14009.html"))
+    O = parse_ordem_entrada(_fixture("fph_ordem_14009.html"))
+    par = lambda x: (x["cavaleiro_nome"].upper(), x["cavalo_nome"].upper())
+    assert {par(r) for r in R} == {par(o) for o in O}
 
 
 if __name__ == "__main__":

@@ -24,6 +24,10 @@ SOURCES = {
         "calendario_url": "https://www.fph.com.br/calendario/Default",
         # detalhe: ListaProvas.aspx?ID=N redireciona 301 -> /calendario/ListaProvas?ID=N
         "detalhe_url": "https://www.fph.com.br/calendario/ListaProvas?ID={id}",
+        # Fase C: resultados/ordem POR PROVA (id_origem). RENDERIZAM NO GET simples
+        # (sem Playwright) — confirmado na recon 2026-06 (ViewState desativado).
+        "resultados_url": "https://www.fph.com.br/calendario/Resultados.aspx?ID={id}",
+        "ordem_url": "https://www.fph.com.br/calendario/OrdemEntrada.aspx?ID={id}",
         "ativo": True,
     },
 
