@@ -23,7 +23,9 @@ import sys
 
 from scraper import sources as SRC
 from scraper.adapters import macronetwork as mn
-from scraper.db import SupabaseWriter, evento_to_torneio_row
+from scraper.db import (
+    SupabaseWriter, evento_to_torneio_row, prova_to_row, documento_to_row,
+)
 
 
 def coletar(source, args):
@@ -76,6 +78,65 @@ def imprimir(source, evs, modo):
           f"(>1 evento: {sorted([(o,n) for o,n in orgs.items() if n>1], key=lambda x:-x[1])})")
 
 
+def _melhor_provas_html(d):
+    """Escolhe a melhor fonte do HTML das provas: o upCard final (todos os dias
+    expandidos); cai pro último snapshot por dia; por fim a página inteira."""
+    cands = [d.get("provas_html")]
+    days = d.get("provas_days") or []
+    if days:
+        cands.append(days[-1])
+    cands.append(d.get("provas_page_html"))
+    return next((h for h in cands if h and h.strip()), None)
+
+
+def detalhar(src, native_id, args, writer):
+    """Fase B: visita o detalhe de UM torneio, parseia provas+documentos e, com
+    --write, faz upsert FK-safe. Sem --write é dry-run (imprime o que gravaria).
+    Pré-requisito do write: o torneio já existe em `torneios` (a passada de
+    calendário cria); resolve torneio_id por (fonte, id_nativo)."""
+    from scraper import fetch
+    detail_url = src["detalhe_url"].format(id=native_id)
+    d = fetch.fetch_detail(src, native_id, headless=not args.headed)
+
+    provas_html = _melhor_provas_html(d)
+    docs_html = d.get("docs_page_html") or d.get("docs_html")
+    provas = mn.parse_provas(provas_html, base_url=detail_url) if provas_html else []
+    docs = mn.parse_documentos(docs_html, base_url=detail_url) if docs_html else []
+
+    print(f"\n══ DETALHE {src['codigo']} ID={native_id} ({detail_url}) ══")
+    print(f"  provas: {len(provas)} | documentos: {len(docs)}")
+    for p in provas[:25]:
+        print(f"   PR.{str(p['numero'] or '?'):>3} {p['data_prova']} "
+              f"{p['horario'] or '--:--'} | id_origem {p['id_origem']} | {p['nome']}")
+    for doc in docs:
+        print(f"   [{doc['tipo']}] {doc['data_publicacao']} {doc['titulo']}")
+
+    # SINAL DE FANTASMA (regra de ouro): se a fonte não traz provas NEM docs,
+    # ela provavelmente NÃO é dona do evento → não há o que gravar dela.
+    if not provas and not docs:
+        print("  ⚠ sem provas e sem documentos — possível FANTASMA (fonte não-dona). "
+              "Nada a gravar.")
+        return 0
+
+    if not args.write:
+        print("  (dry-run: nada gravado — use --write para persistir)")
+        return 0
+
+    torneio_id = writer.find_torneio_id(src["codigo"], native_id)
+    if torneio_id is None:
+        print(f"  ⚠ torneio {src['codigo']}/{native_id} ainda não está em `torneios`. "
+              f"Rode o calendário (--current --write) antes. Nada gravado.",
+              file=sys.stderr)
+        return 4
+
+    rp = writer.upsert_provas(
+        torneio_id, [prova_to_row(p, torneio_id) for p in provas])
+    rd = writer.upsert_documentos(
+        torneio_id, [documento_to_row(doc, torneio_id) for doc in docs])
+    print(f"  ✓ provas: {rp} | documentos: {rd}")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -90,6 +151,11 @@ def main(argv=None):
                     help="DEBUG/Fase B: captura o detalhe (provas+docs via navegador) "
                          "do torneio ID e imprime o HTML do upCard. Não grava. Use no "
                          "CI com um torneio CONCLUÍDO pra gerar a fixture do parser.")
+    ap.add_argument("--detail", type=str, metavar="ID",
+                    help="Fase B: visita o detalhe do torneio ID (navegador), parseia "
+                         "provas+documentos e, com --write, faz upsert FK-safe. Sem "
+                         "--write é dry-run (imprime o que gravaria). Exige que o "
+                         "torneio já exista em `torneios` (rode o calendário antes).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -122,6 +188,19 @@ def main(argv=None):
         print("\n(dump-detail: nada gravado. Cole o HTML acima numa fixture "
               "scraper/tests/fixtures/ pra travar parse_provas/parse_documentos.)")
         return 0
+
+    # Fase B: parse+upsert do detalhe de UM torneio (provas + documentos).
+    if args.detail:
+        src = SRC.get(args.source) if args.source else SRC.get("FPH")
+        if not src:
+            print(f"--detail: fonte inválida: {args.source}", file=sys.stderr)
+            return 2
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --write pedido mas SUPABASE_URL/SUPABASE_SERVICE_KEY ausentes. "
+                  "Abortando (nada gravado).", file=sys.stderr)
+            return 3
+        return detalhar(src, args.detail, args, writer)
 
     if args.source:
         s = SRC.get(args.source)

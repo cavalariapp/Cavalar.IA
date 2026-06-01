@@ -29,9 +29,13 @@ on:
         type: string
         default: ""
       detail_id:
-        description: "Fase B (debug): captura provas+docs DESTE ID (navegador) e imprime o HTML. Vazio = ignora."
+        description: "Fase B: parseia provas+docs DESTE ID (navegador). Grava se write=true. Vazio = ignora."
         type: string
         default: ""
+      dump:
+        description: "Com detail_id: captura o HTML CRU (pra gerar fixture) em vez de parsear/gravar."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -56,8 +60,10 @@ jobs:
           pip install -r scraper/requirements.txt
           python -m playwright install --with-deps chromium
 
-      - name: Testes do parser (gate)
-        run: python -m scraper.tests.test_macronetwork
+      - name: Testes (gate)
+        # pytest descobre todos os scraper/tests/test_*.py E falha o build no
+        # 1º teste vermelho (os self-runners __main__ sempre saíam 0 = não-gate).
+        run: python -m pytest scraper/tests/ -q
 
       - name: Rodar scraper
         env:
@@ -68,14 +74,23 @@ jobs:
           IN_YEAR: ${{ inputs.year }}
           IN_MONTH: ${{ inputs.month }}
           IN_DETAIL: ${{ inputs.detail_id }}
+          IN_DUMP: ${{ inputs.dump }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
             # agendado: mês atual de todas as fontes ativas, gravando.
             python -m scraper.main --current --write
           elif [ -n "${IN_DETAIL:-}" ]; then
-            # Fase B (debug): captura provas+docs do ID e imprime (não grava).
-            python -m scraper.main --source "${IN_SOURCE:-FPH}" --dump-detail "${IN_DETAIL}"
+            if [ "${IN_DUMP:-false}" = "true" ]; then
+              # captura o HTML CRU do detalhe (gera fixture). Não grava.
+              python -m scraper.main --source "${IN_SOURCE:-FPH}" --dump-detail "${IN_DETAIL}"
+            else
+              # parseia provas+docs do ID; grava (upsert FK-safe) se write=true.
+              ARGS="--source ${IN_SOURCE:-FPH} --detail ${IN_DETAIL}"
+              [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+              echo "args: $ARGS"
+              python -m scraper.main $ARGS
+            fi
           else
             ARGS="--source ${IN_SOURCE:-FPH}"
             if [ -n "${IN_MONTH:-}" ]; then
