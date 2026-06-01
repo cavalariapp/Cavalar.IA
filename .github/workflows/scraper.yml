@@ -1,0 +1,91 @@
+name: Scraper Calendário
+
+# Scraper de PRODUÇÃO (substitui os testes do N8N, que nunca scrapearam de
+# verdade). Roda o parser testado em scraper/ e grava na camada bruta
+# (torneios) de forma idempotente por (fonte, id_nativo).
+#
+# SEGREDOS (Settings → Secrets and variables → Actions):
+#   SUPABASE_URL          ex.: https://vetkgrksvbegifotmltv.supabase.co
+#   SUPABASE_SERVICE_KEY  a chave service_role (NUNCA no código/frontend)
+# Sem esses segredos, qualquer execução com --write aborta sem gravar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Código da fonte (ex.: FPH)"
+        type: string
+        default: "FPH"
+      write:
+        description: "Gravar no Supabase? (false = dry-run, recomendado p/ testar)"
+        type: boolean
+        default: false
+      year:
+        description: "Ano (vazio = atual). Use com month p/ navegar via navegador."
+        type: string
+        default: ""
+      month:
+        description: "Mês 1-12 (vazio = mês atual via requests, sem navegador)"
+        type: string
+        default: ""
+      detail_id:
+        description: "Fase B (debug): captura provas+docs DESTE ID (navegador) e imprime o HTML. Vazio = ignora."
+        type: string
+        default: ""
+  schedule:
+    # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
+    - cron: "0 9,21 * * *"
+
+concurrency:
+  group: scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # Playwright ainda não tem wheel p/ 3.14
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r scraper/requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Testes do parser (gate)
+        run: python -m scraper.tests.test_macronetwork
+
+      - name: Rodar scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          IN_SOURCE: ${{ inputs.source }}
+          IN_WRITE: ${{ inputs.write }}
+          IN_YEAR: ${{ inputs.year }}
+          IN_MONTH: ${{ inputs.month }}
+          IN_DETAIL: ${{ inputs.detail_id }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # agendado: mês atual de todas as fontes ativas, gravando.
+            python -m scraper.main --current --write
+          elif [ -n "${IN_DETAIL:-}" ]; then
+            # Fase B (debug): captura provas+docs do ID e imprime (não grava).
+            python -m scraper.main --source "${IN_SOURCE:-FPH}" --dump-detail "${IN_DETAIL}"
+          else
+            ARGS="--source ${IN_SOURCE:-FPH}"
+            if [ -n "${IN_MONTH:-}" ]; then
+              ARGS="$ARGS --month ${IN_MONTH}"
+              [ -n "${IN_YEAR:-}" ] && ARGS="$ARGS --year ${IN_YEAR}"
+            else
+              ARGS="$ARGS --current"
+              [ -n "${IN_YEAR:-}" ] && ARGS="$ARGS --year ${IN_YEAR}"
+            fi
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          fi

@@ -1,0 +1,7 @@
+# Scraper de produção — dependências.
+# CI roda em Python 3.12 (Playwright ainda não publica wheels p/ 3.14).
+beautifulsoup4>=4.12
+lxml>=5.0
+requests>=2.31
+playwright>=1.44
+pytest>=8.0

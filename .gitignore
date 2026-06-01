@@ -5,3 +5,13 @@ node_modules/
 .env
 .env.local
 .vercel
+
+# Python (scraper/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Exports sensíveis do painel Supabase (NUNCA versionar — contêm config/auth)
+URL Configuration*Supabase.html
+URL Configuration*Supabase_files/
