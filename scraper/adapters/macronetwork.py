@@ -258,23 +258,97 @@ _DIA_GRID = re.compile(
     r"([a-zç\-]+feira|s[áa]bado|domingo)\s*-\s*(\d{1,2})/([a-zç]{3,4})/(\d{4})",
     re.IGNORECASE,
 )
+# "PR. 01 - ..." → número da prova
+_PR_NUM = re.compile(r"\bPR\.?\s*(\d+)", re.IGNORECASE)
 
 
-def parse_provas(upcard_html):
-    """⚠ Fase B — parser das LINHAS aguardando o dump por dia (re-captura com o
-    header certo, run após f3dbe3d). O upCard é uma SANFONA por dia; o cabeçalho
-    de cada dia já é parseável agora:
-        <span class="gridCol">quinta-feira - 28/mai/2026</span>
-    → (dia_semana, data_prova ISO) via _DIA_GRID. As LINHAS de prova só entram no
-    DOM ao expandir o dia (2º postback) — fetch._capture_provas captura um snapshot
-    por dia (provas_days). Quando a fixture com linhas chegar, extrair
-    {data_prova, dia_semana, numero, nome, categorias, tipo_prova} (colunas reais
-    de `provas`) e travar o teste. Gravação: db.replace_provas (a chave de dedup
-    — id_origem por prova? — depende do DOM da linha, ainda não visto)."""
-    raise NotImplementedError(
-        "Fase B: aguardando o dump das LINHAS por dia (provas_dayN do "
-        "`--dump-detail 3436` após o fix do header) — não inventar o DOM da linha."
-    )
+def _id_from_query(href):
+    """ID nativo da query: 'Resultados.aspx?ID=14017' → '14017'. None se não casar."""
+    if not href:
+        return None
+    m = re.search(r"[?&]ID=(\d+)", href, re.IGNORECASE)
+    return m.group(1) if m else None
+
+
+def _dedup_segmentos(texto):
+    """'1,30M - JCT - 1,30M - JCT' → '1,30M - JCT' (tira repetição, preserva ordem)."""
+    if not texto:
+        return None
+    segs, vistos = [], set()
+    for s in (p.strip() for p in texto.split(" - ")):
+        k = s.lower()
+        if s and k not in vistos:
+            vistos.add(k)
+            segs.append(s)
+    return " - ".join(segs) or None
+
+
+def parse_provas(upcard_html, base_url=None):
+    """Extrai as PROVAS do upCard (sanfona por dia, TODOS os dias já expandidos).
+
+    DOM real (dump CI 3436, run 26768218275):
+      <div class="card ml-0" id="divPrincipal">            ← um por DIA
+        <p class="grid_accordion">
+          <span class="gridCol">quinta-feira - 28/mai/2026</span>   ← data do dia (c/ ANO)
+        <div id="...ctlNN_upInfoCard">                     ← provas do dia (só se expandido)
+          <div class="info_card">                          ← uma por PROVA
+            <span class="horario_prova">11:30</span>
+            <span id="...litNomeProva">PR. 01 - 1,30M - JCT - 1,30M - JCT</span>
+            <span id="...litTipoProva">CRONÔMETRO</span>
+            <span id="...lblLocalProva">Pista de GRAMA</span>
+            <a class="btn_resultado_entrada" href="Resultados.aspx?ID=14017">  ← id_origem!
+            <a class="btn_ordem_entrada"     href="OrdemEntrada.aspx?ID=14017">
+
+    O ID de Resultados.aspx?ID=N é a CHAVE NATIVA da prova (id_origem) — estável,
+    permite upsert por (torneio_id, id_origem) SEM orfanar resultados (FK→provas.id),
+    e é a própria URL pra raspar os resultados depois (Fase C). data_prova já vem
+    amarrada (a gridCol traz o ano). Tolerante: dia sem header/linha é ignorado.
+    Devolve lista de dicts, uma por prova.
+    """
+    from urllib.parse import urljoin
+    soup = _soup(upcard_html)
+    out = []
+    for card in soup.find_all("div", class_="card"):
+        header = card.find("p", class_="grid_accordion")
+        if not header:                       # só os cards de DIA têm header de sanfona
+            continue
+        gc = header.find("span", class_="gridCol")
+        m = _DIA_GRID.search(gc.get_text(" ", strip=True) if gc else "")
+        if not m:
+            continue
+        dia_semana = m.group(1).lower()
+        dd, mon_abbr, yyyy = int(m.group(2)), m.group(3).lower(), int(m.group(4))
+        mes = PT_MONTHS.get(mon_abbr[:3])
+        try:
+            data_prova = _dt.date(yyyy, mes, dd).isoformat() if mes else None
+        except ValueError:
+            data_prova = None
+        for ic in card.find_all("div", class_="info_card"):
+            nome_el = ic.select_one("span[id$=litNomeProva]")
+            nome = nome_el.get_text(" ", strip=True) if nome_el else None
+            if not nome:
+                continue
+            a = (ic.select_one("a.btn_resultado_entrada[href]")
+                 or ic.select_one("a.btn_ordem_entrada[href]"))
+            href = a.get("href") if a else None
+            tipo_el = ic.select_one("span[id$=litTipoProva]")
+            local_el = ic.select_one("span[id$=lblLocalProva]")
+            hora_el = ic.select_one("span.horario_prova")
+            num_m = _PR_NUM.search(nome)
+            resto = re.sub(r"^\s*PR\.?\s*\d+\s*-\s*", "", nome, flags=re.IGNORECASE)
+            out.append({
+                "id_origem": _id_from_query(href),
+                "numero": num_m.group(1) if num_m else None,
+                "nome": nome,
+                "categorias": _dedup_segmentos(resto),
+                "tipo_prova": tipo_el.get_text(strip=True) if tipo_el else None,
+                "data_prova": data_prova,
+                "dia_semana": dia_semana,
+                "horario": hora_el.get_text(strip=True) if hora_el else None,
+                "local": local_el.get_text(strip=True) if local_el else None,
+                "resultado_url": urljoin(base_url, href) if (base_url and href) else href,
+            })
+    return out
 
 
 def parse_documentos(html, base_url=None):

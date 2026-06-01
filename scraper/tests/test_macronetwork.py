@@ -9,7 +9,7 @@ raiz dos 179 torneios sem data.
 import os
 from scraper.adapters.macronetwork import (
     parse_date_range, parse_calendar, read_selected_month, read_pager_pages,
-    parse_detalhe_header, parse_documentos,
+    parse_detalhe_header, parse_documentos, parse_provas,
 )
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -102,6 +102,41 @@ def test_documentos_adendo_quadro_de_horarios():
     ad = next(d for d in docs if d["tipo"] == "adendo")
     assert ad["titulo"] == "QUADRO ATUALIZADO - 29-05"
     assert ad["data_publicacao"] == "2026-05-29"
+
+
+# ── detalhe: provas (sanfona por dia, todos expandidos) — fixture ao vivo ──
+def test_provas_extrai_12_provas_4_dias():
+    # fph_provas_3436.html = upCard com os 4 dias (28-31/mai) já expandidos.
+    provas = parse_provas(_fixture("fph_provas_3436.html"))
+    assert len(provas) == 12
+    assert sorted({p["data_prova"] for p in provas}) == \
+        ["2026-05-28", "2026-05-29", "2026-05-30", "2026-05-31"]
+    # nenhuma prova sem id nativo nem sem data (data vem amarrada da gridCol)
+    assert all(p["id_origem"] and p["data_prova"] for p in provas)
+
+def test_provas_primeira_prova_campos():
+    p = parse_provas(_fixture("fph_provas_3436.html"))[0]
+    assert p["id_origem"] == "14017"          # Resultados.aspx?ID=14017
+    assert p["numero"] == "01"
+    assert p["nome"] == "PR. 01 - 1,30M - JCT - 1,30M - JCT"
+    assert p["categorias"] == "1,30M - JCT"   # dedup do segmento repetido
+    assert p["tipo_prova"] == "CRONÔMETRO"
+    assert p["data_prova"] == "2026-05-28"
+    assert p["dia_semana"] == "quinta-feira"
+    assert p["horario"] == "11:30"
+    assert p["local"] == "Pista de GRAMA"
+
+def test_provas_id_origem_unico_por_prova():
+    # cada prova tem id nativo PRÓPRIO (chave de upsert FK-safe p/ resultados)
+    ids = [p["id_origem"] for p in parse_provas(_fixture("fph_provas_3436.html"))]
+    assert len(ids) == len(set(ids)) == 12
+
+def test_provas_resultado_url_absoluta_com_base():
+    # a URL de Resultados é onde se raspam os resultados depois (Fase C)
+    provas = parse_provas(_fixture("fph_provas_3436.html"),
+        base_url="https://www.fph.com.br/calendario/ListaProvas?ID=3436")
+    assert provas[0]["resultado_url"] == \
+        "https://www.fph.com.br/calendario/Resultados.aspx?ID=14017"
 
 
 if __name__ == "__main__":
