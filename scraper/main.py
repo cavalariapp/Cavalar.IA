@@ -102,8 +102,14 @@ def main(argv=None):
         d = fetch.fetch_detail(src, args.dump_detail, headless=not args.headed)
         print(f"\n══ DETALHE {src['codigo']} ID={args.dump_detail} "
               f"({src['detalhe_url'].format(id=args.dump_detail)}) ══")
-        # provas_page_html/docs_page_html = página inteira (fallback de diagnóstico
-        # quando o postback é full-nav e o innerHTML do upCard não vem).
+        # provas_days = um snapshot do upCard por dia EXPANDIDO (as provas reais).
+        # *_page_html = página inteira (os PDFs de docs moram aí; postback full-nav).
+        days = d.get("provas_days") or []
+        for i, h in enumerate(days):
+            h = h or ""
+            print(f"\n──────── BEGIN provas_day{i} ({len(h)} chars) ────────")
+            print(h)
+            print(f"──────── END provas_day{i} ────────")
         for k in ("provas_html", "provas_page_html", "docs_html", "docs_page_html"):
             h = d.get(k) or ""
             print(f"\n──────── BEGIN {k} ({len(h)} chars) ────────")
