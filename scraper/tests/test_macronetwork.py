@@ -9,7 +9,7 @@ raiz dos 179 torneios sem data.
 import os
 from scraper.adapters.macronetwork import (
     parse_date_range, parse_calendar, read_selected_month, read_pager_pages,
-    parse_detalhe_header,
+    parse_detalhe_header, parse_documentos,
 )
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -76,6 +76,32 @@ def test_detalhe_header_extrai_titulo():
     # O título vem no HTML do GET (div.titulo-data > h2); provas/docs são AJAX.
     head = parse_detalhe_header(_fixture("fph_detalhe_3316.html"))
     assert head["titulo"] == "CSN COPA JK DE HIPISMO"
+
+
+# ── detalhe: documentos (Programa/Adendos) — fixture ao vivo do dump CI ──
+def test_documentos_extrai_programa_e_adendo():
+    # fph_docs_3436.html = page.content() após a aba "Programas/Adendo" (dump CI).
+    docs = parse_documentos(_fixture("fph_docs_3436.html"))
+    assert len(docs) == 2
+    assert {d["tipo"] for d in docs} == {"programa", "adendo"}
+    # todo doc tem PDF absoluto e título
+    assert all(d["url_pdf"].startswith("http") and d["url_pdf"].lower().endswith(".pdf")
+               for d in docs)
+    assert all(d["titulo"] for d in docs)
+
+def test_documentos_programa_campos():
+    docs = parse_documentos(_fixture("fph_docs_3436.html"))
+    prog = next(d for d in docs if d["tipo"] == "programa")
+    assert prog["titulo"] == "PROGRAMA"
+    assert prog["data_publicacao"] == "2026-05-12"   # span.data "12/05/2026"
+    assert prog["url_pdf"].endswith("PROGRAMA CP JOVEM CAVALEIRO.pdf")
+
+def test_documentos_adendo_quadro_de_horarios():
+    # o "quadro de horários" é publicado como ADENDO
+    docs = parse_documentos(_fixture("fph_docs_3436.html"))
+    ad = next(d for d in docs if d["tipo"] == "adendo")
+    assert ad["titulo"] == "QUADRO ATUALIZADO - 29-05"
+    assert ad["data_publicacao"] == "2026-05-29"
 
 
 if __name__ == "__main__":

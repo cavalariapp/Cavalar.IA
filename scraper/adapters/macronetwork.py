@@ -201,13 +201,22 @@ def parse_calendar(html, year, base_url=None):
 #         hlInscricao   → link de inscrição
 #   • O conteúdo renderiza via AJAX (PageRequestManager) DENTRO do UpdatePanel
 #     #ctl00_ContentPlaceHolder1_upCard — NÃO nos painéis pn* (só o RÓTULO).
-#   • LAZY-LOAD EM DOIS NÍVEIS (confirmado em 3436, FPH-próprio, concluído):
+#   • LAZY-LOAD EM DOIS NÍVEIS (confirmado no dump CI 3436, run 26755256049):
 #       1º nível — ao abrir a página, a aba "Lista de Provas" AUTO-renderiza no
 #         upCard uma SANFONA por dia do torneio (ex.: QUI 28 / SEX 29 / SÁB 30 /
-#         DOM 31), com cada dia COLAPSADO.
-#       2º nível — cada dia é <button type=submit> + <input type=hidden> + um
-#         spinner "Carregando"; EXPANDIR dispara OUTRO postback que carrega as
-#         provas daquele dia. As linhas de prova NÃO estão no DOM até expandir.
+#         DOM 31), com cada dia COLAPSADO. Cada dia é:
+#           <p class="lstProva accordion grid_accordion" onclick="toggleCard(this)">
+#             <span class="gridCol">quinta-feira - 28/mai/2026</span>   ← rótulo+data
+#             <input type=hidden id=...hfdData value="quinta-feira, 28 de maio de 2026">
+#             <img class="load hide" alt="Carregando">                  ← spinner
+#             <input type=submit class="hide btnDiaProva">              ← postback OCULTO
+#       2º nível — clicar o <p> (NÃO o submit, que é display:none) dispara o 2º
+#         postback que carrega as LINHAS de prova daquele dia (não estão no DOM
+#         até expandir).
+#   • DOCS (Programa/Adendo): a aba "Programas/Adendo" faz postback FULL → o
+#     upCard fica VAZIO; os PDFs moram na PÁGINA INTEIRA, em
+#       div.programa/div.adendo (class "...box") > ul.nostyle > li >
+#         a[href$=.pdf] > span.data (DD/MM/AAAA) + span.title (rótulo).
 #   • SINAL DE FANTASMA (regra de ouro): no 3440 (dono = CBH, exibido na FPH) o
 #     upCard ficou só "Loading..." (sem sanfona) e a aba "Programas/Adendo"
 #     NEM EXISTIA. Dono FPH (3436) tinha as duas. Ausência de grade/Programas
@@ -216,8 +225,8 @@ def parse_calendar(html, year, base_url=None):
 #     clique sintético (MCP travou no "Carregando"): exige navegador REAL
 #     (Playwright, CI 3.12), que dispara o __doPostBack de verdade. Captura via
 #     fetch.fetch_detail / `python -m scraper.main --dump-detail <ID>`.
-#   ⚠ FALTA 1 DUMP NO CI da grade EXPANDIDA (use 3436) pra ver as linhas de
-#     prova reais e travar o parser contra fixture — sem inventar o DOM.
+#   ⚠ parse_documentos: PRONTO (fixture fph_docs_3436.html). parse_provas:
+#     aguardando o dump das LINHAS por dia (re-captura com o header certo).
 
 def parse_detalhe_header(html):
     """Cabeçalho ESTÁTICO da página de detalhe (vem no GET, sem AJAX).
@@ -230,29 +239,84 @@ def parse_detalhe_header(html):
     return {"titulo": titulo}
 
 
+def _br_date_to_iso(text):
+    """'12/05/2026' → '2026-05-12'. Devolve None se não casar/for inválida."""
+    if not text:
+        return None
+    m = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", text)
+    if not m:
+        return None
+    d, mo, y = (int(x) for x in m.groups())
+    try:
+        return _dt.date(y, mo, d).isoformat()
+    except ValueError:
+        return None
+
+
+# cabeçalho de dia da sanfona: "quinta-feira - 28/mai/2026"
+_DIA_GRID = re.compile(
+    r"([a-zç\-]+feira|s[áa]bado|domingo)\s*-\s*(\d{1,2})/([a-zç]{3,4})/(\d{4})",
+    re.IGNORECASE,
+)
+
+
 def parse_provas(upcard_html):
-    """⚠ Fase B — PENDENTE DE FIXTURE REAL. A grade é uma SANFONA por dia (ver
-    bloco acima): os cabeçalhos de dia auto-renderizam, mas as LINHAS de prova
-    só entram no DOM ao expandir cada dia (2º postback). fetch.fetch_detail já
-    tenta expandir (expand_days=True); falta capturar o HTML expandido de um
-    torneio CONCLUÍDO FPH-PRÓPRIO (use 3436) e salvar em
-    scraper/tests/fixtures/fph_provas_3436.html. Só então extrair as linhas
-    {data_prova, dia_semana, numero, nome, categorias, tipo_prova} (colunas
-    reais de `provas`) e testar contra a fixture. Gravação: db.replace_provas."""
+    """⚠ Fase B — parser das LINHAS aguardando o dump por dia (re-captura com o
+    header certo, run após f3dbe3d). O upCard é uma SANFONA por dia; o cabeçalho
+    de cada dia já é parseável agora:
+        <span class="gridCol">quinta-feira - 28/mai/2026</span>
+    → (dia_semana, data_prova ISO) via _DIA_GRID. As LINHAS de prova só entram no
+    DOM ao expandir o dia (2º postback) — fetch._capture_provas captura um snapshot
+    por dia (provas_days). Quando a fixture com linhas chegar, extrair
+    {data_prova, dia_semana, numero, nome, categorias, tipo_prova} (colunas reais
+    de `provas`) e travar o teste. Gravação: db.replace_provas (a chave de dedup
+    — id_origem por prova? — depende do DOM da linha, ainda não visto)."""
     raise NotImplementedError(
-        "Fase B: capture a grade EXPANDIDA do upCard (CI/Playwright, torneio "
-        "FPH-próprio concluído) via `--dump-detail 3436` antes de implementar — "
-        "não inventar o DOM."
+        "Fase B: aguardando o dump das LINHAS por dia (provas_dayN do "
+        "`--dump-detail 3436` após o fix do header) — não inventar o DOM da linha."
     )
 
 
-def parse_documentos(upcard_html, base_url=None):
-    """⚠ Fase B — PENDENTE DE FIXTURE REAL. Os PDFs de Programa/Adendo renderizam
-    via AJAX no upCard (não há link no GET) e a aba só existe em torneio cuja
-    fonte é DONA (no 3440/fantasma a aba sumiu). Extrair {tipo, titulo, url_pdf,
-    data_publicacao} dos <a href*='.pdf'> do painel e resolver URL absoluta
-    (colunas reais de `torneio_documentos`). Gravação: db.upsert_documentos."""
-    raise NotImplementedError(
-        "Fase B: capture o painel de Programas/Adendos do upCard "
-        "(`--dump-detail 3436`) antes de implementar."
-    )
+def parse_documentos(html, base_url=None):
+    """Extrai os PDFs de Programa/Adendos da PÁGINA INTEIRA do detalhe (após a aba
+    "Programas/Adendo": o postback é FULL, o upCard fica vazio e os arquivos vêm
+    no page.content() = docs_page_html). Estrutura real (dump CI 3436):
+        <div class="programa relative box"><h2>Arquivos relacionados</h2>
+          <ul class="nostyle"><li>
+            <a href="....pdf" title="PROGRAMA">
+              <span class="data">12/05/2026</span><span class="title">PROGRAMA</span>
+            </a></li></ul></div>
+        <div class="adendo relative box"><h2>Adendos</h2> ...idem... </div>
+    `tipo` vem da classe da box (programa/adendo); o "quadro de horários" entra
+    como adendo. Só emite de box que TEM PDF (ignora outras .box da página).
+    Devolve [{tipo, titulo, url_pdf, data_publicacao}] — colunas reais de
+    torneio_documentos (torneio_id/timestamps são preenchidos no writer)."""
+    from urllib.parse import urljoin
+    soup = _soup(html)
+    out, seen = [], set()
+    for box in soup.select("div.box"):
+        classes = box.get("class") or []
+        # tipo = 1ª classe que não é decoração de layout (programa/adendo/...)
+        tipo = next((c for c in classes
+                     if c not in ("relative", "box", "row-fluid")), None)
+        for a in box.select("a[href]"):
+            href = a.get("href") or ""
+            if ".pdf" not in href.lower():
+                continue
+            url_pdf = href if href.lower().startswith("http") else (
+                urljoin(base_url, href) if base_url else href)
+            if url_pdf in seen:
+                continue
+            seen.add(url_pdf)
+            sp_title = a.select_one("span.title")
+            sp_data = a.select_one("span.data")
+            titulo = (sp_title.get_text(strip=True) if sp_title
+                      else (a.get("title") or url_pdf.rsplit("/", 1)[-1]))
+            out.append({
+                "tipo": tipo,
+                "titulo": titulo,
+                "url_pdf": url_pdf,
+                "data_publicacao": _br_date_to_iso(
+                    sp_data.get_text(strip=True) if sp_data else None),
+            })
+    return out
