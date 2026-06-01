@@ -212,42 +212,65 @@ def _extract_upcard(page_html):
         return None
 
 
+def _settle_nav(page, settle, timeout_ms):
+    """Assenta um postback (async OU full-nav): load + rede ociosa + folga fixa."""
+    _safe(lambda: page.wait_for_load_state("load", timeout=timeout_ms))
+    _safe(lambda: page.wait_for_load_state("networkidle", timeout=timeout_ms))
+    _safe(lambda: page.wait_for_timeout(settle))
+
+
+# Tamanho do upCard SÓ com os 4 cabeçalhos de dia (colapsado) = ~8683 chars (dump
+# 3436). Acima disso = expandiu (entraram as linhas de prova daquele dia).
+_UPCARD_COLLAPSED_MAX = 9500
+
+
+def _expand_one_day(page, i, settle, timeout_ms):
+    """Expande o dia i e devolve (page_html, upcard_html). Tenta o clique REAL no
+    header <p> (toggleCard → submit oculto → postback); se o upCard NÃO cresceu,
+    faz fallback chamando .click() direto no <input type=submit class="hide
+    btnDiaProva"> via JS (o submit é display:none → Playwright não clica nele).
+    NUNCA lança. Captura page.content() (robusto a full-nav) e extrai o upCard."""
+    _safe(lambda: page.locator(DAY_HEADER_SEL).nth(i).click(timeout=timeout_ms))
+    _settle_nav(page, settle, timeout_ms)
+    page_html = _safe(lambda: page.content())
+    upc = _extract_upcard(page_html)
+    if not upc or len(upc) <= _UPCARD_COLLAPSED_MAX:
+        # não expandiu pelo header → dispara o submit OCULTO daquele dia direto
+        _safe(lambda: page.evaluate(
+            "({sel, i}) => { const b = document.querySelectorAll(sel);"
+            " if (b[i]) b[i].click(); }",
+            {"sel": f"#{UPCARD} input.btnDiaProva", "i": i}))
+        _settle_nav(page, settle, timeout_ms)
+        page_html = _safe(lambda: page.content()) or page_html
+        upc = _extract_upcard(page_html) or upc
+    return page_html, upc
+
+
 def _capture_provas(page, settle_ms, timeout_ms, max_days=31):
     """Captura a grade de PROVAS: um SNAPSHOT do upCard por dia EXPANDIDO.
 
-    A aba "Lista de Provas" auto-renderiza uma SANFONA por dia (colapsada). Cada
-    dia é <p class="grid_accordion" onclick="toggleCard(this)"> + <input type=submit
-    class="hide btnDiaProva"> OCULTO. Clicar o <p> dispara um postback FULL que
-    recarrega a página com as provas DAQUELE dia inline (lazy-load 2º nível).
-    PROVA (run 26766321647): ler upCard.innerHTML no meio dá "Execution context was
-    destroyed" → todos os reads voltaram None e provas_days ficou VAZIO. A captura
-    ROBUSTA é page.content() DEPOIS que a navegação assenta (content() auto-espera o
-    documento, não corre com a navegação). Extraímos o upCard de cada page p/ compactar.
-
-    ViewState off → cada postback traz só o dia clicado expandido; acumulamos um
-    snapshot do upCard por dia → a UNIÃO tem TODAS as provas. NUNCA lança.
-
-    Devolve (final_page_html, [upcard_html_por_dia], [diag_por_dia]).
+    A aba "Lista de Provas" é a DEFAULT e AUTO-renderiza a SANFONA por dia ao abrir
+    a página (NÃO clicar BTN_PROVAS — esse clique disparava um postback que
+    desestabilizava o upCard e ZERAVA o count: causa real do provas_diag=0 dias nas
+    runs 26766321647/26767214097). Cada dia é <p class="grid_accordion"
+    onclick="toggleCard(this)"> + <input type=submit class="hide btnDiaProva"> OCULTO;
+    expandir dispara um 2º postback (lazy-load) que traz as provas DAQUELE dia.
+    Capturamos page.content() (robusto a full-nav) DEPOIS de assentar e extraímos o
+    upCard p/ compactar. ViewState off → cada postback traz só o dia clicado
+    expandido; acumulamos um snapshot por dia → a UNIÃO tem TODAS as provas.
+    NUNCA lança. Devolve (final_page_html, [upcard_html_por_dia], [diag_por_dia]).
     """
     diag = []
-    _safe(lambda: page.click(f"#{BTN_PROVAS}", timeout=timeout_ms))
+    # SEM clique em BTN_PROVAS: a sanfona já está no DOM do GET.
     _safe(lambda: page.wait_for_selector(DAY_HEADER_SEL, timeout=timeout_ms))
     n = _safe(lambda: page.locator(DAY_HEADER_SEL).count(), default=0) or 0
-    settle = max(settle_ms, 3500)  # folga generosa: o postback do dia é FULL
+    settle = max(settle_ms, 3500)  # folga generosa: o postback do dia pode ser FULL
     snaps = []
     for i in range(min(n, max_days)):
         url_before = _safe(lambda: page.url)
-        # rótulo do dia (diagnóstico) ANTES do clique
         label = _safe(lambda i=i: page.locator(DAY_HEADER_SEL).nth(i)
                       .locator("span.gridCol").inner_text(timeout=timeout_ms))
-        # clica o HEADER do dia i (re-consulta SEMPRE: a navegação FULL recria os <p>)
-        _safe(lambda i=i: page.locator(DAY_HEADER_SEL).nth(i).click(timeout=timeout_ms))
-        # assenta a navegação FULL: load + rede ociosa + folga fixa generosa
-        _safe(lambda: page.wait_for_load_state("load", timeout=timeout_ms))
-        _safe(lambda: page.wait_for_load_state("networkidle", timeout=timeout_ms))
-        _safe(lambda: page.wait_for_timeout(settle))
-        page_html = _safe(lambda: page.content())
-        upc = _extract_upcard(page_html)
+        page_html, upc = _expand_one_day(page, i, settle, timeout_ms)
         url_after = _safe(lambda: page.url)
         diag.append({"i": i, "label": label, "url_before": url_before,
                      "url_after": url_after, "page_len": len(page_html or ""),
