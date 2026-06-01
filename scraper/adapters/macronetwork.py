@@ -189,7 +189,7 @@ def parse_calendar(html, year, base_url=None):
 
 
 # ── DETALHE (ListaProvas?ID=N) — Fase B ───────────────────────────────
-# DESCOBERTAS DA RECON AO VIVO (FPH, ID=3316, 2026-06):
+# DESCOBERTAS DA RECON AO VIVO (FPH 2026-06; ID=3316/3436 dono, 3440 fantasma):
 #   • A página de detalhe tem um CABEÇALHO ESTÁTICO (já no GET, sem JS):
 #       - título   → div.titulo-data > h2
 #       - endereço → span#ctl00_lblEndereco — é o endereço da FEDERAÇÃO/fonte
@@ -199,16 +199,25 @@ def parse_calendar(html, year, base_url=None):
 #         btnListaProva → grade de PROVAS        btnProgramas → PROGRAMAS/ADENDOS (PDFs)
 #         btnListInsc   → lista de inscritos     btnMapaLocal → mapa
 #         hlInscricao   → link de inscrição
-#   • O conteúdo de cada aba renderiza via AJAX (PageRequestManager) DENTRO do
-#     UpdatePanel #ctl00_ContentPlaceHolder1_upCard — NÃO nos painéis pn*
-#     (esses só guardam o RÓTULO da aba). Logo: provas, PDFs, horários e
-#     resultados NÃO existem no HTML do GET; só aparecem após o postback.
-#   • O postback NÃO se reproduz por requests (loop de pageRedirect entre a URL
-#     limpa e a .aspx); exige navegador real (Playwright, no CI 3.12). Captura
-#     via fetch.fetch_detail / `python -m scraper.main --dump-detail <ID>`.
-#   ⚠ A grade real ainda PRECISA SER CAPTURADA de um torneio CONCLUÍDO (o 3316
-#     não tinha provas publicadas → upCard esvaziou). Só então travamos o
-#     parser contra fixture real — sem inventar o DOM.
+#   • O conteúdo renderiza via AJAX (PageRequestManager) DENTRO do UpdatePanel
+#     #ctl00_ContentPlaceHolder1_upCard — NÃO nos painéis pn* (só o RÓTULO).
+#   • LAZY-LOAD EM DOIS NÍVEIS (confirmado em 3436, FPH-próprio, concluído):
+#       1º nível — ao abrir a página, a aba "Lista de Provas" AUTO-renderiza no
+#         upCard uma SANFONA por dia do torneio (ex.: QUI 28 / SEX 29 / SÁB 30 /
+#         DOM 31), com cada dia COLAPSADO.
+#       2º nível — cada dia é <button type=submit> + <input type=hidden> + um
+#         spinner "Carregando"; EXPANDIR dispara OUTRO postback que carrega as
+#         provas daquele dia. As linhas de prova NÃO estão no DOM até expandir.
+#   • SINAL DE FANTASMA (regra de ouro): no 3440 (dono = CBH, exibido na FPH) o
+#     upCard ficou só "Loading..." (sem sanfona) e a aba "Programas/Adendo"
+#     NEM EXISTIA. Dono FPH (3436) tinha as duas. Ausência de grade/Programas
+#     ⇒ a FPH não é dona ⇒ não extrair docs/resultados dela.
+#   • Postback NÃO se reproduz por requests (loop de pageRedirect) E nem por
+#     clique sintético (MCP travou no "Carregando"): exige navegador REAL
+#     (Playwright, CI 3.12), que dispara o __doPostBack de verdade. Captura via
+#     fetch.fetch_detail / `python -m scraper.main --dump-detail <ID>`.
+#   ⚠ FALTA 1 DUMP NO CI da grade EXPANDIDA (use 3436) pra ver as linhas de
+#     prova reais e travar o parser contra fixture — sem inventar o DOM.
 
 def parse_detalhe_header(html):
     """Cabeçalho ESTÁTICO da página de detalhe (vem no GET, sem AJAX).
@@ -222,22 +231,28 @@ def parse_detalhe_header(html):
 
 
 def parse_provas(upcard_html):
-    """⚠ Fase B — PENDENTE DE FIXTURE REAL. A grade de provas renderiza via
-    AJAX no upCard e ainda não foi capturada de um torneio concluído. Quando
-    existir scraper/tests/fixtures/fph_provas_<ID>.html, implementar a extração
-    das linhas {data_prova, numero, nome, categoria, altura, ...} e testar
-    contra ela. Gravação: db.SupabaseWriter.replace_provas."""
+    """⚠ Fase B — PENDENTE DE FIXTURE REAL. A grade é uma SANFONA por dia (ver
+    bloco acima): os cabeçalhos de dia auto-renderizam, mas as LINHAS de prova
+    só entram no DOM ao expandir cada dia (2º postback). fetch.fetch_detail já
+    tenta expandir (expand_days=True); falta capturar o HTML expandido de um
+    torneio CONCLUÍDO FPH-PRÓPRIO (use 3436) e salvar em
+    scraper/tests/fixtures/fph_provas_3436.html. Só então extrair as linhas
+    {data_prova, dia_semana, numero, nome, categorias, tipo_prova} (colunas
+    reais de `provas`) e testar contra a fixture. Gravação: db.replace_provas."""
     raise NotImplementedError(
-        "Fase B: capture a grade do upCard (CI/Playwright, torneio CONCLUÍDO) "
-        "via `--dump-detail` antes de implementar — não inventar o DOM."
+        "Fase B: capture a grade EXPANDIDA do upCard (CI/Playwright, torneio "
+        "FPH-próprio concluído) via `--dump-detail 3436` antes de implementar — "
+        "não inventar o DOM."
     )
 
 
 def parse_documentos(upcard_html, base_url=None):
-    """⚠ Fase B — PENDENTE DE FIXTURE REAL. Os PDFs de Programa/Adendo também
-    renderizam via AJAX no upCard (não há link no HTML do GET). Extrair
-    {tipo, url, titulo} dos <a href*='.pdf'> do painel e resolver URL absoluta.
-    Gravação: db.SupabaseWriter.upsert_documentos."""
+    """⚠ Fase B — PENDENTE DE FIXTURE REAL. Os PDFs de Programa/Adendo renderizam
+    via AJAX no upCard (não há link no GET) e a aba só existe em torneio cuja
+    fonte é DONA (no 3440/fantasma a aba sumiu). Extrair {tipo, titulo, url_pdf,
+    data_publicacao} dos <a href*='.pdf'> do painel e resolver URL absoluta
+    (colunas reais de `torneio_documentos`). Gravação: db.upsert_documentos."""
     raise NotImplementedError(
-        "Fase B: capture o painel de Programas/Adendos do upCard antes de implementar."
+        "Fase B: capture o painel de Programas/Adendos do upCard "
+        "(`--dump-detail 3436`) antes de implementar."
     )

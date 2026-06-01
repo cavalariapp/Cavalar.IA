@@ -12,8 +12,16 @@ Dois caminhos, por necessidade comprovada na recon:
          servidor (ViewState desativado, params de GET ignorados, postback
          depende do form inteiro). No navegador, __doPostBack reenvia o form
          completo com os valores dos dropdowns → o mês troca de verdade.
-       • a GRADE DE PROVAS do detalhe: carrega via AJAX (PageRequestManager)
-         ao clicar em #...btnListaProva → painel #...pnListaProvas.
+       • a GRADE DE PROVAS do detalhe: a aba "Lista de Provas" AUTO-renderiza
+         no upCard ao abrir a página (sem clique) — uma SANFONA por dia do
+         torneio, cada dia COLAPSADO. Cada dia é <button type=submit> + input
+         hidden + spinner "Carregando"; EXPANDIR dispara um 2º postback que
+         carrega as provas daquele dia (lazy-load em DOIS níveis). Trocar de
+         aba (ex.: Programas/Adendo) também é __doPostBack. Tudo isso exige
+         clique de navegador REAL (Playwright): na recon ao vivo (2026-06), os
+         cliques sintéticos do MCP NÃO completavam o PageRequestManager — o dia
+         ficava preso em "Carregando" e a aba não trocava. Só o auto-load do
+         GET natural renderizava. Playwright dispara o __doPostBack de verdade.
      Roda no CI (Python 3.12). Import adiado p/ não quebrar onde não há browser.
 
 O parsing do HTML (datas, cards, provas) fica em adapters/macronetwork.py.
@@ -29,9 +37,20 @@ DDL_ANO = "ctl00_ContentPlaceHolder1_ddlAno"
 DDL_MES = "ctl00_ContentPlaceHolder1_ddlMes"
 # Detalhe: as abas do menu disparam __doPostBack e o conteúdo renderiza no
 # UpdatePanel upCard (confirmado ao vivo — os painéis pn* só têm o rótulo).
+# A aba "Lista de Provas" é a DEFAULT: AUTO-renderiza no upCard ao abrir.
+# Recon 2026-06 (torneio FPH-próprio 3436 vs. fantasma CBH 3440):
+#   • 3436 (dono FPH): sanfona de dias renderizou + tinha aba "Programas/Adendo".
+#   • 3440 (dono CBH, exibido na FPH): upCard ficou só "Loading..." e SEM aba
+#     Programas → AUSÊNCIA de grade/Programas = sinal forte de FANTASMA (a FPH
+#     não é dona; aplica a "regra de ouro": só extrair da fonte dona).
 BTN_PROVAS = "ctl00_ContentPlaceHolder1_mpMenuNovo_btnListaProva"
 BTN_PROGRAMAS = "ctl00_ContentPlaceHolder1_mpMenuNovo_btnProgramas"
 UPCARD = "ctl00_ContentPlaceHolder1_upCard"
+# Sanfona por dia DENTRO do upCard: cada dia tem um <button type=submit> que
+# dispara o 2º postback (carrega as provas daquele dia). O id do botão é
+# dinâmico (não capturável via árvore de acessibilidade) — o 1º dump no CI
+# revela o seletor exato. Por ora expandimos por ESTRUTURA, best-effort.
+DAY_SUBMIT_SEL = f"#{UPCARD} button[type=submit]"
 
 
 # ── caminho 1: requests (sem navegador) ──────────────────────────────
@@ -121,31 +140,64 @@ def _apply_filters(page, prefer="lbbusca"):
     return False
 
 
-def _capture_upcard(page, menu_id, settle_ms, timeout_ms):
-    """Clica (clique REAL no <a>) a aba `menu_id` e devolve o innerHTML do
-    upCard após renderizar. NÃO lança: devolve o que houver (mesmo vazio/None),
-    pra ser diagnóstico — torneio sem provas pode esvaziar o upCard."""
+def _capture_upcard(page, menu_id, settle_ms, timeout_ms, expand_days=False):
+    """Seleciona a aba `menu_id` (clique REAL no <a> __doPostBack) e devolve o
+    innerHTML do upCard depois de renderizar. NÃO lança: devolve o que houver
+    (mesmo vazio/None) — é diagnóstico. A aba default ("Lista de Provas") já vem
+    AUTO-renderizada do GET; o clique só reforça/garante a troca.
+
+    expand_days=True: tenta EXPANDIR cada dia da sanfona (2º postback) antes de
+    capturar, pra trazer as provas. Best-effort e defensivo — se o seletor não
+    bater, devolve a sanfona colapsada (o 1º dump no CI revela o seletor certo).
+    """
     try:
         page.click(f"#{menu_id}", timeout=timeout_ms)
     except Exception:
-        return None
+        pass  # a aba default já pode estar renderizada; segue pra capturar
     try:  # espera o upCard ter conteúdo real (sair de vazio/"Carregando")
         page.wait_for_function(
             """(uid) => {
                 const el = document.getElementById(uid);
                 if (!el) return false;
                 const t = (el.innerText || '').trim();
-                return t.length > 30 && !/Carregando/i.test(t);
+                return t.length > 30 && !/^\\s*Carregando/i.test(t);
             }""",
             arg=UPCARD, timeout=timeout_ms,
         )
     except Exception:
-        pass  # nada publicado → devolve o que tiver
+        pass  # nada publicado (provável fantasma) → devolve o que tiver
+    if expand_days:
+        _expand_days(page, settle_ms, timeout_ms)
     page.wait_for_timeout(settle_ms)
     return page.evaluate(
         "(uid) => { const el = document.getElementById(uid); return el ? el.innerHTML : null; }",
         UPCARD,
     )
+
+
+def _expand_days(page, settle_ms, timeout_ms, max_days=15):
+    """Best-effort: clica cada <button type=submit> da sanfona pra carregar as
+    provas do dia (2º nível de lazy-load). Re-consulta a lista após cada clique
+    (o postback troca o DOM no lugar) e NUNCA lança — no pior caso a sanfona
+    fica como estava e o dump traz só os cabeçalhos de dia.
+
+    ⚠ CI iteração-1: confirmar DAY_SUBMIT_SEL e o COMPORTAMENTO no HTML real do
+      dump — sem ViewState, o servidor talvez não guarde qual dia foi expandido,
+      então expandir o dia 2 pode recolher o 1. Se for o caso, capturar um dia
+      por vez. NÃO inventar id/estrutura: ajustar contra o dump."""
+    for i in range(max_days):
+        try:
+            btns = page.locator(DAY_SUBMIT_SEL)
+            n = btns.count()
+        except Exception:
+            return
+        if n == 0 or i >= n:
+            break
+        try:
+            btns.nth(i).click(timeout=timeout_ms)
+            page.wait_for_timeout(settle_ms)  # deixa o spinner "Carregando" resolver
+        except Exception:
+            continue
 
 
 def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15000):
@@ -154,15 +206,22 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
 
     Devolve dict:
       header_html : HTML do GET (cabeçalho estático: título etc.)
-      provas_html : innerHTML do upCard após clicar "Lista de Provas" (ou None)
+      provas_html : innerHTML do upCard (aba "Lista de Provas", com os dias
+                    EXPANDIDOS quando possível) — ou None
       docs_html   : innerHTML do upCard após clicar "Programas/Adendos" (ou None)
 
-    ⚠ VALIDAÇÃO PENDENTE NO CI: o postback (__doPostBack p/ btnListaProva/
-      btnProgramas) renderiza o conteúdo DENTRO do upCard via PageRequestManager.
-      CONFIRMADO ao vivo: os painéis pn* só têm o RÓTULO; o conteúdo vai pro
-      upCard. NÃO confirmado: o caminho feliz da grade renderizada — o 3316 não
-      tinha provas publicadas (upCard esvaziou). Rodar `--dump-detail` num
-      torneio CONCLUÍDO no CI pra capturar a fixture real e travar o parser.
+    MODELO CONFIRMADO (recon 2026-06, FPH 3436 dono vs. 3440 fantasma CBH):
+      • A aba "Lista de Provas" AUTO-renderiza no upCard ao abrir (sanfona por
+        dia, colapsada). Só o auto-load do GET completa sozinho.
+      • Expandir um dia e trocar de aba são __doPostBack que SÓ um navegador
+        real (Playwright) dispara de verdade — daí rodar isto no CI.
+      • Fantasma (dono != FPH): upCard fica em "Loading..." e some a aba
+        Programas → não há o que extrair (regra de ouro: só a fonte dona).
+
+    ⚠ AINDA PENDENTE DE 1 DUMP NO CI: ver o HTML real da grade expandida pra
+      (a) confirmar DAY_SUBMIT_SEL e o comportamento da sanfona, e (b) travar
+      adapters.macronetwork.parse_provas/parse_documentos contra a fixture.
+      Use `--dump-detail 3436` (torneio FPH-próprio CONCLUÍDO) no CI.
     """
     from playwright.sync_api import sync_playwright
 
@@ -174,7 +233,9 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
             page.goto(url, wait_until="domcontentloaded")
             page.wait_for_timeout(settle_ms)
             result["header_html"] = page.content()
-            result["provas_html"] = _capture_upcard(page, BTN_PROVAS, settle_ms, timeout_ms)
+            # provas: a aba default já auto-renderiza; tentamos expandir os dias
+            result["provas_html"] = _capture_upcard(
+                page, BTN_PROVAS, settle_ms, timeout_ms, expand_days=True)
             # recarrega p/ estado limpo: o postback troca o upCard no lugar
             page.goto(url, wait_until="domcontentloaded")
             page.wait_for_timeout(settle_ms)
