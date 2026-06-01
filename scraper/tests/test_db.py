@@ -12,7 +12,7 @@ Garante o CONTRATO com o front (resultados.html) e com o chatbot:
 """
 import os
 from scraper.adapters.macronetwork import parse_provas, parse_documentos
-from scraper.db import prova_to_row, documento_to_row
+from scraper.db import prova_to_row, documento_to_row, SupabaseWriter, _norm_url
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -70,6 +70,37 @@ def test_doc_row_nao_emite_campos_do_chatbot():
         assert r["torneio_id"] == 999
         assert r["url_pdf"].lower().endswith(".pdf")
     assert {r["tipo"] for r in rows} == {"programa", "adendo"}
+
+
+# ── upsert dedup (regressão do 1º write do 3436: 4 legadas + 12 novas) ──
+def test_plan_provas_casa_id_origem_int_vs_str():
+    # o banco devolve id_origem como INT (coluna inteira); o parser entrega STR.
+    # sem normalizar os dois lados, o dedup não casa → reinsere e DUPLICA.
+    existentes = [{"id": 5926, "id_origem": 14017},
+                  {"id": 5927, "id_origem": 14013}]
+    rows = [{"id_origem": "14017", "nome": "PR.01"},   # já existe (int 14017)
+            {"id_origem": "14099", "nome": "PR.99"},   # nova
+            {"id_origem": None,    "nome": "sem id"}]  # pulada
+    patches, novas, puladas = SupabaseWriter._plan_provas_upsert(existentes, rows)
+    assert [pid for pid, _ in patches] == [5926]       # casou 14017 str↔int
+    assert [r["id_origem"] for r in novas] == ["14099"]
+    assert puladas == 1
+
+
+def test_norm_url_colapsa_barra_e_encoda_espaco():
+    u = ("https://www.fph.com.br/sportmanager//uploads/torneio/3436/"
+         "arquivos/PROGRAMA CP JOVEM CAVALEIRO.pdf")
+    canon = ("https://www.fph.com.br/sportmanager/uploads/torneio/3436/"
+             "arquivos/PROGRAMA%20CP%20JOVEM%20CAVALEIRO.pdf")
+    assert _norm_url(u) == canon
+    assert _norm_url(canon) == canon          # idempotente (já-canônico não muda)
+
+
+def test_documento_to_row_normaliza_url():
+    row = documento_to_row(
+        {"tipo": "programa", "titulo": "PROGRAMA", "data_publicacao": "2026-05-12",
+         "url_pdf": "https://x.com/a//b/PRO GRAMA.pdf"}, 999)
+    assert row["url_pdf"] == "https://x.com/a/b/PRO%20GRAMA.pdf"
 
 
 if __name__ == "__main__":

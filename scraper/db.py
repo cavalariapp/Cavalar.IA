@@ -23,6 +23,20 @@ import requests
 TIMEOUT = 30
 
 
+def _norm_url(u):
+    """Canoniza a URL do PDF p/ casar com o que o chatbot já gravou no banco:
+    colapsa '//' no caminho (a FPH emite '/sportmanager//uploads/...') e troca
+    espaço por %20 (o href cru vem com espaço; o banco guarda %20). Sem isso o
+    upsert de documentos não casa por url_pdf e DUPLICA — perdendo o vínculo com
+    o texto_extraido/conteudo_estruturado que o chatbot já produziu. Idempotente."""
+    if not u:
+        return u
+    u = u.strip()
+    scheme, sep, rest = u.partition("://")
+    u = (scheme + sep + re.sub(r"/{2,}", "/", rest)) if sep else re.sub(r"/{2,}", "/", u)
+    return u.replace(" ", "%20")
+
+
 class SupabaseWriter:
     def __init__(self, url=None, key=None):
         self.url = (url or os.environ.get("SUPABASE_URL") or "").rstrip("/")
@@ -113,6 +127,30 @@ class SupabaseWriter:
     _PROVA_PATCH = ("nome", "numero", "descricao", "categorias",
                     "tipo_prova", "data_prova", "dia_semana")
 
+    @staticmethod
+    def _plan_provas_upsert(existentes, provas_rows):
+        """Decide quais provas viram PATCH (já existem) e quais são INSERT, por
+        (id_origem). NORMALIZA id_origem a str DOS DOIS LADOS: a coluna
+        `provas.id_origem` é INTEIRA no banco (PostgREST devolve int), mas o
+        parser entrega STRING (do href Resultados.aspx?ID=N). Sem normalizar, o
+        dict-lookup int↔str nunca casa → o upsert reinsere tudo e DUPLICA a cada
+        scrape (foi a causa do 4+12 no 1º write do 3436). Pura (sem rede) p/
+        testar. Devolve (patches=[(prova_id, row)], novas=[row], puladas:int)."""
+        id_por_origem = {str(r["id_origem"]): r["id"]
+                         for r in existentes if r.get("id_origem") is not None}
+        patches, novas, puladas = [], [], 0
+        for row in provas_rows:
+            oid = row.get("id_origem")
+            if oid is None or str(oid).strip() == "":   # sem chave nativa: não dedup
+                puladas += 1
+                continue
+            pid = id_por_origem.get(str(oid))
+            if pid is not None:
+                patches.append((pid, row))
+            else:
+                novas.append(row)
+        return patches, novas, puladas
+
     def upsert_provas(self, torneio_id, provas_rows):
         """Upsert FK-safe de provas por (torneio_id, id_origem). `provas_rows`
         já vêm convertidas por prova_to_row. Devolve contagem por ação."""
@@ -121,26 +159,15 @@ class SupabaseWriter:
             return {"inseridas": 0, "atualizadas": 0, "puladas": 0}
         existentes = self._get(
             f"/rest/v1/provas?torneio_id=eq.{torneio_id}&select=id,id_origem")
-        id_por_origem = {r["id_origem"]: r["id"]
-                         for r in existentes if r.get("id_origem")}
-        novas, atualizadas, puladas = [], 0, 0
-        for row in provas_rows:
-            oid = row.get("id_origem")
-            if not oid:                      # sem chave nativa: não dá pra dedup
-                puladas += 1
-                continue
-            pid = id_por_origem.get(oid)
-            if pid is not None:              # já existe → PATCH (preserva provas.id)
-                patch = {k: row[k] for k in self._PROVA_PATCH if k in row}
-                self._patch(f"/rest/v1/provas?id=eq.{pid}", patch)
-                atualizadas += 1
-            else:
-                novas.append(row)
+        patches, novas, puladas = self._plan_provas_upsert(existentes, provas_rows)
+        for pid, row in patches:             # já existe → PATCH (preserva provas.id)
+            patch = {k: row[k] for k in self._PROVA_PATCH if k in row}
+            self._patch(f"/rest/v1/provas?id=eq.{pid}", patch)
         inseridas = 0
         if novas:
             res = self._post("/rest/v1/provas", novas, return_repr=True)
             inseridas = len(res or [])
-        return {"inseridas": inseridas, "atualizadas": atualizadas, "puladas": puladas}
+        return {"inseridas": inseridas, "atualizadas": len(patches), "puladas": puladas}
 
     # ── documentos (Fase B) — UPSERT por url_pdf, PRESERVANDO o que o chatbot
     #  extraiu. torneio_documentos tem campos que NÃO são do scraper:
@@ -159,11 +186,15 @@ class SupabaseWriter:
             return {"inseridos": 0, "atualizados": 0}
         existentes = self._get(
             f"/rest/v1/torneio_documentos?torneio_id=eq.{torneio_id}&select=id,url_pdf")
-        id_por_url = {r["url_pdf"]: r["id"] for r in existentes if r.get("url_pdf")}
+        # casa por url CANÔNICA (_norm_url): o banco pode ter %20/single-slash e o
+        # scraper espaço/'//'. Sem normalizar, não casa e duplica — perdendo o
+        # texto_extraido do chatbot, que vive no doc já existente.
+        id_por_url = {_norm_url(r["url_pdf"]): r["id"]
+                      for r in existentes if r.get("url_pdf")}
         agora = _dt.datetime.now(_dt.timezone.utc).isoformat()
         novos, atualizados = [], 0
         for row in docs_rows:
-            url = row.get("url_pdf")
+            url = _norm_url(row.get("url_pdf"))
             if not url:
                 continue
             doc_id = id_por_url.get(url)
@@ -254,6 +285,6 @@ def documento_to_row(doc, torneio_id):
         "torneio_id": torneio_id,
         "tipo": doc.get("tipo"),
         "titulo": doc.get("titulo"),
-        "url_pdf": doc.get("url_pdf"),
+        "url_pdf": _norm_url(doc.get("url_pdf")),
         "data_publicacao": doc.get("data_publicacao"),
     }

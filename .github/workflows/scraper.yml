@@ -78,8 +78,12 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # agendado: mês atual de todas as fontes ativas, gravando.
-            python -m scraper.main --current --write
+            # agendado: TEMPORARIAMENTE em dry-run (sem --write) até reconciliar
+            # o id_nativo do legado em `torneios`. Com --write, o cron DUPLICARIA
+            # os eventos do mês atual: linhas legadas têm id_nativo=null, então o
+            # upsert por (fonte,id_nativo) não casa e reinsere. Religar o --write
+            # depois do backfill de id_nativo (ver reconciliação do calendário).
+            python -m scraper.main --current
           elif [ -n "${IN_DETAIL:-}" ]; then
             if [ "${IN_DUMP:-false}" = "true" ]; then
               # captura o HTML CRU do detalhe (gera fixture). Não grava.
