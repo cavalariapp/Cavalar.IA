@@ -140,6 +140,35 @@ def _apply_filters(page, prefer="lbbusca"):
     return False
 
 
+def _safe(thunk, default=None):
+    """Roda `thunk()` e devolve o resultado; em QUALQUER exceção devolve
+    `default`. Usado pra isolar cada captura (uma falha não derruba as outras
+    nem aborta o dump inteiro — lição da run 26754246983: o clique em Programas
+    destruía o contexto e levava junto as provas JÁ capturadas)."""
+    try:
+        return thunk()
+    except Exception:
+        return default
+
+
+def _read_upcard_html(page, timeout_ms):
+    """Lê upCard.innerHTML TOLERANDO navegação. O __doPostBack de algumas abas é
+    postback FULL (recarrega a página) e destrói o contexto JS no meio do
+    page.evaluate ("Execution context was destroyed"). Tentamos algumas vezes,
+    estabilizando o load entre tentativas; por fim devolvemos None (o chamador
+    ainda tem o page.content() inteiro como fallback de diagnóstico)."""
+    for _ in range(3):
+        h = _safe(lambda: page.evaluate(
+            "(uid) => { const el = document.getElementById(uid); return el ? el.innerHTML : null; }",
+            UPCARD,
+        ), default="__RETRY__")
+        if h != "__RETRY__":
+            return h
+        _safe(lambda: page.wait_for_load_state("domcontentloaded", timeout=timeout_ms))
+        _safe(lambda: page.wait_for_timeout(500))
+    return None
+
+
 def _capture_upcard(page, menu_id, settle_ms, timeout_ms, expand_days=False):
     """Seleciona a aba `menu_id` (clique REAL no <a> __doPostBack) e devolve o
     innerHTML do upCard depois de renderizar. NÃO lança: devolve o que houver
@@ -150,29 +179,22 @@ def _capture_upcard(page, menu_id, settle_ms, timeout_ms, expand_days=False):
     capturar, pra trazer as provas. Best-effort e defensivo — se o seletor não
     bater, devolve a sanfona colapsada (o 1º dump no CI revela o seletor certo).
     """
-    try:
-        page.click(f"#{menu_id}", timeout=timeout_ms)
-    except Exception:
-        pass  # a aba default já pode estar renderizada; segue pra capturar
-    try:  # espera o upCard ter conteúdo real (sair de vazio/"Carregando")
-        page.wait_for_function(
-            """(uid) => {
-                const el = document.getElementById(uid);
-                if (!el) return false;
-                const t = (el.innerText || '').trim();
-                return t.length > 30 && !/^\\s*Carregando/i.test(t);
-            }""",
-            arg=UPCARD, timeout=timeout_ms,
-        )
-    except Exception:
-        pass  # nada publicado (provável fantasma) → devolve o que tiver
+    _safe(lambda: page.click(f"#{menu_id}", timeout=timeout_ms))
+    # a aba default já pode estar renderizada; um postback full pode até navegar
+    # (contexto destruído) — por isso tudo aqui é best-effort e não lança.
+    _safe(lambda: page.wait_for_function(
+        """(uid) => {
+            const el = document.getElementById(uid);
+            if (!el) return false;
+            const t = (el.innerText || '').trim();
+            return t.length > 30 && !/^\\s*Carregando/i.test(t);
+        }""",
+        arg=UPCARD, timeout=timeout_ms,
+    ))
     if expand_days:
         _expand_days(page, settle_ms, timeout_ms)
-    page.wait_for_timeout(settle_ms)
-    return page.evaluate(
-        "(uid) => { const el = document.getElementById(uid); return el ? el.innerHTML : null; }",
-        UPCARD,
-    )
+    _safe(lambda: page.wait_for_timeout(settle_ms))
+    return _read_upcard_html(page, timeout_ms)
 
 
 def _expand_days(page, settle_ms, timeout_ms, max_days=15):
@@ -205,10 +227,15 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
     Captura o DETALHE de um torneio (ListaProvas?ID=N) com navegador.
 
     Devolve dict:
-      header_html : HTML do GET (cabeçalho estático: título etc.)
-      provas_html : innerHTML do upCard (aba "Lista de Provas", com os dias
-                    EXPANDIDOS quando possível) — ou None
-      docs_html   : innerHTML do upCard após clicar "Programas/Adendos" (ou None)
+      header_html      : HTML do GET (cabeçalho estático: título etc.)
+      provas_html      : innerHTML do upCard (aba "Lista de Provas", com os dias
+                         EXPANDIDOS quando possível) — ou None
+      provas_page_html : HTML da PÁGINA INTEIRA após capturar provas (diagnóstico
+                         — se o postback for full-nav, o grid mora aqui, não no
+                         innerHTML; também salva o que houver mesmo se a evaluate
+                         falhar por contexto destruído)
+      docs_html        : innerHTML do upCard após clicar "Programas/Adendos"
+      docs_page_html   : HTML da página inteira após a aba de docs (diagnóstico)
 
     MODELO CONFIRMADO (recon 2026-06, FPH 3436 dono vs. 3440 fantasma CBH):
       • A aba "Lista de Provas" AUTO-renderiza no upCard ao abrir (sanfona por
@@ -218,6 +245,11 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
       • Fantasma (dono != FPH): upCard fica em "Loading..." e some a aba
         Programas → não há o que extrair (regra de ouro: só a fonte dona).
 
+    RESILIÊNCIA (run 26754246983): o clique em Programas é postback FULL — destrói
+      o contexto JS no meio do page.evaluate ("Execution context was destroyed") e,
+      sem isolamento, isso abortava o dump INTEIRO levando junto as provas já
+      capturadas. Agora CADA captura é isolada (_safe) e há fallback de page inteira.
+
     ⚠ AINDA PENDENTE DE 1 DUMP NO CI: ver o HTML real da grade expandida pra
       (a) confirmar DAY_SUBMIT_SEL e o comportamento da sanfona, e (b) travar
       adapters.macronetwork.parse_provas/parse_documentos contra a fixture.
@@ -226,20 +258,24 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
     from playwright.sync_api import sync_playwright
 
     url = source["detalhe_url"].format(id=id_nativo)
-    result = {"header_html": None, "provas_html": None, "docs_html": None}
+    result = {"header_html": None, "provas_html": None,
+              "provas_page_html": None, "docs_html": None, "docs_page_html": None}
     with sync_playwright() as pw:
         browser, ctx, page = _new_page(pw, headless)
         try:
-            page.goto(url, wait_until="domcontentloaded")
-            page.wait_for_timeout(settle_ms)
-            result["header_html"] = page.content()
+            _safe(lambda: page.goto(url, wait_until="domcontentloaded"))
+            _safe(lambda: page.wait_for_timeout(settle_ms))
+            result["header_html"] = _safe(lambda: page.content())
             # provas: a aba default já auto-renderiza; tentamos expandir os dias
-            result["provas_html"] = _capture_upcard(
-                page, BTN_PROVAS, settle_ms, timeout_ms, expand_days=True)
+            result["provas_html"] = _safe(lambda: _capture_upcard(
+                page, BTN_PROVAS, settle_ms, timeout_ms, expand_days=True))
+            result["provas_page_html"] = _safe(lambda: page.content())
             # recarrega p/ estado limpo: o postback troca o upCard no lugar
-            page.goto(url, wait_until="domcontentloaded")
-            page.wait_for_timeout(settle_ms)
-            result["docs_html"] = _capture_upcard(page, BTN_PROGRAMAS, settle_ms, timeout_ms)
+            _safe(lambda: page.goto(url, wait_until="domcontentloaded"))
+            _safe(lambda: page.wait_for_timeout(settle_ms))
+            result["docs_html"] = _safe(
+                lambda: _capture_upcard(page, BTN_PROGRAMAS, settle_ms, timeout_ms))
+            result["docs_page_html"] = _safe(lambda: page.content())
         finally:
-            browser.close()
+            _safe(lambda: browser.close())
     return result

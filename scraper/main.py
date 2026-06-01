@@ -102,7 +102,9 @@ def main(argv=None):
         d = fetch.fetch_detail(src, args.dump_detail, headless=not args.headed)
         print(f"\n══ DETALHE {src['codigo']} ID={args.dump_detail} "
               f"({src['detalhe_url'].format(id=args.dump_detail)}) ══")
-        for k in ("provas_html", "docs_html"):
+        # provas_page_html/docs_page_html = página inteira (fallback de diagnóstico
+        # quando o postback é full-nav e o innerHTML do upCard não vem).
+        for k in ("provas_html", "provas_page_html", "docs_html", "docs_page_html"):
             h = d.get(k) or ""
             print(f"\n──────── BEGIN {k} ({len(h)} chars) ────────")
             print(h)
