@@ -104,6 +104,10 @@ def main(argv=None):
               f"({src['detalhe_url'].format(id=args.dump_detail)}) ══")
         # provas_days = um snapshot do upCard por dia EXPANDIDO (as provas reais).
         # *_page_html = página inteira (os PDFs de docs moram aí; postback full-nav).
+        diag = d.get("provas_diag") or []
+        print(f"\n──────── provas_diag ({len(diag)} dia(s) visitado(s)) ────────")
+        for row in diag:
+            print(f"   {row}")
         days = d.get("provas_days") or []
         for i, h in enumerate(days):
             h = h or ""

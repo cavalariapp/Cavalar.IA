@@ -197,32 +197,66 @@ def _capture_upcard(page, menu_id, settle_ms, timeout_ms):
     return _read_upcard_html(page, timeout_ms)
 
 
-def _capture_provas(page, settle_ms, timeout_ms, max_days=31):
-    """Captura a grade de PROVAS. A aba "Lista de Provas" auto-renderiza uma
-    SANFONA por dia (colapsada). Cada dia é um <p class="grid_accordion"
-    onclick="toggleCard(this)"> cujo clique dispara o 2º postback (carrega as
-    provas daquele dia — lazy-load 2º nível). Como o servidor pode NÃO guardar
-    qual dia ficou aberto (ViewState off), capturamos o upCard APÓS expandir CADA
-    dia e acumulamos os snapshots — assim pegamos TODAS as provas mesmo que
-    expandir o dia N recolha os outros. NUNCA lança.
+def _extract_upcard(page_html):
+    """Extrai SÓ o subtree do upCard de um page.content() inteiro — compacta o
+    snapshot por dia (não precisamos do chrome de ~130KB da página em cada dump).
+    Import bs4 adiado (já é dep de adapters/macronetwork → existe no CI e no venv).
+    Devolve None se não achar/der erro → o chamador cai pro page inteiro."""
+    if not page_html:
+        return None
+    try:
+        from bs4 import BeautifulSoup
+        el = BeautifulSoup(page_html, "html.parser").find(id=UPCARD)
+        return str(el) if el else None
+    except Exception:
+        return None
 
-    Devolve (final_html, [snapshots_por_dia]).
+
+def _capture_provas(page, settle_ms, timeout_ms, max_days=31):
+    """Captura a grade de PROVAS: um SNAPSHOT do upCard por dia EXPANDIDO.
+
+    A aba "Lista de Provas" auto-renderiza uma SANFONA por dia (colapsada). Cada
+    dia é <p class="grid_accordion" onclick="toggleCard(this)"> + <input type=submit
+    class="hide btnDiaProva"> OCULTO. Clicar o <p> dispara um postback FULL que
+    recarrega a página com as provas DAQUELE dia inline (lazy-load 2º nível).
+    PROVA (run 26766321647): ler upCard.innerHTML no meio dá "Execution context was
+    destroyed" → todos os reads voltaram None e provas_days ficou VAZIO. A captura
+    ROBUSTA é page.content() DEPOIS que a navegação assenta (content() auto-espera o
+    documento, não corre com a navegação). Extraímos o upCard de cada page p/ compactar.
+
+    ViewState off → cada postback traz só o dia clicado expandido; acumulamos um
+    snapshot do upCard por dia → a UNIÃO tem TODAS as provas. NUNCA lança.
+
+    Devolve (final_page_html, [upcard_html_por_dia], [diag_por_dia]).
     """
+    diag = []
     _safe(lambda: page.click(f"#{BTN_PROVAS}", timeout=timeout_ms))
     _safe(lambda: page.wait_for_selector(DAY_HEADER_SEL, timeout=timeout_ms))
     n = _safe(lambda: page.locator(DAY_HEADER_SEL).count(), default=0) or 0
+    settle = max(settle_ms, 3500)  # folga generosa: o postback do dia é FULL
     snaps = []
     for i in range(min(n, max_days)):
-        # clica o HEADER do dia i (re-consulta a cada iteração: o postback troca
-        # o upCard no lugar e recria os <p>).
+        url_before = _safe(lambda: page.url)
+        # rótulo do dia (diagnóstico) ANTES do clique
+        label = _safe(lambda i=i: page.locator(DAY_HEADER_SEL).nth(i)
+                      .locator("span.gridCol").inner_text(timeout=timeout_ms))
+        # clica o HEADER do dia i (re-consulta SEMPRE: a navegação FULL recria os <p>)
         _safe(lambda i=i: page.locator(DAY_HEADER_SEL).nth(i).click(timeout=timeout_ms))
+        # assenta a navegação FULL: load + rede ociosa + folga fixa generosa
+        _safe(lambda: page.wait_for_load_state("load", timeout=timeout_ms))
         _safe(lambda: page.wait_for_load_state("networkidle", timeout=timeout_ms))
-        _safe(lambda: page.wait_for_timeout(settle_ms))
-        snap = _read_upcard_html(page, timeout_ms)
+        _safe(lambda: page.wait_for_timeout(settle))
+        page_html = _safe(lambda: page.content())
+        upc = _extract_upcard(page_html)
+        url_after = _safe(lambda: page.url)
+        diag.append({"i": i, "label": label, "url_before": url_before,
+                     "url_after": url_after, "page_len": len(page_html or ""),
+                     "upcard_len": len(upc or "")})
+        snap = upc or page_html
         if snap and snap not in snaps:
             snaps.append(snap)
-    final = _read_upcard_html(page, timeout_ms)
-    return final, snaps
+    final = _safe(lambda: page.content())
+    return final, snaps, diag
 
 
 def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15000):
@@ -232,9 +266,11 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
     Devolve dict:
       header_html      : HTML do GET (cabeçalho estático: título etc.)
       provas_html      : innerHTML do upCard ao FINAL (último dia expandido) — ou None
-      provas_days      : LISTA de snapshots do upCard, um por dia expandido (a
-                         união contém TODAS as provas mesmo se o servidor recolhe
-                         os outros dias ao expandir um — ver _capture_provas)
+      provas_days      : LISTA de snapshots do upCard (extraídos do page.content()),
+                         um por dia expandido (a união contém TODAS as provas mesmo
+                         se o servidor recolhe os outros dias — ver _capture_provas)
+      provas_diag      : LISTA de diagnóstico por dia (i, label, url antes/depois,
+                         page_len, upcard_len) — pra ver no CI se a expansão pegou
       provas_page_html : HTML da PÁGINA INTEIRA após capturar provas (diagnóstico)
       docs_html        : innerHTML do upCard após clicar "Programas/Adendos" (em
                          geral VAZIO — o postback é FULL; ver docs_page_html)
@@ -257,18 +293,21 @@ def fetch_detail(source, id_nativo, headless=True, settle_ms=1200, timeout_ms=15
 
     url = source["detalhe_url"].format(id=id_nativo)
     result = {"header_html": None, "provas_html": None, "provas_days": [],
-              "provas_page_html": None, "docs_html": None, "docs_page_html": None}
+              "provas_diag": [], "provas_page_html": None,
+              "docs_html": None, "docs_page_html": None}
     with sync_playwright() as pw:
         browser, ctx, page = _new_page(pw, headless)
         try:
             _safe(lambda: page.goto(url, wait_until="domcontentloaded"))
             _safe(lambda: page.wait_for_timeout(settle_ms))
             result["header_html"] = _safe(lambda: page.content())
-            # provas: expande CADA dia da sanfona e acumula os snapshots
-            final, days = _safe(
-                lambda: _capture_provas(page, settle_ms, timeout_ms), default=(None, []))
-            result["provas_html"], result["provas_days"] = final, days
-            result["provas_page_html"] = _safe(lambda: page.content())
+            # provas: expande CADA dia da sanfona e acumula os snapshots do upCard
+            final_page, days, diag = _safe(
+                lambda: _capture_provas(page, settle_ms, timeout_ms), default=(None, [], []))
+            result["provas_days"] = days
+            result["provas_diag"] = diag
+            result["provas_html"] = _safe(lambda: _read_upcard_html(page, timeout_ms))
+            result["provas_page_html"] = final_page or _safe(lambda: page.content())
             # recarrega p/ estado limpo: o postback troca o upCard no lugar
             _safe(lambda: page.goto(url, wait_until="domcontentloaded"))
             _safe(lambda: page.wait_for_timeout(settle_ms))
