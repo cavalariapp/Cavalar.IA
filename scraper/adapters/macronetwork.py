@@ -435,9 +435,11 @@ def parse_documentos(html, base_url=None):
 #         OU td.error                     → status ("Eliminado") quando sem faltas
 #       td c/ img.icon-tempo > span       → TEMPO ("63,13"); ausente p/ eliminado
 #   • Cruza 1:1 com a Ordem de Entrada (mesmos 18 conjuntos cavaleiro+cavalo).
-#   ⚠ Layout confirmado p/ CRONÔMETRO. Outros tipos (Duas Fases/Desempate) têm
-#     colunas extras de falta/tempo — endereçar com fixtures próprias antes de
-#     escrever no banco (ver task #14).
+#   ⚠ Este bloco cobre CRONÔMETRO single-round. Tipos de DUAS voltas têm parser
+#     próprio, p/ os quais parse_resultados desvia (ver dispatch logo abaixo):
+#       "2 PERCURSOS IDENTICOS/DISTINTOS" → _parse_resultados_dois_percursos
+#       "DUAS FASES"                      → _parse_resultados_duas_fases
+#       "...COM UM DESEMPATE"             → _parse_resultados_desempate
 
 def parse_resultados(html, base_url=None):
     """Extrai os RESULTADOS de uma prova (Resultados.aspx?ID=N), já renderizada
@@ -457,6 +459,21 @@ def parse_resultados(html, base_url=None):
     Tolerante: célula/linha faltando não quebra (campos viram None).
     """
     soup = _soup(html)
+
+    # GUARDA DE LAYOUT: tipos de prova com DUAS voltas (faltas+tempo por volta) NÃO
+    # usam tr.table-row-styling e têm parser próprio. Detecta pelo cabeçalho
+    # (div.tipo-prova) ou pelo container lv* e desvia. CRONÔMETRO single-round (e
+    # demais tipos) seguem no fluxo padrão abaixo.
+    tp_el = soup.select_one("div.tipo-prova")
+    tp_txt = (tp_el.get_text(" ", strip=True) if tp_el else "") or ""
+    tp_up = tp_txt.upper()
+    if "PERCURSO" in tp_up or soup.find(id=re.compile("lvPercursos", re.I)):
+        return _parse_resultados_dois_percursos(soup)
+    if "DUAS FASES" in tp_up or soup.find(id=re.compile("lvResultadoDuasFases", re.I)):
+        return _parse_resultados_duas_fases(soup)
+    if "DESEMPATE" in tp_up or soup.find(id=re.compile("lvResultadoDesempate", re.I)):
+        return _parse_resultados_desempate(soup)
+
     out = []
     for r in soup.select("tr.table-row-styling"):
         cl = r.select_one("td.classfic-data")
@@ -505,6 +522,245 @@ def parse_resultados(html, base_url=None):
             "penalidade": _clean(falta_el.get_text() if falta_el else None),
             "tempo": tempo,
         })
+    return out
+
+
+# ── RESULTADOS de "2 PERCURSOS IDENTICOS / DISTINTOS" (seletivas) ─────
+# DESCOBERTAS DA RECON AO VIVO (FPH 2026-06; IDs 13903/13906/13909):
+#   • div.tipo-prova = "Tipo de Prova: 2 PERCURSOS IDENTICOS". Container
+#     lvPercursosIdenticos (há também lvPercursosDistintos). NÃO usam
+#     tr.table-row-styling → as linhas são <tr> com td.classfic-data.
+#   • O cavaleiro corre OS DOIS percursos. Cada volta carrega OU (faltas, tempo)
+#     OU um STATUS (Eliminado/Desistente/…) numa única célula td.error (sem
+#     tempo). O RESULTADO final é o status se houve em QUALQUER volta (prevalece,
+#     1ª ou 2ª, tanto faz); senão a soma de faltas. A fonte já calcula o Resultado.
+#   • Em DESKTOP (td.is-desktop; os td.is-mobile são duplicatas e o td.btnHidden2Volta
+#     final é só botão de vídeo) a sequência de células de valor é:
+#       1ª Volta: [faltas (b.falta-soma-color)] [tempo (img.icon-tempo>span)]
+#                 — OU 1 célula td.error com o status (sem tempo)
+#       2ª Volta: idem
+#       Resultado: 1 célula (faltas-soma OU status)
+#     Volta com status COLAPSA de 2 células p/ 1 → o parser anda por SEÇÕES
+#     (não por índice fixo de coluna).
+#   • Campos ocultos úteis (futuro): hfTempoDoisPercursos (tempo somado/desempate),
+#     hfResultadoJunto (resultado final), hfHorsConcours (fora de concurso).
+#   • Para o site exibir as 4 colunas (Pen 1ª|T 1ª|Pen 2ª|T 2ª) a prova precisa
+#     estar com provas.tipo_prova='Duas Voltas' (hoje muitas estão 'Outro').
+
+# ── HELPERS compartilhados pelos parsers de DUAS voltas ──────────────
+def _eh_pontuacao(td):
+    """True se a célula carrega PONTUAÇÃO: status (td.error), soma de faltas
+    (b.falta-soma-color) ou tempo (img.icon-tempo). Distingue de colunas como
+    Equipe/Categoria/Prêmio e de placeholders '---'/'-----' (sem marcador)."""
+    cls = td.get("class") or []
+    return ("error" in cls
+            or td.find("b", class_="falta-soma-color") is not None
+            or td.find("img", class_="icon-tempo") is not None)
+
+
+def _falta_de(td):
+    """Soma de faltas da célula (texto do b.falta-soma-color, ex.: '0'/'4'/'16';
+    senão o texto cru da célula)."""
+    b = td.find("b", class_="falta-soma-color")
+    return _clean(b.get_text() if b else td.get_text(" ", strip=True))
+
+
+def _tempo_de(td):
+    """Tempo da célula (texto do span junto ao img.icon-tempo; senão texto cru)."""
+    sp = td.find("span")
+    return _clean(sp.get_text() if sp else td.get_text(" ", strip=True))
+
+
+def _meta_linha(r):
+    """Campos COMUNS a toda linha de resultado (colocação, cavaleiro, cavalo,
+    categoria e ids), independentes do tipo de prova. Cada parser específico
+    completa depois os campos de PONTUAÇÃO (penalidade/tempo/voltas/pontos)."""
+    cl = r.find("td", class_="classfic-data")
+    coloc = None
+    if cl:
+        b = cl.find("b")
+        coloc = (_clean(b.get_text()) if b
+                 else _clean(cl.find(string=True, recursive=False))
+                 or _clean(cl.get_text(" ", strip=True)))
+    cav_el = (r.select_one("td.colunaCavaleiro .format-coluna-competidor strong")
+              or r.select_one("td.colunaCavaleiro strong"))
+    ent_el = r.select_one("span.descCompetidor")
+    idc_el = r.select_one("td.colunaCavaleiro input[id$=hfIDCavaleiro]")
+    cavalo_el = r.select_one("td.colunaCavalo strong")
+    gen_el = r.select_one("td.colunaCavalo span.descCavalo")
+    # categoria: td.border-mobile-data; se ausente (ex.: DESEMPATE), a 1ª td com
+    # span.is-mobile-block. Pega o texto DIRETO (antes do span duplicado p/ mobile).
+    cat_el = r.select_one("td.border-mobile-data")
+    if cat_el is None:
+        for td in r.find_all("td"):
+            if td.find("span", class_="is-mobile-block"):
+                cat_el = td
+                break
+    categoria = None
+    if cat_el is not None:
+        direto = cat_el.find(string=True, recursive=False)
+        categoria = _clean(direto) or _clean(cat_el.get_text(" ", strip=True))
+    return {
+        "id_origem": cl.get("id") if cl else None,
+        "colocacao": coloc,
+        "cavaleiro_nome": _clean(cav_el.get_text() if cav_el else None),
+        "entidade": _clean(ent_el.get_text() if ent_el else None),
+        "id_cavaleiro_fonte": (idc_el.get("value") if idc_el else None) or None,
+        "cavalo_nome": _clean(cavalo_el.get_text() if cavalo_el else None),
+        "cavalo_genealogia": _clean(gen_el.get_text(" ") if gen_el else None),
+        "categoria": categoria,
+    }
+
+
+def _ler_secoes_dois_percursos(desk):
+    """Recebe as células de PONTUAÇÃO (faltas/tempo/status, já SEM a coluna
+    Equipe), na ordem do documento, e devolve (pen1, tempo1, pen2, tempo2, resultado).
+    Anda por SEÇÕES: uma volta com status ocupa 1 célula; uma volta normal ocupa
+    2 (faltas + tempo). O Resultado final é sempre 1 célula (ausente no DESEMPATE)."""
+    def is_err(td):
+        return "error" in (td.get("class") or [])
+
+    i, n = 0, len(desk)
+    pen1 = t1 = pen2 = t2 = resultado = None
+    # 1ª volta
+    if i < n:
+        if is_err(desk[i]):
+            pen1 = _clean(desk[i].get_text(" ", strip=True)); i += 1
+        else:
+            pen1 = _falta_de(desk[i]); i += 1
+            if i < n:
+                t1 = _tempo_de(desk[i]); i += 1
+    # 2ª volta
+    if i < n:
+        if is_err(desk[i]):
+            pen2 = _clean(desk[i].get_text(" ", strip=True)); i += 1
+        else:
+            pen2 = _falta_de(desk[i]); i += 1
+            if i < n:
+                t2 = _tempo_de(desk[i]); i += 1
+    # resultado final (1 célula: status ou soma de faltas)
+    if i < n:
+        resultado = (_clean(desk[i].get_text(" ", strip=True))
+                     if is_err(desk[i]) else _falta_de(desk[i]))
+    return pen1, t1, pen2, t2, resultado
+
+
+def _parse_resultados_dois_percursos(soup):
+    """Resultados de prova '2 PERCURSOS IDENTICOS/DISTINTOS'. Devolve a MESMA
+    estrutura de dicts que parse_resultados, preenchendo as DUAS voltas:
+      penalidade / tempo       → 1ª volta (faltas-soma ou status; tempo)
+      penalidade_2 / tempo_2   → 2ª volta
+      pontos                   → Resultado final (status prevalece; senão soma)
+    Foco INDIVIDUAL: a coluna Equipe é ignorada por ora (equipe=None).
+    """
+    out = []
+    rows = [tr for tr in soup.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in rows:
+        # células DESKTOP (is-mobile são duplicatas; btnHidden2Volta é só botão).
+        # Em provas COM equipe há uma coluna "Equipe" extra (is-desktop, sem marcador
+        # de pontuação): as células de PONTUAÇÃO vão pro walk das voltas e a célula de
+        # Equipe é capturada à parte. (Ranking de equipe fica pra depois — foco
+        # individual; aqui só guardamos o NOME da equipe, se houver.)
+        desk = [td for td in r.find_all("td") if "is-desktop" in (td.get("class") or [])]
+        score_cells = [td for td in desk if _eh_pontuacao(td)]
+        equipe = None
+        for td in desk:
+            if not _eh_pontuacao(td):
+                e = _clean(td.get_text(" ", strip=True))
+                equipe = e if e and e != "-" else None
+                break  # coluna Equipe = 1ª célula não-pontuação (vem antes das voltas)
+        pen1, t1, pen2, t2, resultado = _ler_secoes_dois_percursos(score_cells)
+
+        linha = _meta_linha(r)
+        linha.update({
+            "equipe": equipe,
+            "penalidade": pen1, "tempo": t1,
+            "penalidade_2": pen2, "tempo_2": t2, "pontos": resultado,
+        })
+        out.append(linha)
+    return out
+
+
+# ── RESULTADOS de "DUAS FASES" ───────────────────────────────────────
+# RECON AO VIVO (FPH 2026-06; IDs 13604/13606/13671/13673):
+#   • div.tipo-prova = "Tipo de Prova: DUAS FASES". Container lvResultadoDuasFases.
+#     Linhas = <tr> com td.classfic-data (NÃO tr.table-row-styling).
+#   • Cada cavaleiro tem UMA soma de faltas (b.falta-soma-color, ex.: "0 (0+0)",
+#     "10 (8+2)") e DOIS tempos (img.icon-tempo): Fase 1 e Fase 2.
+#       → penalidade = faltas; tempo = tempo Fase 1; tempo_2 = tempo Fase 2.
+#   • STATUS (Desistente/Forfait/…) COLAPSA as 3 células numa única td.error.
+#       → penalidade = status; tempo = tempo_2 = None; pontos = status.
+#   • Exibição (resultados.html): 'Duas Fases' → [Pen. | T 1ª | T 2ª].
+
+def _parse_resultados_duas_fases(soup):
+    """Resultados de prova 'DUAS FASES'. Devolve a MESMA estrutura de dicts que
+    parse_resultados: penalidade = soma de faltas (ou status); tempo = Fase 1;
+    tempo_2 = Fase 2. penalidade_2 não se aplica (None)."""
+    out = []
+    rows = [tr for tr in soup.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in rows:
+        # células de PONTUAÇÃO (faltas/tempos/status), sem duplicatas mobile
+        score = [td for td in r.find_all("td")
+                 if "is-mobile" not in (td.get("class") or []) and _eh_pontuacao(td)]
+        err = next((td for td in score if "error" in (td.get("class") or [])), None)
+        pen = t1 = t2 = pontos = None
+        if err is not None:
+            # status colapsa tudo numa célula; é o resultado final
+            pen = _clean(err.get_text(" ", strip=True))
+            pontos = pen
+        else:
+            faltas_td = next((td for td in score
+                              if td.find("b", class_="falta-soma-color")), None)
+            tempos = [td for td in score if td.find("img", class_="icon-tempo")]
+            if faltas_td is not None:
+                pen = _falta_de(faltas_td)
+            if len(tempos) >= 1:
+                t1 = _tempo_de(tempos[0])
+            if len(tempos) >= 2:
+                t2 = _tempo_de(tempos[1])
+        linha = _meta_linha(r)
+        linha.update({
+            "equipe": None,
+            "penalidade": pen, "tempo": t1,
+            "penalidade_2": None, "tempo_2": t2, "pontos": pontos,
+        })
+        out.append(linha)
+    return out
+
+
+# ── RESULTADOS de "CRONÔMETRO COM UM DESEMPATE" ──────────────────────
+# RECON AO VIVO (FPH 2026-06; ID 13635, 55 linhas):
+#   • div.tipo-prova = "…COM UM DESEMPATE". Container lvResultadoDesempate.
+#     Linhas = <tr> com td.classfic-data.
+#   • Estrutura = 2 voltas idênticas às seletivas: [faltas1, tempo1] + [faltasD, tempoD],
+#     PORÉM SEM célula final de Resultado. Só quem zera a 1ª volta vai ao desempate;
+#     quem não vai tem as células do desempate como placeholders "---"/"-----"
+#     (SEM marcador) → naturalmente ignorados (só entram células com marcador).
+#   • STATUS (Desistente/Forfait) pode estar na 1ª volta (1 td.error + placeholders)
+#     ou no desempate (faltas1/tempo1 normais + 1 td.error). O caminhador por seções
+#     (_ler_secoes_dois_percursos) trata ambos.
+#       → penalidade/tempo = 1ª volta; penalidade_2/tempo_2 = desempate; pontos = None.
+#   • Exibição (resultados.html): 'Desempate' → [Pen 1ª | T 1ª | Pen 2ª | T 2ª].
+
+def _parse_resultados_desempate(soup):
+    """Resultados de prova 'CRONÔMETRO COM UM DESEMPATE'. 2 voltas (1ª + desempate),
+    sem Resultado final. Reaproveita o caminhador por seções; placeholders
+    "---"/"-----" do desempate (sem marcador) ficam de fora."""
+    out = []
+    rows = [tr for tr in soup.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in rows:
+        # células de PONTUAÇÃO = is-desktop COM marcador (exclui categoria,
+        # btnHidden2Volta, prêmio e os placeholders "---"/"-----").
+        score = [td for td in r.find_all("td")
+                 if "is-desktop" in (td.get("class") or []) and _eh_pontuacao(td)]
+        pen1, t1, pen2, t2, _ = _ler_secoes_dois_percursos(score)
+        linha = _meta_linha(r)
+        linha.update({
+            "equipe": None,
+            "penalidade": pen1, "tempo": t1,
+            "penalidade_2": pen2, "tempo_2": t2, "pontos": None,
+        })
+        out.append(linha)
     return out
 
 
