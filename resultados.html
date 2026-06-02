@@ -1053,17 +1053,27 @@ async function loadTorneio(torneioId) {
     if (errP) throw errP;
     allProvas = provas || [];
 
-    // 3. Resultados apenas das provas deste torneio
+    // 3. Resultados apenas das provas deste torneio.
+    //    PAGINAÇÃO: o PostgREST corta cada resposta em 1000 linhas (db-max-rows
+    //    fixo no servidor — pedir limit maior NÃO adianta). Torneios grandes
+    //    (CSN com +1000 resultados) perderiam as provas finais (as de prova_id
+    //    mais alto). Buscamos em páginas de 1000 até esgotar.
     if (allProvas.length > 0) {
       const provaIds = allProvas.map(p => p.id);
-      const { data: resultados, error: errR } = await sb
-        .from('resultados')
-        .select('*')
-        .in('prova_id', provaIds)
-        .order('prova_id', { ascending: true })
-        .order('id',       { ascending: true });
-      if (errR) throw errR;
-      allResultados = resultados || [];
+      const PAGE = 1000;
+      allResultados = [];
+      for (let offset = 0; ; offset += PAGE) {
+        const { data: page, error: errR } = await sb
+          .from('resultados')
+          .select('*')
+          .in('prova_id', provaIds)
+          .order('prova_id', { ascending: true })
+          .order('id',       { ascending: true })
+          .range(offset, offset + PAGE - 1);
+        if (errR) throw errR;
+        allResultados = allResultados.concat(page || []);
+        if (!page || page.length < PAGE) break;   // última página
+      }
     } else {
       allResultados = [];
     }
