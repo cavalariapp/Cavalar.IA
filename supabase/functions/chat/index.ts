@@ -34,6 +34,23 @@ function isPenZero(p: any): boolean {
   if (!p) return false;
   return /^0([\s\n(,]|$)/.test(String(p).trim());
 }
+/** Converte tempo "33,83" | "72,52" | "1:05,42" pra segundos. null se não parsear. */
+function tempoParaSegundos(t: any): number | null {
+  if (t == null) return null;
+  const s = String(t).trim().replace(",", ".");
+  const m = s.match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/);
+  if (!m) return null;
+  const min = m[1] ? parseInt(m[1], 10) : 0;
+  const seg = parseFloat(m[2]);
+  if (Number.isNaN(seg)) return null;
+  return min * 60 + seg;
+}
+/** Diferença absoluta entre dois tempos, formatada "0,64s". null se algum não parsear. */
+function difTempoStr(t1: any, t2: any): string | null {
+  const a = tempoParaSegundos(t1), b = tempoParaSegundos(t2);
+  if (a == null || b == null) return null;
+  return Math.abs(b - a).toFixed(2).replace(".", ",") + "s";
+}
 const HEIGHTS = ["1,00M","1,10M","1,20M","1,30M","1,35M","1,40M","1,45M","1,50M","1,55M","1,60M"];
 
 /** Normaliza nome de torneio pra matching tolerante:
@@ -76,7 +93,7 @@ const TOOLS = [
     input_schema: { type: "object", properties: { termo: { type: "string" }, ano: { type: "number" } }, required: ["termo"] } },
   { name: "resultados_recentes", description: "Últimos resultados de um cavaleiro ou cavalo.",
     input_schema: { type: "object", properties: { entidade: { type: "string", enum: ["cavaleiro", "cavalo"] }, nome_exato: { type: "string" }, limit: { type: "number" } }, required: ["entidade", "nome_exato"] } },
-  { name: "vencedor_torneio", description: "Retorna o vencedor da prova principal (Grande Prêmio / maior altura) de um torneio. Aceita nome PARCIAL ou com variação (ex: 'CSN d maio', 'aniversário SHC', 'aachen'). Se não passar ano, pega o mais recente.",
+  { name: "vencedor_torneio", description: "Retorna o vencedor E o 2º lugar da prova principal (Grande Prêmio / Copa Ouro / maior altura) de um torneio, COM o tempo decisivo (tempo do desempate/2ª volta quando houver) e a diferença de tempo pro 2º lugar. Aceita nome PARCIAL ou com variação (ex: 'CSN d maio', 'aniversário SHC', 'aachen'). Se não passar ano, pega o mais recente.",
     input_schema: { type: "object", properties: { termo: { type: "string", description: "Nome ou parte do nome do torneio" }, ano: { type: "number", description: "Ano específico (opcional)" } }, required: ["termo"] } },
   { name: "resultado_prova", description: "Retorna resultados (top N) de UMA prova ESPECÍFICA dentro de um torneio. Use quando o usuário menciona o nome da prova: 'Copa Ouro', 'Copa Prata', 'Grande Prêmio', 'PR. 04', etc. Match por keyword no nome da prova.",
     input_schema: { type: "object", properties: {
@@ -271,9 +288,10 @@ async function tool_vencedor_torneio({ termo, ano }: any) {
     provaPrincipal = provas.sort((a, b) => heightOf(b) - heightOf(a))[0];
   }
 
-  // Busca o 1º lugar
+  // Busca o pódio. Inclui tempo_2/penalidade_2: em Desempate/Duas Voltas/Duas
+  // Fases é o resultado DECISIVO (o que define o pódio e o quão rápido foi).
   const { data: resultados } = await sb.from("resultados")
-    .select("colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade")
+    .select("colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade, tempo_2, penalidade_2")
     .eq("prova_id", provaPrincipal.id)
     .order("id", { ascending: true });
 
@@ -281,21 +299,34 @@ async function tool_vencedor_torneio({ termo, ano }: any) {
     return { torneio: t.nome, data: t.data_inicio, prova_principal: provaPrincipal.nome, erro: "Prova sem resultados ainda." };
   }
 
+  const mapPodio = (r: any) => ({
+    colocacao: r.colocacao,
+    cavaleiro: cleanFirstLine(r.cavaleiro_nome),
+    cavalo: cleanFirstLine(r.cavalo_nome),
+    penalidade: r.penalidade,
+    tempo: r.tempo,
+    ...(r.tempo_2 ? { tempo_2: r.tempo_2 } : {}),
+    ...(r.penalidade_2 ? { penalidade_2: r.penalidade_2 } : {}),
+  });
+
   const primeiro = resultados.find((r: any) => (r.colocacao || "").trim() === "1º") || resultados[0];
+  const segundo  = resultados.find((r: any) => (r.colocacao || "").trim() === "2º");
+
+  // Tempo DECISIVO = o do desempate/2ª volta quando existe; senão o tempo normal.
+  const tDecVenc = primeiro.tempo_2 ?? primeiro.tempo;
+  const tDecSeg  = segundo ? (segundo.tempo_2 ?? segundo.tempo) : null;
+  const difSeg   = segundo ? difTempoStr(tDecVenc, tDecSeg) : null;
 
   return {
     torneio: t.nome,
     data: t.data_inicio,
     fonte: t.fonte,
     prova_principal: provaPrincipal.nome,
+    tipo_prova: provaPrincipal.tipo_prova,
     altura: provaPrincipal.descricao,
-    vencedor: {
-      colocacao: primeiro.colocacao,
-      cavaleiro: cleanFirstLine(primeiro.cavaleiro_nome),
-      cavalo: cleanFirstLine(primeiro.cavalo_nome),
-      tempo: primeiro.tempo,
-      penalidade: primeiro.penalidade,
-    },
+    vencedor: mapPodio(primeiro),
+    ...(segundo ? { segundo_lugar: mapPodio(segundo) } : {}),
+    ...(difSeg ? { diferenca_tempo_para_2o: difSeg } : {}),
     outras_provas_disponiveis: provas.length,
   };
 }
@@ -529,7 +560,13 @@ PRINCÍPIO #1: SEMPRE TENTE PRIMEIRO. NUNCA pergunte "qual ano?", "qual torneio?
 - "aniversário shc" casa com "CSN2* 78º ANIVERSÁRIO DA SHC 2026"
 - "aachen" casa com "CSN 5* CHIO Aachen"
 
-PRINCÍPIO #2: Quando o usuário perguntar "quem venceu o [torneio]", USE A TOOL "vencedor_torneio" — ela já faz toda lógica de achar o torneio + identificar a prova principal (Grande Prêmio ou maior altura) + pegar o 1º lugar. NÃO precisa fazer 3 passos manualmente.
+PRINCÍPIO #2: Quando o usuário perguntar "quem venceu o [torneio]", USE A TOOL "vencedor_torneio" — ela já faz toda lógica de achar o torneio + identificar a prova principal (Grande Prêmio ou maior altura) + pegar o 1º lugar. NÃO precisa fazer 3 passos manualmente. Pra prova com NOME específico ("Copa Ouro", "Copa Prata", "PR. 04"), use "resultado_prova".
+
+PRINCÍPIO #2B (TEMPO DO DESEMPATE / 2ª VOLTA É DADO-CHAVE — NUNCA OMITA):
+Em provas de DESEMPATE ou DUAS VOLTAS (tipo_prova = "Desempate" / "Duas Voltas"), o resultado DECISIVO é a 2ª passagem: penalidade_2 = faltas no desempate, tempo_2 = tempo do desempate. Em DUAS FASES, o tempo decisivo é o da 2ª fase (tempo_2).
+- Ao dizer quem venceu uma prova dessas, SEMPRE informe o tempo decisivo (tempo_2) do campeão E a diferença de tempo pro 2º lugar (use o campo diferenca_tempo_para_2o quando vier; senão calcule pela diferença dos tempo_2). Ex: "Venceu o desempate em 33,83s, 0,64s à frente do 2º (34,47s) — ambos sem faltas".
+- O tempo/faltas da 1ª volta são contexto; num desempate o pódio é definido por ZERAR e ser mais RÁPIDO na 2ª. Se o 2º tiver mais faltas no desempate (ex: penalidade_2 = 4), diga isso em vez de só comparar tempo.
+- O público quer saber o quão RÁPIDO foi o campeão e a margem pro 2º — trate esse tempo como informação essencial, nunca opcional.
 
 PRINCÍPIO #3: Se sem ano, assume o MAIS RECENTE. A vasta maioria das perguntas é sobre o que aconteceu agora.
 

@@ -623,10 +623,15 @@ mark {
   tbody td {
     padding: 8px 8px;
   }
-  .col-rider, .col-horse { min-width: 80px; }
+  .col-rider, .col-horse { min-width: 72px; }
+  /* Colunas numéricas mais estreitas no mobile pra caber tudo: provas de
+     2 voltas têm 4 (Pen 1ª, T 1ª, Pen 2ª, T 2ª) + #, Cavaleiro e Cavalo. */
+  .col-num { padding-left: 6px; padding-right: 6px; }
   .prova-hdr { padding: 10px 12px; }
-  /* Esconde coluna Pontos no mobile — menos relevante */
-  th:last-child, td:last-child { display: none; }
+  /* Esconde SÓ a coluna Pontos no mobile (menos relevante).
+     Marcada por classe — NUNCA por :last-child — senão esconderia
+     o T 2ª (tempo do desempate / da 2ª volta), que é dado importante. */
+  .col-hide-sm { display: none; }
 }
 
 @media (min-width: 560px) {
@@ -1686,7 +1691,7 @@ function colunasParaTipo(tipo) {
       return [
         { label: 'Tempo', key: 'tempo',      cls: 'col-num' },
         { label: 'Pen.',  key: 'penalidade', cls: 'col-num' },
-        { label: 'Pontos',key: 'pontos',     cls: 'col-num accent' },
+        { label: 'Pontos',key: 'pontos',     cls: 'col-num accent', hideSm: true },
       ];
   }
 }
@@ -1703,6 +1708,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
       const v = r[c.key];
       let extraCls = '';
       if (c.key === 'penalidade' && (v === '0' || v === '0.0' || v === '0,0')) extraCls = ' penalty-zero';
+      if (c.hideSm) extraCls += ' col-hide-sm';
       return `<td class="${c.cls}${extraCls}">${escHtml(v)}</td>`;
     }).join('');
     return `
@@ -1714,7 +1720,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
       </tr>`;
   }).join('');
 
-  const headerCells = cols.map(c => `<th>${escHtml(c.label)}</th>`).join('');
+  const headerCells = cols.map(c => `<th${c.hideSm ? ' class="col-hide-sm"' : ''}>${escHtml(c.label)}</th>`).join('');
   const tipoLabel = prova.tipo_prova && prova.tipo_prova !== 'Outro'
     ? `<div style="padding:6px 12px;background:var(--surface2);font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Tipo: ${escHtml(prova.tipo_prova)}</div>`
     : '';
