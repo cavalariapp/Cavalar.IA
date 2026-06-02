@@ -95,7 +95,7 @@ const TOOLS = [
     input_schema: { type: "object", properties: { entidade: { type: "string", enum: ["cavaleiro", "cavalo"] }, nome_exato: { type: "string" }, limit: { type: "number" } }, required: ["entidade", "nome_exato"] } },
   { name: "vencedor_torneio", description: "Retorna o vencedor E o 2º lugar da prova principal (Grande Prêmio / Copa Ouro / maior altura) de um torneio, COM o tempo decisivo (tempo do desempate/2ª volta quando houver) e a diferença de tempo pro 2º lugar. Aceita nome PARCIAL ou com variação (ex: 'CSN d maio', 'aniversário SHC', 'aachen'). Se não passar ano, pega o mais recente.",
     input_schema: { type: "object", properties: { termo: { type: "string", description: "Nome ou parte do nome do torneio" }, ano: { type: "number", description: "Ano específico (opcional)" } }, required: ["termo"] } },
-  { name: "resultado_prova", description: "Retorna resultados (top N) de UMA prova ESPECÍFICA dentro de um torneio. Use quando o usuário menciona o nome da prova: 'Copa Ouro', 'Copa Prata', 'Grande Prêmio', 'PR. 04', etc. Match por keyword no nome da prova.",
+  { name: "resultado_prova", description: "Retorna resultados (top N) de UMA prova ESPECÍFICA dentro de um torneio, JÁ COM o tempo decisivo do vencedor (tempo_decisivo_vencedor = tempo do desempate/2ª volta quando houver) e a diferença de tempo pro 2º lugar (diferenca_tempo_para_2o). Use quando o usuário menciona o nome da prova: 'Copa Ouro', 'Copa Prata', 'Grande Prêmio', 'PR. 04', etc. Match por keyword no nome da prova.",
     input_schema: { type: "object", properties: {
       torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
       prova_termo:   { type: "string", description: "Nome ou parte do nome da prova (ex: 'copa ouro', 'gp', 'PR 04', '1,45M')" },
@@ -384,6 +384,15 @@ async function tool_resultado_prova({ torneio_termo, prova_termo, ano, limit = 5
     return { torneio: t.nome, prova: prova.nome, erro: "Prova sem resultados gravados ainda." };
   }
 
+  // Tempo decisivo (tempo_2 quando houver — desempate/2ª volta; senão tempo) +
+  // diferença pro 2º. Pré-calculado aqui pra que o modelo NUNCA omita a margem
+  // (princípio #2B): é o dado que o público mais quer junto das penalidades.
+  const _primeiro = resultados.find((r: any) => (r.colocacao || "").trim() === "1º") || resultados[0];
+  const _segundo = resultados.find((r: any) => (r.colocacao || "").trim() === "2º");
+  const _tDecVenc = _primeiro?.tempo_2 ?? _primeiro?.tempo;
+  const _tDecSeg = _segundo ? (_segundo.tempo_2 ?? _segundo.tempo) : null;
+  const _difSeg = _segundo ? difTempoStr(_tDecVenc, _tDecSeg) : null;
+
   return {
     torneio: t.nome,
     data: t.data_inicio,
@@ -391,6 +400,8 @@ async function tool_resultado_prova({ torneio_termo, prova_termo, ano, limit = 5
     tipo_prova: prova.tipo_prova,
     altura: prova.descricao,
     total_resultados: resultados.length,
+    ...(_tDecVenc ? { tempo_decisivo_vencedor: _tDecVenc } : {}),
+    ...(_difSeg ? { diferenca_tempo_para_2o: _difSeg } : {}),
     top: resultados.slice(0, Math.min(limit, 20)).map((r: any) => ({
       colocacao: r.colocacao,
       cavaleiro: cleanFirstLine(r.cavaleiro_nome),
