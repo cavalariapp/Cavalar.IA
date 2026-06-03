@@ -101,6 +101,29 @@ class SupabaseWriter:
             f"/rest/v1/torneios?fonte=eq.{fonte}&id_nativo=eq.{id_nativo}&select=id")
         return rows[0]["id"] if rows else None
 
+    # ── reconciliação do id_nativo (legado N8N sem a chave nativa) ────
+    def torneios_sem_id_nativo(self, fonte):
+        """Torneios da fonte SEM id_nativo (legado) — alvos da reconciliação.
+        Devolve [{id, nome, data_inicio, data_fim}] ordenado por data."""
+        self._require()
+        return self._get(
+            f"/rest/v1/torneios?fonte=eq.{fonte}&id_nativo=is.null"
+            f"&select=id,nome,data_inicio,data_fim&order=data_inicio.asc")
+
+    def id_nativos_existentes(self, fonte):
+        """Conjunto dos id_nativo JÁ usados pela fonte (pra não duplicar a chave
+        ao reconciliar — se o id_nativo já existe, a linha legada é dup a fundir,
+        não a casar)."""
+        self._require()
+        rows = self._get(
+            f"/rest/v1/torneios?fonte=eq.{fonte}&id_nativo=not.is.null&select=id_nativo")
+        return {str(r["id_nativo"]) for r in rows}
+
+    def set_torneio_id_nativo(self, torneio_id, id_nativo):
+        """Backfilla o id_nativo de UM torneio existente (reconciliação)."""
+        self._require()
+        self._patch(f"/rest/v1/torneios?id=eq.{torneio_id}", {"id_nativo": id_nativo})
+
     def find_prova_id(self, id_origem, fonte=None):
         """Resolve provas.id pelo id_origem (o ID=N de Resultados.aspx?ID=N) — é
         o FK que resultados/ordem_entrada usam. None se a prova ainda não foi

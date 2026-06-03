@@ -203,6 +203,61 @@ def inspecionar_prova(src, prova_id, args):
     return 0
 
 
+def reconciliar_calendario(src, args, writer):
+    """--reconcile: casa eventos do calendário AO VIVO (que TRAZEM o id_nativo)
+    com os torneios do banco SEM id_nativo (mesma fonte) e backfilla a chave.
+    Sem --write é dry-run (mostra os pareamentos pra conferência). Mês atual usa
+    requests; --month/--year usa navegador (Playwright)."""
+    from scraper import fetch, reconcile
+    ano = args.year or _dt.date.today().year
+    if args.month:
+        paginas = fetch.fetch_calendar_month(src, ano, args.month, headless=not args.headed)
+        eventos = []
+        for html in paginas:
+            eventos += mn.parse_calendar(html, ano, base_url=src["calendario_url"])
+        modo = f"playwright({ano}-{args.month:02d})"
+    else:
+        html = fetch.fetch_calendar_current(src)
+        eventos = mn.parse_calendar(html, ano, base_url=src["calendario_url"])
+        modo = "requests(mês atual)"
+    # dedup eventos ao vivo por id_nativo (pager pode repetir)
+    vist, uniq = set(), []
+    for e in eventos:
+        if e.get("id_nativo") in vist:
+            continue
+        vist.add(e.get("id_nativo")); uniq.append(e)
+    eventos = uniq
+
+    db_rows = writer.torneios_sem_id_nativo(src["codigo"])
+    usados = writer.id_nativos_existentes(src["codigo"])
+    res = reconcile.casar(eventos, db_rows, id_nativos_usados=usados)
+    m = res["matches"]
+
+    print(f"\n══ RECONCILIAÇÃO {src['codigo']} [{modo}] ══")
+    print(f"  vivos={len(eventos)} | banco s/ id_nativo={len(db_rows)} | "
+          f"matches={len(m)} | vivos sem par={len(res['vivos_sem_match'])} | "
+          f"banco sem par(este recorte)={len(res['banco_sem_match'])} | "
+          f"pulados(id_nativo já existe)={len(res['pulados_dup'])}")
+    for x in m:
+        flag = "✓" if x["confianca"] == "alta" else "?"
+        print(f"   {flag} {x['data']} id_nativo={str(x['id_nativo']):>6} "
+              f"score={x['score']:.2f} | banco: {(x['nome_banco'] or '')[:38]:38} "
+              f"⟷ vivo: {(x['nome_vivo'] or '')[:38]}")
+    if not args.write:
+        print("  (dry-run: nada gravado — use --write para backfillar id_nativo)")
+        return 0
+    n = 0
+    for x in m:
+        try:
+            writer.set_torneio_id_nativo(x["torneio_id"], x["id_nativo"])
+            n += 1
+        except Exception as e:
+            print(f"   ⚠ falhou torneio_id={x['torneio_id']} id_nativo={x['id_nativo']}: "
+                  f"{e.__class__.__name__}: {e}", file=sys.stderr)
+    print(f"  ✓ id_nativo backfillado em {n}/{len(m)} torneios.")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -228,6 +283,12 @@ def main(argv=None):
                          "--write resolve provas.id e grava (resultados no mapa "
                          "canônico + ordem_entrada). Exige a migração sql/026 e que a "
                          "prova já exista em `provas` (rode --detail do torneio antes).")
+    ap.add_argument("--reconcile", action="store_true",
+                    help="Reconcilia id_nativo: casa eventos do calendário ao vivo "
+                         "(mês atual via requests; --month/--year via navegador) com "
+                         "torneios do banco SEM id_nativo (mesma fonte) e backfilla. "
+                         "Dry-run sem --write. Destrava docs/ordens e o --write do "
+                         "calendário (sem duplicar).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -285,6 +346,27 @@ def main(argv=None):
                   file=sys.stderr)
             return 2
         return inspecionar_prova(src, args.prova, args)
+
+    # Reconciliação do id_nativo (calendário ao vivo ⟷ torneios legados do banco).
+    if args.reconcile:
+        if args.source:
+            s = SRC.get(args.source)
+            if not s:
+                print(f"--reconcile: fonte desconhecida: {args.source}", file=sys.stderr)
+                return 2
+            fontes = [s]
+        else:
+            fontes = SRC.ativos()
+        writer = SupabaseWriter()
+        if not writer.configured:
+            print("⚠ --reconcile precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY "
+                  "(lê torneios e grava id_nativo). Abortando.", file=sys.stderr)
+            return 3
+        for src in fontes:
+            if src.get("plataforma") != "macronetwork" or not src.get("calendario_url"):
+                continue
+            reconciliar_calendario(src, args, writer)
+        return 0
 
     if args.source:
         s = SRC.get(args.source)

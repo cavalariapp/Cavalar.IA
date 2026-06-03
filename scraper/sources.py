@@ -6,48 +6,57 @@ Registro das FONTES de scraping — a "lista telefônica" do scraper.
 canônico (sql/022) e permite a regra "só extrai docs/resultados da fonte dona".
 
 Plataformas:
-  macronetwork — ASP.NET WebForms (FPH, FEERJ, FHIMT...). Calendário guarda
-                 mês/ano em sessão no servidor → navegação via Playwright.
+  macronetwork — ASP.NET WebForms. MESMO backend p/ várias federações; cada uma
+                 tem domínio próprio e as MESMAS rotas:
+                   /calendario/Default                (calendário do mês)
+                   /calendario/ListaProvas?ID=N       (detalhe: provas + docs)
+                   /calendario/Resultados.aspx?ID=N    (resultados por prova)
+                   /calendario/OrdemEntrada.aspx?ID=N  (ordem de entrada)
+                 Calendário do MÊS ATUAL + Resultados/Ordem renderizam no GET
+                 simples (requests); navegar entre meses e a grade de provas do
+                 detalhe exigem Playwright (ver fetch.py).
   wordpress    — site WP (CHSA, SHB, FGEE). Backend de provas varia.
   cbh          — Confederação (calendário nacional, PDFs).
 
-Só FPH está COMPLETA (recon ao vivo feita). As demais entram conforme a recon
-de cada uma for concluída — por isso ficam com `ativo=False` até validadas.
+Domínios confirmados ao vivo (recon 2026-06 + backfill de resultados todas as
+federações). FHIMT fica como stub (domínio ainda não confirmado).
 """
 
+
+def _macro(codigo, nome, dominio, ativo=True):
+    """Config de uma federação MacroNetwork a partir do domínio (rotas idênticas
+    em todas — só muda o host)."""
+    base = f"https://{dominio}"
+    return {
+        "codigo": codigo, "nome": nome, "plataforma": "macronetwork",
+        "base": base,
+        "calendario_url": f"{base}/calendario/Default",
+        "detalhe_url": f"{base}/calendario/ListaProvas?ID={{id}}",
+        "resultados_url": f"{base}/calendario/Resultados.aspx?ID={{id}}",
+        "ordem_url": f"{base}/calendario/OrdemEntrada.aspx?ID={{id}}",
+        "ativo": ativo,
+    }
+
+
 SOURCES = {
-    "FPH": {
-        "codigo": "FPH",
-        "nome": "Federação Paulista de Hipismo",
-        "plataforma": "macronetwork",
-        "base": "https://www.fph.com.br",
-        "calendario_url": "https://www.fph.com.br/calendario/Default",
-        # detalhe: ListaProvas.aspx?ID=N redireciona 301 -> /calendario/ListaProvas?ID=N
-        "detalhe_url": "https://www.fph.com.br/calendario/ListaProvas?ID={id}",
-        # Fase C: resultados/ordem POR PROVA (id_origem). RENDERIZAM NO GET simples
-        # (sem Playwright) — confirmado na recon 2026-06 (ViewState desativado).
-        "resultados_url": "https://www.fph.com.br/calendario/Resultados.aspx?ID={id}",
-        "ordem_url": "https://www.fph.com.br/calendario/OrdemEntrada.aspx?ID={id}",
-        "ativo": True,
-    },
+    # ── MacroNetwork (domínio confirmado, recon + backfill 2026-06) ──────
+    "FPH":   _macro("FPH",   "Federação Paulista de Hipismo",                               "www.fph.com.br"),
+    "FEERJ": _macro("FEERJ", "Federação de Esportes Equestres do Estado do Rio de Janeiro", "feerj.org"),
+    "SHPR":  _macro("SHPR",  "Sociedade Hípica Paranaense",                                 "www.shpr.com.br"),
+    "FE-CE": _macro("FE-CE", "Federação Equestre do Ceará",                                 "federacaoequestrece.com.br"),
+    "FSMH":  _macro("FSMH",  "Federação Sul-Mato-Grossense de Hipismo",                     "www.fsmh.com.br"),
+    "FEHGO": _macro("FEHGO", "Federação de Esportes Hípicos de Goiás",                      "fehgo.com.br"),
+    "FHBR":  _macro("FHBR",  "Federação Hípica de Brasília",                                "www.fhbr.com.br"),
 
-    # ── A VALIDAR (recon pendente; mesma plataforma macronetwork) ────
-    "FEERJ": {
-        "codigo": "FEERJ",
-        "nome": "Federação de Esportes Equestres do Estado do Rio de Janeiro",
-        "plataforma": "macronetwork",
-        "base": None, "calendario_url": None, "detalhe_url": None,
-        "ativo": False,
-    },
+    # domínio ainda não confirmado → stub inativo
     "FHIMT": {
-        "codigo": "FHIMT",
-        "nome": "Federação Hípica de Mato Grosso",
+        "codigo": "FHIMT", "nome": "Federação Hípica de Mato Grosso",
         "plataforma": "macronetwork",
         "base": None, "calendario_url": None, "detalhe_url": None,
-        "ativo": False,
+        "resultados_url": None, "ordem_url": None, "ativo": False,
     },
 
-    # ── outras plataformas (entram nas tasks #91) ────────────────────
+    # ── outras plataformas (tasks #91) ───────────────────────────────────
     "CHSA": {
         "codigo": "CHSA", "nome": "Clube Hípico de Santo Amaro",
         "plataforma": "wordpress", "tenant_macro": "chsa-inscricao",
