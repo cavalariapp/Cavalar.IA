@@ -36,6 +36,10 @@ on:
         description: "Com detail_id: captura o HTML CRU (pra gerar fixture) em vez de parsear/gravar."
         type: boolean
         default: false
+      reconcile:
+        description: "Reconcilia id_nativo (calendário ao vivo ⟷ torneios legados; TODAS as fontes ativas; mês atual). Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -75,6 +79,7 @@ jobs:
           IN_MONTH: ${{ inputs.month }}
           IN_DETAIL: ${{ inputs.detail_id }}
           IN_DUMP: ${{ inputs.dump }}
+          IN_RECONCILE: ${{ inputs.reconcile }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -84,6 +89,14 @@ jobs:
             # upsert por (fonte,id_nativo) não casa e reinsere. Religar o --write
             # depois do backfill de id_nativo (ver reconciliação do calendário).
             python -m scraper.main --current
+          elif [ "${IN_RECONCILE:-false}" = "true" ]; then
+            # reconcilia id_nativo de TODAS as fontes ativas (mês atual, requests).
+            # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
+            # docs/ordens e o --write do calendário sem duplicar. Dry-run se write=false.
+            ARGS="--reconcile"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
           elif [ -n "${IN_DETAIL:-}" ]; then
             if [ "${IN_DUMP:-false}" = "true" ]; then
               # captura o HTML CRU do detalhe (gera fixture). Não grava.
