@@ -1020,13 +1020,17 @@ function populateTorneioFilter() {
     return;
   }
 
-  filtrados.forEach(t => {
+  // Ordena por DATA do torneio (mais recente primeiro; sem data por último),
+  // mas EXIBE só o NOME do torneio (sem data) — pedido do usuário.
+  filtrados.slice().sort((a, b) => {
+    const da = a.data_inicio || '', db_ = b.data_inicio || '';
+    if (da && db_) return db_.localeCompare(da);   // mais recente primeiro
+    if (da !== db_) return da ? -1 : 1;            // com data antes de sem data
+    return (a.nome || '').localeCompare(b.nome || '');
+  }).forEach(t => {
     const opt = document.createElement('option');
     opt.value = t.id;
-    const dataLabel = t.data_inicio
-      ? `${t.data_inicio.substring(8,10)}/${t.data_inicio.substring(5,7)}/${t.data_inicio.substring(2,4)} · `
-      : '';
-    opt.textContent = `${dataLabel}[${t.fonte || '?'}] ${t.nome}`;
+    opt.textContent = t.nome || `Torneio ${t.id}`;
     sel.appendChild(opt);
   });
 }
@@ -1210,6 +1214,17 @@ function renderTorneioHeader(torneio) {
   metaEl.innerHTML = items.join('');
 }
 
+// Dia da semana (pt-BR) a partir de uma data "DD/MM/AAAA" — padroniza o
+// cabeçalho do acordeão como "DD/MM/AAAA - dia da semana".
+const _DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira',
+                      'quinta-feira', 'sexta-feira', 'sábado'];
+function diaSemanaDeData(ddmmaaaa) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((ddmmaaaa || '').trim());
+  if (!m) return '';
+  const dt = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return isNaN(dt.getTime()) ? '' : _DIAS_SEMANA[dt.getDay()];
+}
+
 // ─── Dropdown de provas ──────────────────────────────────────
 function populateProvaFilter() {
   const sel = $id('filter-prova');
@@ -1337,7 +1352,7 @@ function renderAll() {
       dayHeader.className = 'day-header';
       dayHeader.innerHTML = `
         <div class="day-header-inner" onclick="toggleDay('${dayId}')">
-          <div class="day-date">${escHtml(g.data)}${g.diaSemana ? ` <span class="day-week">${escHtml(g.diaSemana)}</span>` : ''}</div>
+          <div class="day-date">${escHtml(g.data)}${(diaSemanaDeData(g.data) || g.diaSemana) ? ` - <span class="day-week">${escHtml(diaSemanaDeData(g.data) || g.diaSemana)}</span>` : ''}</div>
           <div class="day-count">${g.provas.length} prova${g.provas.length !== 1 ? 's' : ''}</div>
           <svg class="day-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
