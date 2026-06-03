@@ -1100,6 +1100,13 @@ async function loadTorneio(torneioId) {
         const m = s.match(/^0*(\d+)([A-Z]?)/);
         return m ? (m[1] + (m[2] || '')) : s;
       };
+      // Normaliza dia da semana p/ casar fontes (acentos/caixa): "Sábado"→"sabado"
+      const normDia = (s) => (s || '').trim().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+      // Mapa dia-da-semana → data (DD/MM/YYYY), montado do quadro de horários.
+      // Serve pra recuperar a data de provas SEM número (CLÁSSICO, GP FINAL),
+      // que não casam pelo número mas têm dia_semana no banco.
+      const diaSemanaData = {};
 
       for (const d of (docs || [])) {
         const estr = d.conteudo_estruturado || {};
@@ -1126,6 +1133,9 @@ async function loadTorneio(torneioId) {
               cur.hora = h.hora || cur.hora;
               cur.pista = h.pista || cur.pista;
             }
+            // Mapa dia_semana → data (independe de a prova ter número)
+            const _dd = normDia(dia.dia_semana);
+            if (_dd && dia.data && !diaSemanaData[_dd]) diaSemanaData[_dd] = dia.data;
           }
         }
       }
@@ -1139,8 +1149,9 @@ async function loadTorneio(torneioId) {
           // Formata pra DD/MM/YYYY pra exibir
           const [Y, M, D] = p.data_prova.split('-');
           p._data = `${D}/${M}/${Y}`;
-          if (p.dia_semana) p._diaSemana = p.dia_semana;
         }
+        // dia_semana do banco SEMPRE que existir (não depende de ter data_prova)
+        if (p.dia_semana && !p._diaSemana) p._diaSemana = p.dia_semana;
         // Fallback: programa estruturado
         const m = (p.nome || '').match(/PR\.\s*(\d+[A-Z]?)/i);
         const rawKey = m ? m[1] : (p.numero != null ? String(p.numero) : '');
@@ -1151,6 +1162,22 @@ async function loadTorneio(torneioId) {
           if (!p._diaSemana && info.dia_semana) p._diaSemana = info.dia_semana;
           if (info.hora && !p.horario) p.horario = info.hora;
           if (info.pista && !p.pista) p.pista = info.pista;
+        }
+      }
+      // Reconciliação dia_semana ↔ data. Provas SEM número (CLÁSSICO, GP FINAL)
+      // não casam pelo programa, mas têm dia_semana no banco: recupera a data
+      // pelo mapa do quadro de horários (e por provas que já têm os dois), pra
+      // caírem no acordeão do dia certo em vez de "Provas sem data específica".
+      for (const p of allProvas) {
+        if (p._data && p._diaSemana) {
+          const dd = normDia(p._diaSemana);
+          if (dd && !diaSemanaData[dd]) diaSemanaData[dd] = p._data;
+        }
+      }
+      for (const p of allProvas) {
+        if (!p._data && p._diaSemana) {
+          const d = diaSemanaData[normDia(p._diaSemana)];
+          if (d) p._data = d;
         }
       }
     } catch (_) {}
@@ -1687,7 +1714,16 @@ function colunasParaTipo(tipo) {
         { label: 'Pen 2ª', key: 'penalidade_2', cls: 'col-num' },
         { label: 'T 2ª',   key: 'tempo_2',      cls: 'col-num accent' },
       ];
-    default: // Tabela A / Tempo Ideal / Cronometro / Outro
+    case 'Tempo Ideal':
+      // Na prova ao tempo ideal, a APROXIMAÇÃO (|tempo − tempo ideal|, guardada
+      // em `pontos`) é o dado que classifica. Fica em destaque e VISÍVEL no
+      // celular (sem hideSm); o tempo cru recua pro modo desktop.
+      return [
+        { label: 'Tempo',  key: 'tempo',      cls: 'col-num', hideSm: true },
+        { label: 'Pen.',   key: 'penalidade', cls: 'col-num' },
+        { label: 'Aprox.', key: 'pontos',     cls: 'col-num accent' },
+      ];
+    default: // Tabela A / Cronometro / Outro
       return [
         { label: 'Tempo', key: 'tempo',      cls: 'col-num' },
         { label: 'Pen.',  key: 'penalidade', cls: 'col-num' },
