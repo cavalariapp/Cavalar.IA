@@ -473,7 +473,12 @@ def parse_resultados(html, base_url=None):
         return _parse_resultados_duas_fases(soup)
     if "DESEMPATE" in tp_up or soup.find(id=re.compile("lvResultadoDesempate", re.I)):
         return _parse_resultados_desempate(soup)
-    if "TEMPO IDEAL" in tp_up or soup.find(id=re.compile("lvResultadoTempoIdeal", re.I)):
+    # TEMPO OCULTO = TEMPO IDEAL na exibição (só não revela o tempo antes do fim
+    # da prova); mesma estrutura de resultado → mesmo parser. Confirmado ao vivo
+    # (FPH oid 12281/13710/13773: header "TEMPO OCULTO", classif. por aproximação;
+    # o container NÃO se chama lvResultadoTempoOculto, então roteia pelo texto).
+    if ("TEMPO IDEAL" in tp_up or "TEMPO OCULTO" in tp_up
+            or soup.find(id=re.compile(r"lvResultadoTempo(Ideal|Oculto)", re.I))):
         return _parse_resultados_tempo_ideal(soup)
 
     out = []
@@ -767,15 +772,17 @@ def _parse_resultados_desempate(soup):
 
 
 def _parse_resultados_tempo_ideal(soup):
-    """Resultados de prova ao TEMPO IDEAL (container lvResultadoTempoIdeal). A
+    """Resultados de prova ao TEMPO IDEAL e TEMPO OCULTO — exibição idêntica (o
+    Oculto só não revela o tempo antes do fim da prova). Container
+    lvResultadoTempoIdeal quando existe; no OCULTO cai no fallback p/ soup. A
     CLASSIFICAÇÃO é pela APROXIMAÇÃO = |tempo do conjunto − tempo ideal|, que o
     site mostra como coluna numérica própria e que guardamos em `pontos` (é o
     dado que importa p/ o competidor). As células de valor em DESKTOP
     (td.is-desktop) vêm na ordem [faltas, tempo, aproximação]; ELIMINADOS trazem
     só um status (td.error), sem tempo nem aproximação. Reaproveita _meta_linha
     p/ os campos comuns. Tolerante: célula/linha faltando vira None."""
-    pn = (soup.find(id=re.compile("pnResultadoTempoIdeal", re.I))
-          or soup.find(id=re.compile("lvResultadoTempoIdeal", re.I)) or soup)
+    pn = (soup.find(id=re.compile(r"pnResultadoTempo(Ideal|Oculto)", re.I))
+          or soup.find(id=re.compile(r"lvResultadoTempo(Ideal|Oculto)", re.I)) or soup)
     out = []
     rows = [tr for tr in pn.find_all("tr") if tr.find("td", class_="classfic-data")]
     for r in rows:
