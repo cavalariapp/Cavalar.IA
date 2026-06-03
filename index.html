@@ -4391,9 +4391,60 @@ async function _evtFetchData(ano) {
 //   2. Fallback: dedup por fingerprint pra casos não-linkados ainda
 // Nota: o filtro de "torneio fantasma" foi movido pro scrape (filtro por
 // federação responsável). Frontend mostra TUDO que está no banco.
+// ── Dedup de torneios do MESMO evento entre fontes (ex.: Candangão listado em
+// FHBR, FPH e FEERJ). Agrupa por data_inicio + semelhança de nome (tokens,
+// tolerante a acento/mojibake via prefixo) e mantém 1 card: a fonte SEDE (a que
+// tem provas/docs = _tem_provas; senão a vinculada ao CBH; senão o nome + completo).
+const _STOP_EVT = new Set(['DE','DA','DO','DOS','DAS','E','A','O','EM','COM','ETAPA',
+  'CIRCUITO','CAMPEONATO','COPA','TROFEU','GP','GRANDE','PREMIO','CSN','CSI','CSIE',
+  'CSIW','CBS','CCE','TACA','RANKING','DESAFIO','2024','2025','2026','2027']);
+function _evtTokens(nome) {
+  const s = (nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().replace(/[^A-Z0-9 ]/g, ' ');
+  const out = new Set();
+  for (let t of s.split(/\s+/)) {
+    t = t.replace(/^\d+[AO]?$/, '');
+    if (t.length > 1 && !_STOP_EVT.has(t)) out.add(t);
+  }
+  return out;
+}
+function _evtOverlap(a, b) {            // tokens iguais OU prefixo um do outro
+  let n = 0;
+  for (const x of a) for (const y of b) {
+    if (x === y || (x.length >= 4 && y.length >= 4 && (x.startsWith(y) || y.startsWith(x)))) { n++; break; }
+  }
+  return n;
+}
+function _mesmoEvento(a, b) {
+  if (!a.t.data_inicio || a.t.data_inicio !== b.t.data_inicio) return false;
+  const o = _evtOverlap(a.tok, b.tok);
+  return o >= 2 || (o > 0 && o === Math.min(a.tok.size, b.tok.size));
+}
+function _dedupTorneiosMes(tt) {
+  const arr = tt.map(t => ({ t, tok: _evtTokens(t.nome) }));
+  const usados = new Array(arr.length).fill(false);
+  const reps = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (usados[i]) continue;
+    const grupo = [arr[i]]; usados[i] = true;
+    for (let j = i + 1; j < arr.length; j++) {
+      if (!usados[j] && _mesmoEvento(arr[i], arr[j])) { grupo.push(arr[j]); usados[j] = true; }
+    }
+    grupo.sort((a, b) => {
+      const pa = a.t._tem_provas ? 1 : 0, pb = b.t._tem_provas ? 1 : 0;
+      if (pa !== pb) return pb - pa;                         // sede (tem provas) 1º
+      const ca = a.t.evento_cbh_id ? 1 : 0, cb = b.t.evento_cbh_id ? 1 : 0;
+      if (ca !== cb) return cb - ca;
+      return b.tok.size - a.tok.size;                        // nome mais completo
+    });
+    reps.push(grupo[0].t);
+  }
+  return reps;
+}
+
 function _evtMerge(torneios, cbhEventos, mes) {
   const m1 = String(mes + 1).padStart(2, '0');
-  const tt = torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1);
+  const tt = _dedupTorneiosMes(torneios.filter(t => (t.data_inicio || '').substring(5, 7) === m1));
   const cc = cbhEventos.filter(c => (c.data_inicio || '').substring(5, 7) === m1);
 
   // CBH IDs já cobertos por torneios (via FK explícita) + fingerprints

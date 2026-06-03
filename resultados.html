@@ -1144,6 +1144,24 @@ async function loadTorneio(torneioId) {
         }
       }
 
+      // Fallback dia↔data pelo PERÍODO do torneio (data_inicio→data_fim): muitos
+      // torneios têm dia_semana nas provas mas NÃO data_prova nem quadro de
+      // horários. Derivar a data de cada dia da semana pelo span faz as provas
+      // caírem no acordeão certo (cabeçalho "DD/MM/AAAA - dia da semana").
+      try {
+        const _tor = (allTorneios || []).find(t => String(t.id) === String(torneioId));
+        if (_tor && _tor.data_inicio) {
+          const _ini = new Date(_tor.data_inicio + 'T12:00:00');
+          const _fim = new Date((_tor.data_fim || _tor.data_inicio) + 'T12:00:00');
+          for (let _d = new Date(_ini); _d <= _fim && (_d - _ini) < 60 * 864e5; _d.setDate(_d.getDate() + 1)) {
+            const _dd = normDia(_DIAS_SEMANA[_d.getDay()]);
+            const _fmt = String(_d.getDate()).padStart(2, '0') + '/' +
+                         String(_d.getMonth() + 1).padStart(2, '0') + '/' + _d.getFullYear();
+            if (_dd && !diaSemanaData[_dd]) diaSemanaData[_dd] = _fmt;
+          }
+        }
+      } catch (_) {}
+
       // Enriquece allProvas. Prioridade:
       //   1. data_prova/dia_semana do banco (scraper extraiu direto do calendário)
       //   2. Programa estruturado (info do PDF processado por AI)
