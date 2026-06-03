@@ -473,6 +473,8 @@ def parse_resultados(html, base_url=None):
         return _parse_resultados_duas_fases(soup)
     if "DESEMPATE" in tp_up or soup.find(id=re.compile("lvResultadoDesempate", re.I)):
         return _parse_resultados_desempate(soup)
+    if "TEMPO IDEAL" in tp_up or soup.find(id=re.compile("lvResultadoTempoIdeal", re.I)):
+        return _parse_resultados_tempo_ideal(soup)
 
     out = []
     for r in soup.select("tr.table-row-styling"):
@@ -759,6 +761,46 @@ def _parse_resultados_desempate(soup):
             "equipe": None,
             "penalidade": pen1, "tempo": t1,
             "penalidade_2": pen2, "tempo_2": t2, "pontos": None,
+        })
+        out.append(linha)
+    return out
+
+
+def _parse_resultados_tempo_ideal(soup):
+    """Resultados de prova ao TEMPO IDEAL (container lvResultadoTempoIdeal). A
+    CLASSIFICAÇÃO é pela APROXIMAÇÃO = |tempo do conjunto − tempo ideal|, que o
+    site mostra como coluna numérica própria e que guardamos em `pontos` (é o
+    dado que importa p/ o competidor). As células de valor em DESKTOP
+    (td.is-desktop) vêm na ordem [faltas, tempo, aproximação]; ELIMINADOS trazem
+    só um status (td.error), sem tempo nem aproximação. Reaproveita _meta_linha
+    p/ os campos comuns. Tolerante: célula/linha faltando vira None."""
+    pn = (soup.find(id=re.compile("pnResultadoTempoIdeal", re.I))
+          or soup.find(id=re.compile("lvResultadoTempoIdeal", re.I)) or soup)
+    out = []
+    rows = [tr for tr in pn.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in rows:
+        linha = _meta_linha(r)
+        # células de valor em desktop, na ordem da página
+        desk = [td for td in r.find_all("td") if "is-desktop" in (td.get("class") or [])]
+        # tempo: a célula do ícone de relógio; APROXIMAÇÃO = a célula logo após
+        # (mais robusto que desk[-1], caso haja botão de vídeo no fim).
+        tempo, aprox, tempo_idx = None, None, None
+        for i, td in enumerate(desk):
+            if td.find("img", class_="icon-tempo") is not None:
+                tempo = _tempo_de(td)
+                tempo_idx = i
+                break
+        if tempo_idx is not None and tempo_idx + 1 < len(desk):
+            aprox = _clean(desk[tempo_idx + 1].get_text(" ", strip=True))
+        # penalidade: soma de faltas (b.falta-soma-color) ou status (td.error)
+        falta_el = r.select_one("b.falta-soma-color") or r.select_one("td.error")
+        linha.update({
+            "equipe": None,
+            "penalidade": _clean(falta_el.get_text() if falta_el else None),
+            "tempo": tempo,
+            "pontos": aprox,
+            "penalidade_2": None,
+            "tempo_2": None,
         })
         out.append(linha)
     return out

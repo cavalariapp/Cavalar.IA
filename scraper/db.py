@@ -82,6 +82,15 @@ class SupabaseWriter:
                            data=json.dumps(patch), timeout=TIMEOUT)
         r.raise_for_status()
 
+    def _delete(self, path, return_repr=False):
+        """DELETE PostgREST. Com return_repr=True devolve as linhas apagadas
+        (pra contar quantas saíram — útil no delete+reinsert de resultados)."""
+        prefer = "return=representation" if return_repr else "return=minimal"
+        r = requests.delete(self.url + path, headers=self._headers(prefer),
+                            timeout=TIMEOUT)
+        r.raise_for_status()
+        return r.json() if return_repr else None
+
     # ── torneios (Fase A: calendário) ────────────────────────────────
     def find_torneio_id(self, fonte, id_nativo):
         """Resolve torneios.id por (fonte, id_nativo) — a chave estável da
@@ -90,6 +99,25 @@ class SupabaseWriter:
         self._require()
         rows = self._get(
             f"/rest/v1/torneios?fonte=eq.{fonte}&id_nativo=eq.{id_nativo}&select=id")
+        return rows[0]["id"] if rows else None
+
+    def find_prova_id(self, id_origem, fonte=None):
+        """Resolve provas.id pelo id_origem (o ID=N de Resultados.aspx?ID=N) — é
+        o FK que resultados/ordem_entrada usam. None se a prova ainda não foi
+        gravada (rode --detail do torneio antes).
+
+        id_origem é a CHAVE NATIVA da plataforma MacroNetwork e NÃO é única entre
+        fontes diferentes (ex.: ID=13602 existe na FPH e na FAH apontando provas
+        distintas). Por isso, quando a fonte é conhecida, FILTRA por ela via join
+        em torneios.fonte (provas não tem coluna `fonte` própria) — assim um
+        --write nunca grava resultados de uma fonte na prova de outra."""
+        self._require()
+        if fonte:
+            rows = self._get(
+                f"/rest/v1/provas?id_origem=eq.{id_origem}"
+                f"&select=id,torneios!inner(fonte)&torneios.fonte=eq.{fonte}")
+        else:
+            rows = self._get(f"/rest/v1/provas?id_origem=eq.{id_origem}&select=id")
         return rows[0]["id"] if rows else None
 
     def upsert_torneios(self, rows):
@@ -212,6 +240,47 @@ class SupabaseWriter:
             inseridos = len(res or [])
         return {"inseridos": inseridos, "atualizados": atualizados}
 
+    # ── resultados (Fase C) — DELETE+REINSERT por prova_id ───────────
+    #  POR QUE apagar+reinserir (e não upsert como provas): `resultados` é
+    #  FOLHA — nada referencia resultados.id (ao contrário de provas, cujo id
+    #  é FK de resultados; por isso provas NÃO se apaga). Apagar+reinserir os
+    #  resultados de UMA prova é seguro e dá DOIS ganhos:
+    #    1) FIDELIDADE: re-raspar = retrato exato da fonte (some linha corrigida,
+    #       entra a nova) — sem linhas-fantasma de scrapes antigos.
+    #    2) CURA o legado: o pipeline N8N TROCAVA as colunas da FPH (faltas caíam
+    #       em `tempo`, equipe em `penalidade`, tempo em `pontos`). Ao re-raspar
+    #       uma prova, as linhas erradas são apagadas e reentram no MAPA CANÔNICO
+    #       (resultado_to_row). Provas nunca re-raspadas seguem com o legado —
+    #       backfill é tarefa à parte.
+    #  GUARDA: só apaga se há linhas novas parseadas (parse vazio/erro NÃO zera o
+    #  que já existe). Idempotente.
+    def upsert_resultados(self, prova_id, resultados_rows):
+        """Substitui os resultados da prova (delete+reinsert por prova_id).
+        `resultados_rows` já vêm convertidas por resultado_to_row. Devolve
+        contagem (apagados x inseridos) — útil pra logar a cura do legado."""
+        self._require()
+        if not resultados_rows:
+            return {"inseridos": 0, "apagados": 0}
+        apagados = self._delete(
+            f"/rest/v1/resultados?prova_id=eq.{prova_id}", return_repr=True)
+        res = self._post("/rest/v1/resultados", resultados_rows, return_repr=True)
+        return {"inseridos": len(res or []), "apagados": len(apagados or [])}
+
+    # ── ordem de entrada (Fase C) — DELETE+REINSERT por prova_id ─────
+    #  Mesma lógica: a ordem é o retrato da prova num momento; re-raspar
+    #  substitui o conjunto inteiro. Tabela nova (sql/026), índice único
+    #  (prova_id, ordem) protege contra duplicata.
+    def upsert_ordem_entrada(self, prova_id, ordem_rows):
+        """Substitui a ordem de entrada da prova (delete+reinsert por prova_id).
+        `ordem_rows` já vêm convertidas por ordem_to_row."""
+        self._require()
+        if not ordem_rows:
+            return {"inseridos": 0, "apagados": 0}
+        apagados = self._delete(
+            f"/rest/v1/ordem_entrada?prova_id=eq.{prova_id}", return_repr=True)
+        res = self._post("/rest/v1/ordem_entrada", ordem_rows, return_repr=True)
+        return {"inseridos": len(res or []), "apagados": len(apagados or [])}
+
 
 def evento_to_torneio_row(ev, fonte):
     """Converte um evento parseado (adapters) na linha de torneios."""
@@ -287,4 +356,60 @@ def documento_to_row(doc, torneio_id):
         "titulo": doc.get("titulo"),
         "url_pdf": _norm_url(doc.get("url_pdf")),
         "data_publicacao": doc.get("data_publicacao"),
+    }
+
+
+def _join_nome(nome, extra):
+    """Junta nome + 2ª linha (entidade/genealogia) no formato que o front
+    resultados.html espera: nomeCavaleiro/parseCavalo fazem split('\\n')[0] e
+    leem a 2ª linha como entidade/genealogia. Sem 2ª linha → só o nome."""
+    nome = (nome or "").strip()
+    extra = (extra or "").strip()
+    if not nome:
+        return None
+    return f"{nome}\n{extra}" if extra else nome
+
+
+def resultado_to_row(r, prova_id):
+    """Converte um resultado (macronetwork.parse_resultados) na linha de
+    `resultados`, no MAPA CANÔNICO que o front espera (resultados.html):
+      • tempo        ← TEMPO da 1ª volta ('63,13')          [N8N punha faltas]
+      • penalidade   ← FALTAS da 1ª volta ('0'/'Eliminado') [N8N punha equipe]
+      • pontos       ← Resultado final/pontos (None no CRONÔMETRO e Desempate)
+      • tempo_2      ← TEMPO da 2ª volta/fase  (None em prova de 1 volta)
+      • penalidade_2 ← FALTAS da 2ª volta      (None em Duas Fases e 1 volta)
+      • equipe       ← nome da equipe, quando houver (provas por equipe)
+    cavaleiro_nome='NOME\\nENTIDADE' e cavalo_nome='NOME\\nGENEALOGIA' (o front
+    faz split('\\n')[0]). r.get() devolve None para chaves ausentes: provas de
+    1 volta (sem penalidade_2/tempo_2/equipe no parser) entram com esses campos
+    NULL — comportamento seguro e idêntico ao anterior para CRONÔMETRO."""
+    return {
+        "prova_id": prova_id,
+        "colocacao": r.get("colocacao"),
+        "cavaleiro_nome": _join_nome(r.get("cavaleiro_nome"), r.get("entidade")),
+        "cavalo_nome": _join_nome(r.get("cavalo_nome"), r.get("cavalo_genealogia")),
+        "tempo": r.get("tempo"),
+        "penalidade": r.get("penalidade"),
+        "pontos": r.get("pontos"),
+        "penalidade_2": r.get("penalidade_2"),
+        "tempo_2": r.get("tempo_2"),
+        "equipe": r.get("equipe"),
+    }
+
+
+def ordem_to_row(o, prova_id):
+    """Converte uma linha da ordem de entrada (macronetwork.parse_ordem_entrada)
+    na linha de `ordem_entrada` (tabela nova, sql/026). Campos LIMPOS e
+    separados (genealogia em coluna própria) — sem o legado de `resultados`."""
+    cav = (o.get("cavaleiro_nome") or "").strip()
+    cavalo = (o.get("cavalo_nome") or "").strip()
+    return {
+        "prova_id": prova_id,
+        "ordem": o.get("ordem"),
+        "cavaleiro_nome": cav or None,
+        "cavalo_nome": cavalo or None,
+        "genealogia": o.get("cavalo_genealogia"),
+        "categoria": o.get("categoria"),
+        "pontuacao": o.get("pontuacao"),
+        "id_cavaleiro_fonte": o.get("id_cavaleiro_fonte"),
     }

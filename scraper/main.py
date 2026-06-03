@@ -168,10 +168,38 @@ def inspecionar_prova(src, prova_id, args):
 
     if not R and not O:
         print("  ⚠ sem resultados e sem ordem — prova ainda não disputada/publicada?")
-    if args.write:
-        print("\n  (—write ignorado p/ --prova: a GRAVAÇÃO de resultados/ordem ainda não "
-              "está habilitada. Falta confirmar o schema de `resultados` e criar a tabela "
-              "de ordem de entrada. Por ora, --prova é sempre dry-run.)")
+
+    if not args.write:
+        print("\n  (dry-run: nada gravado — use --write para persistir)")
+        return 0
+
+    # ── GRAVAÇÃO (--write) — resolve provas.id pelo id_origem e faz upsert ──
+    from scraper import db
+    writer = db.SupabaseWriter()
+    if not writer.configured:
+        print("\n⚠ --write pedido mas SUPABASE_URL/SUPABASE_SERVICE_KEY ausentes. "
+              "Nada gravado.")
+        return 1
+    prova_db_id = writer.find_prova_id(prova_id, fonte=src["codigo"])
+    if prova_db_id is None:
+        print(f"\n⚠ prova id_origem={prova_id} não está em `provas` — rode o --detail "
+              f"do torneio dela antes (a passada de provas precede a de resultados). "
+              f"Nada gravado.")
+        return 1
+
+    res_rows = [db.resultado_to_row(r, prova_db_id) for r in R]
+    rs = writer.upsert_resultados(prova_db_id, res_rows)
+    print(f"\n  resultados → provas.id={prova_db_id}: "
+          f"apagados {rs['apagados']}, inseridos {rs['inseridos']} (mapa canônico).")
+
+    ord_rows = [db.ordem_to_row(o, prova_db_id) for o in O]
+    try:
+        os_ = writer.upsert_ordem_entrada(prova_db_id, ord_rows)
+        print(f"  ordem_entrada → provas.id={prova_db_id}: "
+              f"apagados {os_['apagados']}, inseridos {os_['inseridos']}.")
+    except Exception as e:                       # tabela nova pode não existir ainda
+        print(f"  ⚠ ordem_entrada falhou ({e.__class__.__name__}: {e}). A tabela "
+              f"existe? Rode a migração sql/026_ordem_entrada.sql e tente de novo.")
     return 0
 
 
@@ -195,10 +223,11 @@ def main(argv=None):
                          "--write é dry-run (imprime o que gravaria). Exige que o "
                          "torneio já exista em `torneios` (rode o calendário antes).")
     ap.add_argument("--prova", type=str, metavar="ID",
-                    help="Fase C (dry-run): lê RESULTADOS + ORDEM DE ENTRADA da prova ID "
-                         "(id_origem, GET simples — sem navegador) e imprime. A gravação "
-                         "ainda não está habilitada (aguarda schema de `resultados` + "
-                         "tabela de ordem de entrada).")
+                    help="Fase C: lê RESULTADOS + ORDEM DE ENTRADA da prova ID "
+                         "(id_origem, GET simples — sem navegador) e imprime. Com "
+                         "--write resolve provas.id e grava (resultados no mapa "
+                         "canônico + ordem_entrada). Exige a migração sql/026 e que a "
+                         "prova já exista em `provas` (rode --detail do torneio antes).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).

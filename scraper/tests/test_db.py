@@ -11,8 +11,13 @@ Garante o CONTRATO com o front (resultados.html) e com o chatbot:
     (texto_extraido/conteudo_estruturado/...), que o upsert preserva.
 """
 import os
-from scraper.adapters.macronetwork import parse_provas, parse_documentos
-from scraper.db import prova_to_row, documento_to_row, SupabaseWriter, _norm_url
+from scraper.adapters.macronetwork import (
+    parse_provas, parse_documentos, parse_resultados, parse_ordem_entrada,
+)
+from scraper.db import (
+    prova_to_row, documento_to_row, resultado_to_row, ordem_to_row,
+    SupabaseWriter, _norm_url,
+)
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -23,6 +28,15 @@ PROVA_COLS = {"torneio_id", "id_origem", "nome", "numero", "descricao",
 DOC_COLS_PROIBIDAS = {"texto_extraido", "texto_extraido_em",
                       "conteudo_estruturado", "estruturado_em",
                       "visto_em", "criado_em", "id"}
+# colunas CONFIRMADAS de `resultados` que o scraper escreve (mapa canônico)
+RESULTADO_COLS = {"prova_id", "colocacao", "cavaleiro_nome", "cavalo_nome",
+                  "tempo", "penalidade", "pontos",
+                  # colunas de DUAS voltas (Desempate/Duas Voltas/Duas Fases) +
+                  # equipe — todas confirmadas em `resultados` (select=200).
+                  "equipe", "penalidade_2", "tempo_2"}
+# colunas da tabela nova `ordem_entrada` (sql/026)
+ORDEM_COLS = {"prova_id", "ordem", "cavaleiro_nome", "cavalo_nome",
+              "genealogia", "categoria", "pontuacao", "id_cavaleiro_fonte"}
 
 
 def _fixture(name):
@@ -101,6 +115,64 @@ def test_documento_to_row_normaliza_url():
         {"tipo": "programa", "titulo": "PROGRAMA", "data_publicacao": "2026-05-12",
          "url_pdf": "https://x.com/a//b/PRO GRAMA.pdf"}, 999)
     assert row["url_pdf"] == "https://x.com/a/b/PRO%20GRAMA.pdf"
+
+
+# ── resultado_to_row (Fase C) — MAPA CANÔNICO + anti-regressão do bug N8N ──
+def test_resultado_row_mapa_canonico():
+    # O front (resultados.html) lê Tempo←tempo, Pen.←penalidade, Pontos←pontos.
+    r = parse_resultados(_fixture("fph_resultados_14009.html"))[0]
+    row = resultado_to_row(r, prova_id=14009)
+    assert row["colocacao"] == "1º"
+    assert row["tempo"] == "63,13"        # o TEMPO de verdade (não as faltas)
+    assert row["penalidade"] == "0"       # as FALTAS de verdade (não a equipe)
+    assert row["pontos"] is None          # CRONÔMETRO não tem pontos
+    assert row["prova_id"] == 14009
+
+def test_resultado_row_nao_repete_bug_n8n():
+    # REGRESSÃO: o pipeline N8N gravava faltas em `tempo`, equipe ("SHRP") em
+    # `penalidade` e o tempo em `pontos`. O writer novo NÃO pode repetir isso.
+    row = resultado_to_row(parse_resultados(_fixture("fph_resultados_14009.html"))[0], 14009)
+    assert row["tempo"] != "0"            # "0" eram as faltas no esquema bugado
+    assert row["penalidade"] != "SHRP"    # "SHRP" era a equipe no esquema bugado
+    assert row["pontos"] != "63,13"       # "63,13" era o tempo no esquema bugado
+
+def test_resultado_row_nomes_formato_front():
+    # cavaleiro_nome='NOME\nENTIDADE', cavalo_nome='NOME\nGENEALOGIA' (front
+    # faz split('\n')[0]). A 2ª linha carrega entidade/genealogia.
+    row = resultado_to_row(parse_resultados(_fixture("fph_resultados_14009.html"))[0], 14009)
+    cav = row["cavaleiro_nome"].split("\n")
+    assert cav[0] == "RICARDO MASSAITI KOSHIBA DO AMARAL"
+    assert cav[1] == "SOCIEDADE HIPICA DE RIBEIRAO PRETO"
+    assert row["cavalo_nome"].split("\n")[0] == "CARTHEZINA JMEN I (TE)"
+
+def test_resultado_row_so_colunas_confirmadas():
+    # mandar coluna inexistente daria 400 no PostgREST
+    row = resultado_to_row(parse_resultados(_fixture("fph_resultados_14009.html"))[0], 14009)
+    assert set(row.keys()) == RESULTADO_COLS
+
+def test_resultado_row_eliminado_preserva_penalidade():
+    # eliminado: penalidade="Eliminado", tempo=None (não vira "0"/None trocado)
+    rows = [resultado_to_row(r, 14009)
+            for r in parse_resultados(_fixture("fph_resultados_14009.html"))]
+    elim = [r for r in rows if r["tempo"] is None]
+    assert len(elim) == 2
+    assert all(r["penalidade"] == "Eliminado" for r in elim)
+
+
+# ── ordem_to_row (Fase C) — tabela nova, campos limpos ────────────────
+def test_ordem_row_campos():
+    o = parse_ordem_entrada(_fixture("fph_ordem_14009.html"))[0]
+    row = ordem_to_row(o, prova_id=14009)
+    assert row["ordem"] == 1 and isinstance(row["ordem"], int)
+    assert row["cavaleiro_nome"] == "GUILHERMINA VICTORYA CALDAS LIMA"
+    assert row["cavalo_nome"] == "FADA DA CABANA"   # genealogia em coluna PRÓPRIA
+    assert row["categoria"] == "JCA"
+    assert row["pontuacao"] == "19"
+    assert row["prova_id"] == 14009
+
+def test_ordem_row_so_colunas_confirmadas():
+    row = ordem_to_row(parse_ordem_entrada(_fixture("fph_ordem_14009.html"))[0], 14009)
+    assert set(row.keys()) == ORDEM_COLS
 
 
 if __name__ == "__main__":
