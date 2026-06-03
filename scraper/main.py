@@ -89,6 +89,26 @@ def _melhor_provas_html(d):
     return next((h for h in cands if h and h.strip()), None)
 
 
+def _curar_resultados_torneio(src, torneio_id, writer):
+    """Pós-detalhe: raspa os RESULTADOS (GET simples, sem navegador) de cada prova
+    do torneio e grava (delete+reinsert por prova). Idempotente; parse vazio não
+    apaga. Reaproveita o parser canônico (cura o legado N8N de quebra)."""
+    from scraper import fetch, db as _db
+    provas = writer._get(
+        f"/rest/v1/provas?torneio_id=eq.{torneio_id}&id_origem=not.is.null&select=id,id_origem")
+    n = ins = ap = 0
+    for p in provas:
+        try:
+            R = mn.parse_resultados(fetch.fetch_resultados(src, p["id_origem"]))
+            if not R:
+                continue
+            rs = writer.upsert_resultados(p["id"], [_db.resultado_to_row(r, p["id"]) for r in R])
+            ins += rs["inseridos"]; ap += rs["apagados"]; n += 1
+        except Exception:
+            pass
+    return {"provas": n, "inseridos": ins, "apagados": ap}
+
+
 def detalhar(src, native_id, args, writer):
     """Fase B: visita o detalhe de UM torneio, parseia provas+documentos e, com
     --write, faz upsert FK-safe. Sem --write é dry-run (imprime o que gravaria).
@@ -133,7 +153,8 @@ def detalhar(src, native_id, args, writer):
         torneio_id, [prova_to_row(p, torneio_id) for p in provas])
     rd = writer.upsert_documentos(
         torneio_id, [documento_to_row(doc, torneio_id) for doc in docs])
-    print(f"  ✓ provas: {rp} | documentos: {rd}")
+    rr = _curar_resultados_torneio(src, torneio_id, writer)
+    print(f"  ✓ provas: {rp} | documentos: {rd} | resultados: {rr}")
     return 0
 
 
@@ -258,6 +279,45 @@ def reconciliar_calendario(src, args, writer):
     return 0
 
 
+def completar(args, writer):
+    """--completar: completa torneios MacroNetwork INCOMPLETOS (id_nativo já
+    setado) de 2024→hoje, em LOTE. Pra cada: detalhar (provas+dia+docs+resultados).
+    "Incompleto" = 0 provas OU multi-dia com <=5 provas. Processa até CAVALARIA_MAX
+    (default 40) por execução; re-rode p/ continuar (some da lista após o detalhe)."""
+    import os
+    import datetime as _dt2
+    hoje = _dt2.date.today().isoformat()
+    MAX = int(os.environ.get("CAVALARIA_MAX", "40"))
+    alvos = []
+    for src in [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"]:
+        rows = writer._get(
+            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
+            f"&data_inicio=gte.2024-01-01&data_inicio=lte.{hoje}"
+            f"&select=id,id_nativo,nome,data_inicio,data_fim,provas(id)"
+            f"&order=data_inicio.desc")
+        for t in rows:
+            np = len(t.get("provas") or [])
+            dur = None
+            try:
+                d0 = _dt2.date.fromisoformat(t["data_inicio"])
+                d1 = _dt2.date.fromisoformat(t.get("data_fim") or t["data_inicio"])
+                dur = (d1 - d0).days + 1
+            except Exception:
+                pass
+            if np == 0 or (dur and dur >= 2 and np <= 5):
+                alvos.append((src, t["id_nativo"], t["id"], np, (t.get("nome") or "")))
+    print(f"COMPLETAR: {len(alvos)} torneios incompletos no total; processando até {MAX}.")
+    for (src, idn, tid, np, nome) in alvos[:MAX]:
+        print(f"\n→ {src['codigo']} torneio {tid} (id_nativo {idn}, {np} provas) {nome[:42]}")
+        try:
+            detalhar(src, idn, args, writer)
+        except Exception as e:
+            print(f"  ⚠ erro: {e.__class__.__name__}: {e}", file=sys.stderr)
+    print(f"\n=== COMPLETAR === processados {min(len(alvos), MAX)}/{len(alvos)} "
+          f"({'COMPLETO' if len(alvos) <= MAX else 'PARCIAL — re-rode p/ continuar'})")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -289,6 +349,11 @@ def main(argv=None):
                          "torneios do banco SEM id_nativo (mesma fonte) e backfilla. "
                          "Dry-run sem --write. Destrava docs/ordens e o --write do "
                          "calendário (sem duplicar).")
+    ap.add_argument("--completar", action="store_true",
+                    help="Completa torneios MacroNetwork incompletos (id_nativo setado) "
+                         "de 2024→hoje em lote: detalhe (provas+dia+docs) + resultados. "
+                         "Lote de CAVALARIA_MAX (default 40); re-rode p/ continuar. "
+                         "--write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -367,6 +432,15 @@ def main(argv=None):
                 continue
             reconciliar_calendario(src, args, writer)
         return 0
+
+    # Completar torneios incompletos (detalhe + resultados) em lote.
+    if args.completar:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --completar --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return completar(args, writer)
 
     if args.source:
         s = SRC.get(args.source)

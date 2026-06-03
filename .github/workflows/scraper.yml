@@ -40,6 +40,10 @@ on:
         description: "Reconcilia id_nativo (calendário ao vivo ⟷ torneios legados; TODAS as fontes ativas; mês atual). Grava se write=true."
         type: boolean
         default: false
+      completar:
+        description: "Completa torneios incompletos 2024→hoje: detalhe (provas+dia+docs) + resultados (lote de 40). Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -80,6 +84,7 @@ jobs:
           IN_DETAIL: ${{ inputs.detail_id }}
           IN_DUMP: ${{ inputs.dump }}
           IN_RECONCILE: ${{ inputs.reconcile }}
+          IN_COMPLETAR: ${{ inputs.completar }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -94,6 +99,13 @@ jobs:
             # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
             # docs/ordens e o --write do calendário sem duplicar. Dry-run se write=false.
             ARGS="--reconcile"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_COMPLETAR:-false}" = "true" ]; then
+            # completa torneios incompletos 2024->hoje (detalhe+provas+dia+docs+resultados),
+            # em lote (CAVALARIA_MAX, default 40). Re-rode pra continuar as próximas levas.
+            ARGS="--completar"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
