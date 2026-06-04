@@ -44,6 +44,10 @@ on:
         description: "Completa torneios incompletos 2024→hoje: detalhe (provas+dia+docs) + resultados (lote de 40). Grava se write=true."
         type: boolean
         default: false
+      proximos:
+        description: "Frescor dos próximos torneios [hoje-7..+60]: docs (programa/adendo/horário) + ordem de entrada + resultados. Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -85,15 +89,17 @@ jobs:
           IN_DUMP: ${{ inputs.dump }}
           IN_RECONCILE: ${{ inputs.reconcile }}
           IN_COMPLETAR: ${{ inputs.completar }}
+          IN_PROXIMOS: ${{ inputs.proximos }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # agendado: TEMPORARIAMENTE em dry-run (sem --write) até reconciliar
-            # o id_nativo do legado em `torneios`. Com --write, o cron DUPLICARIA
-            # os eventos do mês atual: linhas legadas têm id_nativo=null, então o
-            # upsert por (fonte,id_nativo) não casa e reinsere. Religar o --write
-            # depois do backfill de id_nativo (ver reconciliação do calendário).
-            python -m scraper.main --current
+            # AUTOMAÇÃO diária: 1) reconcilia id_nativo do mês atual (requests,
+            # idempotente) → 2) FRESCOR dos próximos torneios (detalhe: provas+dia+
+            # docs/programa/adendo/horário + ordem de entrada + resultados).
+            # NÃO roda --current --write aqui (evita duplicar torneios; a inserção
+            # de eventos NOVOS fica manual até o modelo canônico de dedup #80-83).
+            python -m scraper.main --reconcile --write || echo "reconcile falhou, seguindo"
+            python -m scraper.main --proximos --write
           elif [ "${IN_RECONCILE:-false}" = "true" ]; then
             # reconcilia id_nativo de TODAS as fontes ativas (mês atual, requests).
             # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
@@ -106,6 +112,12 @@ jobs:
             # completa torneios incompletos 2024->hoje (detalhe+provas+dia+docs+resultados),
             # em lote (CAVALARIA_MAX, default 40). Re-rode pra continuar as próximas levas.
             ARGS="--completar"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_PROXIMOS:-false}" = "true" ]; then
+            # frescor dos próximos torneios (docs + ordem + resultados) sob demanda.
+            ARGS="--proximos"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS

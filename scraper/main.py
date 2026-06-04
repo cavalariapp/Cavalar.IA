@@ -318,6 +318,56 @@ def completar(args, writer):
     return 0
 
 
+def _curar_ordem_torneio(src, torneio_id, writer):
+    """Raspa a ORDEM DE ENTRADA (GET simples) de cada prova do torneio e grava
+    (delete+reinsert por prova). Idempotente; parse vazio não apaga. Só faz
+    sentido p/ eventos PRÓXIMOS (a ordem sai véspera/manhã)."""
+    from scraper import fetch, db as _db
+    provas = writer._get(
+        f"/rest/v1/provas?torneio_id=eq.{torneio_id}&id_origem=not.is.null&select=id,id_origem")
+    n = ins = 0
+    for p in provas:
+        try:
+            O = mn.parse_ordem_entrada(fetch.fetch_ordem_entrada(src, p["id_origem"]))
+            if not O:
+                continue
+            rs = writer.upsert_ordem_entrada(p["id"], [_db.ordem_to_row(o, p["id"]) for o in O])
+            ins += rs["inseridos"]; n += 1
+        except Exception:
+            pass
+    return {"provas": n, "inseridos": ins}
+
+
+def atualizar_proximos(args, writer):
+    """--proximos: mantém FRESCO o que importa pros próximos torneios. Seleciona
+    torneios MacroNetwork COM id_nativo na janela [hoje-7, hoje+60] e, pra cada:
+    detalhar (provas+dia+docs+resultados) + ordem de entrada. É o coração da
+    automação (programa/adendo/horário semanas antes; ordem na véspera/manhã)."""
+    import datetime as _d3
+    hoje = _d3.date.today()
+    ini = (hoje - _d3.timedelta(days=7)).isoformat()
+    fim = (hoje + _d3.timedelta(days=60)).isoformat()
+    alvos = []
+    for src in [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"]:
+        rows = writer._get(
+            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
+            f"&data_inicio=gte.{ini}&data_inicio=lte.{fim}"
+            f"&select=id,id_nativo,nome,data_inicio&order=data_inicio.asc")
+        for t in rows:
+            alvos.append((src, t["id_nativo"], t["id"], t.get("nome") or ""))
+    print(f"PRÓXIMOS: {len(alvos)} torneios na janela [{ini} … {fim}]")
+    for (src, idn, tid, nome) in alvos:
+        print(f"\n→ {src['codigo']} torneio {tid} (id_nativo {idn}) {nome[:42]}")
+        try:
+            detalhar(src, idn, args, writer)             # provas+dia+docs+resultados
+            if args.write:
+                print(f"  ✓ ordem: {_curar_ordem_torneio(src, tid, writer)}")
+        except Exception as e:
+            print(f"  ⚠ erro: {e.__class__.__name__}: {e}", file=sys.stderr)
+    print(f"\n=== PRÓXIMOS === {len(alvos)} torneios processados")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -354,6 +404,10 @@ def main(argv=None):
                          "de 2024→hoje em lote: detalhe (provas+dia+docs) + resultados. "
                          "Lote de CAVALARIA_MAX (default 40); re-rode p/ continuar. "
                          "--write grava.")
+    ap.add_argument("--proximos", action="store_true",
+                    help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
+                         "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
+                         "ordem de entrada + resultados. É o que o cron roda. --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -441,6 +495,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return completar(args, writer)
+
+    # Frescor dos próximos torneios (docs + ordem + resultados) — o que o cron roda.
+    if args.proximos:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --proximos --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return atualizar_proximos(args, writer)
 
     if args.source:
         s = SRC.get(args.source)
