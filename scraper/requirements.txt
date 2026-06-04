@@ -4,4 +4,5 @@ beautifulsoup4>=4.12
 lxml>=5.0
 requests>=2.31
 playwright>=1.44
+pypdf>=4.0
 pytest>=8.0

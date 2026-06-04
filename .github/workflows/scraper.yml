@@ -48,6 +48,10 @@ on:
         description: "Frescor dos próximos torneios [hoje-7..+60]: docs (programa/adendo/horário) + ordem de entrada + resultados. Grava se write=true."
         type: boolean
         default: false
+      estruturar:
+        description: "Estrutura docs (programa/horário) com IA: PDF→texto→Claude→conteudo_estruturado (lote 15)."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -81,6 +85,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           IN_SOURCE: ${{ inputs.source }}
           IN_WRITE: ${{ inputs.write }}
           IN_YEAR: ${{ inputs.year }}
@@ -90,6 +95,7 @@ jobs:
           IN_RECONCILE: ${{ inputs.reconcile }}
           IN_COMPLETAR: ${{ inputs.completar }}
           IN_PROXIMOS: ${{ inputs.proximos }}
+          IN_ESTRUTURAR: ${{ inputs.estruturar }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -100,6 +106,7 @@ jobs:
             # de eventos NOVOS fica manual até o modelo canônico de dedup #80-83).
             python -m scraper.main --reconcile --write || echo "reconcile falhou, seguindo"
             python -m scraper.main --proximos --write
+            python -m scraper.main --estruturar || echo "estruturar pulado (falta ANTHROPIC_API_KEY?)"
           elif [ "${IN_RECONCILE:-false}" = "true" ]; then
             # reconcilia id_nativo de TODAS as fontes ativas (mês atual, requests).
             # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
@@ -121,6 +128,8 @@ jobs:
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
+          elif [ "${IN_ESTRUTURAR:-false}" = "true" ]; then
+            python -m scraper.main --estruturar
           elif [ -n "${IN_DETAIL:-}" ]; then
             if [ "${IN_DUMP:-false}" = "true" ]; then
               # captura o HTML CRU do detalhe (gera fixture). Não grava.

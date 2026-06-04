@@ -387,6 +387,35 @@ def atualizar_proximos(args, writer):
     return 0
 
 
+def estruturar_docs(writer, limit=None):
+    """--estruturar: estrutura docs (programa/horário) ainda SEM conteudo_estruturado:
+    baixa o PDF → extrai texto → Claude → grava texto_extraido + conteudo_estruturado.
+    Lote CAVALARIA_DOCS (default 15); re-rode p/ continuar. Requer ANTHROPIC_API_KEY."""
+    import os
+    from scraper import estruturar as E
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        print("⚠ ANTHROPIC_API_KEY ausente — não dá pra estruturar. Abortando.", file=sys.stderr)
+        return 3
+    lim = limit or int(os.environ.get("CAVALARIA_DOCS", "15"))
+    docs = writer.docs_para_estruturar(limit=lim)
+    print(f"ESTRUTURAR: {len(docs)} doc(s) a processar (lote {lim})")
+    ok = err = 0
+    for d in docs:
+        try:
+            texto = E.extrair_texto_pdf(d["url_pdf"])
+            estrut = E.estruturar(d["tipo"], texto, key)
+            writer.set_documento_estruturado(d["id"], texto=texto, estrut=estrut)
+            print(f"  ✓ doc {d['id']} [{d['tipo']}] texto={len(texto)}c "
+                  f"estrut={'sim' if estrut else 'não'}")
+            ok += 1
+        except Exception as e:
+            print(f"  ⚠ doc {d['id']}: {e.__class__.__name__}: {e}", file=sys.stderr)
+            err += 1
+    print(f"=== ESTRUTURAR === ok={ok} erros={err} (re-rode p/ continuar a fila)")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Scraper Cavalar.IA (dry-run por padrão)")
     ap.add_argument("--source", help="código da fonte (ex.: FPH). Padrão: todas ativas.")
@@ -427,6 +456,10 @@ def main(argv=None):
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
                          "ordem de entrada + resultados. É o que o cron roda. --write grava.")
+    ap.add_argument("--estruturar", action="store_true",
+                    help="Estrutura docs (programa/horário) sem conteudo_estruturado: "
+                         "PDF→texto→Claude→grava. Lote CAVALARIA_DOCS (default 15). "
+                         "Requer ANTHROPIC_API_KEY.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -523,6 +556,14 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return atualizar_proximos(args, writer)
+
+    # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
+    if args.estruturar:
+        writer = SupabaseWriter()
+        if not writer.configured:
+            print("⚠ --estruturar precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.", file=sys.stderr)
+            return 3
+        return estruturar_docs(writer)
 
     if args.source:
         s = SRC.get(args.source)

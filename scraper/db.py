@@ -277,6 +277,28 @@ class SupabaseWriter:
             inseridos = len(res or [])
         return {"inseridos": inseridos, "atualizados": atualizados}
 
+    def docs_para_estruturar(self, limit=15):
+        """Docs que faltam estruturar: programa/horarios SEM conteudo_estruturado.
+        [{id, tipo, url_pdf}] — alvo do passo de estruturação (PDF→Claude)."""
+        self._require()
+        return self._get(
+            "/rest/v1/torneio_documentos?select=id,tipo,url_pdf&conteudo_estruturado=is.null"
+            f"&tipo=in.(programa,horarios)&url_pdf=not.is.null&order=id.desc&limit={limit}")
+
+    def set_documento_estruturado(self, doc_id, texto=None, estrut=None):
+        """Grava texto_extraido / conteudo_estruturado (+ timestamps) de um doc."""
+        self._require()
+        agora = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        patch = {}
+        if texto is not None:
+            patch["texto_extraido"] = texto[:200000]
+            patch["texto_extraido_em"] = agora
+        if estrut is not None:
+            patch["conteudo_estruturado"] = estrut
+            patch["estruturado_em"] = agora
+        if patch:
+            self._patch(f"/rest/v1/torneio_documentos?id=eq.{doc_id}", patch)
+
     # ── resultados (Fase C) — DELETE+REINSERT por prova_id ───────────
     #  POR QUE apagar+reinserir (e não upsert como provas): `resultados` é
     #  FOLHA — nada referencia resultados.id (ao contrário de provas, cujo id
