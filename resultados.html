@@ -910,7 +910,7 @@ async function loadData() {
   try {
     const { data: torneios, error: errT } = await sb
       .from('torneios')
-      .select('id, nome, fonte, data_inicio, data_fim')
+      .select('id, nome, fonte, data_inicio, data_fim, provas(id)')
       .order('data_inicio', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false });
 
@@ -924,6 +924,7 @@ async function loadData() {
     allTorneios = torneios.map(t => ({
       ...t,
       ano: t.data_inicio ? parseInt(t.data_inicio.substring(0, 4)) : extrairAno(t.nome),
+      _tem_provas: (t.provas || []).length > 0,
     }));
 
     // Popula filtros de fonte, ano e mês
@@ -999,6 +1000,7 @@ function populateTorneioFilter() {
   const busca = ($id('filter-torneio-search').value || '').trim().toLowerCase();
 
   const filtrados = allTorneios.filter(t => {
+    if (!t._tem_provas) return false;   // resultados: só torneios com provas (oculta fantasma/vazio)
     if (fonte && t.fonte !== fonte) return false;
     if (ano && String(t.ano) !== ano) return false;
     if (mes) {
@@ -1940,11 +1942,12 @@ if (_torneioParam) {
       // 1. Carrega lista pra ter context dos torneios
       const { data: torneios } = await sb
         .from('torneios')
-        .select('id, nome, fonte, data_inicio, data_fim')
+        .select('id, nome, fonte, data_inicio, data_fim, provas(id)')
         .order('data_inicio', { ascending: false, nullsFirst: false })
         .order('id', { ascending: false });
       allTorneios = (torneios || []).map(t => ({
         ...t, ano: t.data_inicio ? parseInt(t.data_inicio.substring(0, 4)) : extrairAno(t.nome),
+        _tem_provas: (t.provas || []).length > 0,
       }));
 
       // 2. Acha o torneio do param
