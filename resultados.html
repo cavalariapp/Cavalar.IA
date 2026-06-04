@@ -793,6 +793,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
 let allTorneios   = [];  // [{ id, nome, fonte, ano }] (ano extraído do nome)
 let allProvas     = [];  // [{ id, nome, torneio_id }]
 let allResultados = [];  // [{ id, colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade, pontos, prova_id }]
+let allOrdens = {};      // { prova_id: [{ ordem, cavaleiro_nome, cavalo_nome, categoria, pontuacao }] }
 let globalMode    = false; // true quando há busca por cavaleiro/cavalo (resultados de todos os torneios)
 let provaMetaByID = {};  // { provaId: { ...prova, torneio: { nome, fonte, data_inicio } } }
 
@@ -1088,6 +1089,19 @@ async function loadTorneio(torneioId) {
     } else {
       allResultados = [];
     }
+
+    // 3b. ORDEM DE ENTRADA das provas deste torneio (agrupada por prova_id).
+    allOrdens = {};
+    try {
+      if (allProvas.length) {
+        const { data: ords } = await sb
+          .from('ordem_entrada')
+          .select('prova_id, ordem, cavaleiro_nome, cavalo_nome, categoria, pontuacao')
+          .in('prova_id', allProvas.map(p => p.id))
+          .order('ordem', { ascending: true });
+        for (const o of (ords || [])) (allOrdens[o.prova_id] = allOrdens[o.prova_id] || []).push(o);
+      }
+    } catch (_) { allOrdens = {}; }
 
     // 4. Programa estruturado (se houver): enriquece provas com data/hora/pista.
     //    Busca PROGRAMA e QUADRO DE HORÁRIOS — horários tem prioridade (mais atual).
@@ -1657,6 +1671,33 @@ function tipoProvaLabel(t) {
   return t; // "Duas Fases", "Cronometro", "Desempate", "Tempo Ideal", "Duas Voltas"
 }
 
+// Bloco colapsável da ORDEM DE ENTRADA de uma prova (só aparece se houver dados).
+// Útil sobretudo PRÉ-prova (sai véspera/manhã); fica abaixo dos resultados.
+function buildOrdemBlock(provaId) {
+  const ord = (allOrdens[provaId] || []).slice()
+    .sort((a, b) => (a.ordem ?? 9999) - (b.ordem ?? 9999));
+  if (!ord.length) return '';
+  const linhas = ord.map(o => `<tr>
+      <td style="text-align:center;color:var(--accent,#e8632a);font-weight:600">${o.ordem ?? '—'}ª</td>
+      <td>${escHtml(o.cavaleiro_nome || '—')}</td>
+      <td>${escHtml(o.cavalo_nome || '—')}</td>
+      <td style="color:var(--muted)">${escHtml(o.categoria || '')}</td></tr>`).join('');
+  return `
+    <details class="ordem-block" style="margin-top:10px;border-top:1px solid var(--border,#26262e);padding-top:8px">
+      <summary style="cursor:pointer;color:var(--accent,#e8632a);font-weight:600;font-size:12px;list-style:none">
+        🏁 Ordem de Entrada (${ord.length}) — toque para ver
+      </summary>
+      <div style="overflow-x:auto;margin-top:8px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="color:var(--muted);text-align:left">
+            <th style="text-align:center">Ordem</th><th>Cavaleiro</th><th>Cavalo</th><th>Cat.</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+    </details>`;
+}
+
 function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
   const wrapper = document.createElement('div');
   wrapper.className = 'prova-block' + (idx === 0 ? ' open' : '');
@@ -1725,6 +1766,7 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
     </div>
     <div class="prova-body">
       ${buildResultsTable(prova, resultados, cavaleiro, cavalo)}
+      ${buildOrdemBlock(prova.id)}
     </div>
   `;
 
