@@ -37,6 +37,20 @@ def _norm_url(u):
     return u.replace(" ", "%20")
 
 
+def _url_key(u):
+    """Chave canônica p/ DEDUP de PDFs: DECODIFICA o percent-encoding (%C2%AA == ª,
+    %20 == espaço) e colapsa '//' — assim a MESMA URL em encodings diferentes casa
+    (senão um doc com acento no nome vira 2). Usada só pra COMPARAR; o url_pdf
+    gravado segue o _norm_url (continua uma URL válida)."""
+    if not u:
+        return u
+    from urllib.parse import unquote
+    s = unquote(u.strip())
+    scheme, sep, rest = s.partition("://")
+    s = (scheme + sep + re.sub(r"/{2,}", "/", rest)) if sep else re.sub(r"/{2,}", "/", s)
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
 class SupabaseWriter:
     def __init__(self, url=None, key=None):
         self.url = (url or os.environ.get("SUPABASE_URL") or "").rstrip("/")
@@ -240,12 +254,12 @@ class SupabaseWriter:
         # casa por url CANÔNICA (_norm_url): o banco pode ter %20/single-slash e o
         # scraper espaço/'//'. Sem normalizar, não casa e duplica — perdendo o
         # texto_extraido do chatbot, que vive no doc já existente.
-        id_por_url = {_norm_url(r["url_pdf"]): r["id"]
+        id_por_url = {_url_key(r["url_pdf"]): r["id"]
                       for r in existentes if r.get("url_pdf")}
         agora = _dt.datetime.now(_dt.timezone.utc).isoformat()
         novos, atualizados = [], 0
         for row in docs_rows:
-            url = _norm_url(row.get("url_pdf"))
+            url = _url_key(row.get("url_pdf"))
             if not url:
                 continue
             doc_id = id_por_url.get(url)
