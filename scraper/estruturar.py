@@ -59,7 +59,7 @@ def estruturar(tipo, texto, api_key):
     if not prompt or not texto:
         return None
     body = {
-        "model": MODEL, "max_tokens": 4096,
+        "model": MODEL, "max_tokens": 8192,   # programas grandes (50+ provas) cabem
         "messages": [{"role": "user", "content": prompt + "\n\n=== TEXTO ===\n" + texto[:60000]}],
     }
     r = requests.post(ANTHROPIC_URL, timeout=180, data=json.dumps(body), headers={
