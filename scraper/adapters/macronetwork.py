@@ -475,7 +475,11 @@ def parse_resultados(html, base_url=None):
         return _parse_resultados_dois_percursos(soup)
     if "DUAS FASES" in tp_up or soup.find(id=re.compile("lvResultadoDuasFases", re.I)):
         return _parse_resultados_duas_fases(soup)
-    if "DESEMPATE" in tp_up or soup.find(id=re.compile("lvResultadoDesempate", re.I)):
+    # "COM ... DESEMPATE" (com jump-off) → parser de desempate. ATENÇÃO: "S/DESEMPATE"
+    # e "SEM DESEMPATE" são o OPOSTO (sem jump-off) e NÃO podem cair aqui — vão pro
+    # parser geral (que lê faltas/tempo nas células align_center, com o fallback).
+    if (("DESEMPATE" in tp_up and not re.search(r"S/\s*DESEMPATE|SEM\s+DESEMPATE", tp_up))
+            or soup.find(id=re.compile("lvResultadoDesempate", re.I))):
         return _parse_resultados_desempate(soup)
     # TEMPO OCULTO = TEMPO IDEAL na exibição (só não revela o tempo antes do fim
     # da prova); mesma estrutura de resultado → mesmo parser. Confirmado ao vivo
@@ -506,8 +510,9 @@ def parse_resultados(html, base_url=None):
             categoria = _clean(direto) or _clean(cat_el.get_text(" ", strip=True))
         eq_el = r.select_one("td.is-desktop")
 
-        # penalidade: a soma de faltas; se eliminado, o status (td.error)
+        # penalidade (faltas): b.falta-soma-color / td.error (eliminado)
         falta_el = r.select_one("b.falta-soma-color") or r.select_one("td.error")
+        penalidade = _clean(falta_el.get_text() if falta_el else None)
         # tempo: a td que tem o ícone de relógio (ausente p/ eliminado)
         tempo = None
         tempo_td = r.select_one("td:has(img.icon-tempo)")
@@ -520,6 +525,31 @@ def parse_resultados(html, base_url=None):
             sp = tempo_td.find("span")
             tempo = _clean(sp.get_text() if sp else None)
 
+        # FALLBACK (layout S/CRONÔMETRO e afins): penalidade/tempo vêm em
+        # td.align_center SIMPLES (sem b.falta-soma-color nem ícone de relógio),
+        # nas últimas células — ex.: "0 (0+0)" (faltas) e "78,54" (tempo). Sem isto
+        # essas provas apareciam com colocação mas SEM tempo/faltas.
+        if penalidade is None or tempo is None:
+            vals = []
+            for td in r.find_all("td"):
+                cls = " ".join(td.get("class") or [])
+                if "align_center" not in cls or "classfic-data" in cls or "border-mobile-data" in cls:
+                    continue
+                if td.find("strong"):   # pula células de nome (cavaleiro/cavalo)
+                    continue
+                t = _clean(td.get_text(" ", strip=True))
+                if t:
+                    vals.append(t)
+            if tempo is None:
+                tempo = next((t for t in vals if re.fullmatch(r"\d{1,3},\d{1,2}", t)), None)
+            if penalidade is None:
+                penalidade = next((t for t in vals if t != tempo and (
+                    re.match(r"^\d+\b", t) or re.search(r"elim|aband|desclass|retir", t, re.I))), None)
+
+        # normaliza "0 (0+0)" → "0" (o front destaca percurso zerado só em '0' exato)
+        if penalidade and "(" in penalidade:
+            penalidade = penalidade.split("(")[0].strip()
+
         out.append({
             "id_origem": rid,
             "colocacao": coloc,
@@ -530,7 +560,7 @@ def parse_resultados(html, base_url=None):
             "cavalo_genealogia": _clean(gen_el.get_text(" ") if gen_el else None),
             "categoria": categoria,
             "equipe": _clean(eq_el.get_text() if eq_el else None),
-            "penalidade": _clean(falta_el.get_text() if falta_el else None),
+            "penalidade": penalidade,
             "tempo": tempo,
         })
     return out
