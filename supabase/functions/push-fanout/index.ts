@@ -51,7 +51,10 @@ async function nomePublico(id: string): Promise<string> {
   } catch (_) { return "Alguém"; }
 }
 
-type Aviso = { recipient: string; actor: string; title: string; body: string; destino: string };
+// Devolve a lista de DESTINATÁRIOS + o conteúdo. DM/seguidor = 1 destinatário;
+// avisos_torneio = LEQUE pros favoritos daquele torneio (programa/adendo/horário/
+// ordem/resultado novos).
+type Aviso = { recipients: string[]; title: string; body: string; destino: string };
 
 async function montarAviso(payload: any): Promise<Aviso | null> {
   if (!payload || payload.type !== "INSERT" || !payload.record) return null;
@@ -61,15 +64,30 @@ async function montarAviso(payload: any): Promise<Aviso | null> {
     if (!r.destinatario || r.remetente === r.destinatario) return null;
     const nome = await nomePublico(r.remetente);
     const preview = r.texto || (r.imagem_url ? "📷 Foto" : "Nova mensagem");
-    return { recipient: r.destinatario, actor: r.remetente, title: "💬 " + nome, body: preview, destino: "mensagens" };
+    return { recipients: [r.destinatario], title: "💬 " + nome, body: preview, destino: "mensagens" };
   }
 
   if (payload.table === "follows") {
     if (!r.followed_id || r.follower_id === r.followed_id) return null;
     const nome = await nomePublico(r.follower_id);
     if (r.status === "pendente")
-      return { recipient: r.followed_id, actor: r.follower_id, title: "🔔 Nova solicitação", body: nome + " quer te seguir", destino: "perfil" };
-    return { recipient: r.followed_id, actor: r.follower_id, title: "👋 Novo seguidor", body: nome + " começou a te seguir", destino: "perfil" };
+      return { recipients: [r.followed_id], title: "🔔 Nova solicitação", body: nome + " quer te seguir", destino: "perfil" };
+    return { recipients: [r.followed_id], title: "👋 Novo seguidor", body: nome + " começou a te seguir", destino: "perfil" };
+  }
+
+  if (payload.table === "avisos_torneio") {
+    if (!r.torneio_id) return null;
+    const { data: fav } = await sb.from("torneios_favoritos").select("user_id").eq("torneio_id", r.torneio_id);
+    const recipients = [...new Set((fav || []).map((x: any) => x.user_id).filter(Boolean))];
+    if (!recipients.length) return null;
+    const { data: t } = await sb.from("torneios").select("nome").eq("id", r.torneio_id).maybeSingle();
+    const nomeT = (t?.nome as string) || "Torneio";
+    const tipo = String(r.tipo || "").toLowerCase();
+    let title: string, body: string;
+    if (tipo === "ordem")          { title = "🏁 Ordem de entrada"; body = nomeT + ": ordem de entrada publicada"; }
+    else if (tipo === "resultado") { title = "🏆 Resultados"; body = nomeT + ": resultados publicados"; }
+    else                           { title = "📋 " + nomeT; body = (r.titulo || "Novo documento") + " — publicado"; }
+    return { recipients, title, body, destino: "resultados" };
   }
 
   return null;
@@ -98,10 +116,10 @@ Deno.serve(async (req) => {
   const { data: subs } = await sb
     .from("push_subscriptions")
     .select("id, endpoint, p256dh, auth")
-    .eq("user_id", aviso.recipient);
+    .in("user_id", aviso.recipients);
 
   if (!subs || !subs.length)
-    return new Response(JSON.stringify({ enviados: 0, motivo: "destinatário sem inscrições" }), { headers: JSON_HEADERS });
+    return new Response(JSON.stringify({ enviados: 0, motivo: "sem inscrições" }), { headers: JSON_HEADERS });
 
   const notif = JSON.stringify({ title: aviso.title, body: aviso.body, data: { destino: aviso.destino } });
 
@@ -122,5 +140,5 @@ Deno.serve(async (req) => {
     }
   }));
 
-  return new Response(JSON.stringify({ enviados, removidos, destinatario: aviso.recipient }), { headers: JSON_HEADERS });
+  return new Response(JSON.stringify({ enviados, removidos, destinatarios: aviso.recipients.length }), { headers: JSON_HEADERS });
 });

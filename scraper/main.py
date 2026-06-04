@@ -109,11 +109,23 @@ def _curar_resultados_torneio(src, torneio_id, writer):
     return {"provas": n, "inseridos": ins, "apagados": ap}
 
 
-def detalhar(src, native_id, args, writer):
+def _inserir_aviso(writer, torneio_id, tipo, titulo):
+    """Registra um AVISO de algo NOVO num torneio (programa/adendo/horário/ordem).
+    O Database Webhook em avisos_torneio dispara o push pros FAVORITOS. Best-effort:
+    nunca derruba o scrape."""
+    try:
+        writer._post("/rest/v1/avisos_torneio",
+                     [{"torneio_id": torneio_id, "tipo": tipo, "titulo": (titulo or "")[:120]}])
+    except Exception as e:
+        print(f"  ⚠ aviso falhou ({tipo}): {e.__class__.__name__}", file=sys.stderr)
+
+
+def detalhar(src, native_id, args, writer, avisar=False):
     """Fase B: visita o detalhe de UM torneio, parseia provas+documentos e, com
     --write, faz upsert FK-safe. Sem --write é dry-run (imprime o que gravaria).
     Pré-requisito do write: o torneio já existe em `torneios` (a passada de
-    calendário cria); resolve torneio_id por (fonte, id_nativo)."""
+    calendário cria); resolve torneio_id por (fonte, id_nativo). Com avisar=True
+    (fluxo de próximos), registra aviso quando entra documento NOVO."""
     from scraper import fetch
     detail_url = src["detalhe_url"].format(id=native_id)
     d = fetch.fetch_detail(src, native_id, headless=not args.headed)
@@ -155,6 +167,8 @@ def detalhar(src, native_id, args, writer):
         torneio_id, [documento_to_row(doc, torneio_id) for doc in docs])
     rr = _curar_resultados_torneio(src, torneio_id, writer)
     print(f"  ✓ provas: {rp} | documentos: {rd} | resultados: {rr}")
+    if avisar and rd.get("inseridos", 0) > 0:        # doc novo → notifica favoritos
+        _inserir_aviso(writer, torneio_id, "documento", f"{rd['inseridos']} novo(s) documento(s)")
     return 0
 
 
@@ -325,7 +339,7 @@ def _curar_ordem_torneio(src, torneio_id, writer):
     from scraper import fetch, db as _db
     provas = writer._get(
         f"/rest/v1/provas?torneio_id=eq.{torneio_id}&id_origem=not.is.null&select=id,id_origem")
-    n = ins = 0
+    n = ins = novas = 0
     for p in provas:
         try:
             O = mn.parse_ordem_entrada(fetch.fetch_ordem_entrada(src, p["id_origem"]))
@@ -333,9 +347,11 @@ def _curar_ordem_torneio(src, torneio_id, writer):
                 continue
             rs = writer.upsert_ordem_entrada(p["id"], [_db.ordem_to_row(o, p["id"]) for o in O])
             ins += rs["inseridos"]; n += 1
+            if rs.get("apagados", 0) == 0 and rs.get("inseridos", 0) > 0:
+                novas += 1                            # 0→N = ordem publicada pela 1ª vez
         except Exception:
             pass
-    return {"provas": n, "inseridos": ins}
+    return {"provas": n, "inseridos": ins, "novas": novas}
 
 
 def atualizar_proximos(args, writer):
@@ -359,9 +375,12 @@ def atualizar_proximos(args, writer):
     for (src, idn, tid, nome) in alvos:
         print(f"\n→ {src['codigo']} torneio {tid} (id_nativo {idn}) {nome[:42]}")
         try:
-            detalhar(src, idn, args, writer)             # provas+dia+docs+resultados
+            detalhar(src, idn, args, writer, avisar=args.write)   # +aviso de doc novo
             if args.write:
-                print(f"  ✓ ordem: {_curar_ordem_torneio(src, tid, writer)}")
+                ro = _curar_ordem_torneio(src, tid, writer)
+                print(f"  ✓ ordem: {ro}")
+                if ro.get("novas", 0) > 0:                        # ordem publicada → avisa
+                    _inserir_aviso(writer, tid, "ordem", "Ordem de entrada")
         except Exception as e:
             print(f"  ⚠ erro: {e.__class__.__name__}: {e}", file=sys.stderr)
     print(f"\n=== PRÓXIMOS === {len(alvos)} torneios processados")

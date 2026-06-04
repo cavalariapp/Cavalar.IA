@@ -4362,6 +4362,7 @@ const MESES_LONG  = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
 let _evtMes = new Date().getMonth();   // 0..11
 let _evtAno = new Date().getFullYear();
 let _evtCache = null;                   // { torneios:[], cbh:[] }
+let _favoritos = new Set();             // torneio_ids favoritados (push de programa/adendo/horário/ordem)
 
 async function _evtFetchData(ano) {
   if (_evtCache && _evtCache.ano === ano) return _evtCache;
@@ -4544,6 +4545,13 @@ function _evtBuildRow(e) {
   const statusBadge = isAguardando
     ? `<div class="evt-aguardando" style="font-size:10.5px;color:var(--muted);margin-top:4px">⏳ Aguardando programa da federação</div>`
     : '';
+  // Estrela de favoritar (só torneio real + usuário logado): avisa quando sair
+  // programa/adendo/horário/ordem deste torneio.
+  const _tid = e.source === 'torneio' ? String(e.id).slice(2) : null;
+  const _fav = _tid && _favoritos.has(Number(_tid));
+  const starBtn = (_tid && _currentUser)
+    ? `<button class="evt-fav-btn" onclick="event.stopPropagation();toggleFavorito(${_tid},this)" title="Favoritar — receba avisos de programa/adendo/horário/ordem" style="background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0 6px;align-self:center;color:${_fav ? '#f5a623' : 'var(--muted)'}">${_fav ? '★' : '☆'}</button>`
+    : '';
   return `
     <div class="event-row ${past ? 'evt-row-past' : ''} ${isAguardando ? 'evt-aguardando-row' : ''}" onclick="openTorModal('${e.id}')">
       <div class="evt-date">
@@ -4557,8 +4565,30 @@ function _evtBuildRow(e) {
         ${loc ? `<div class="evt-loc">📍 ${escHtml(loc)}</div>` : ''}
         ${statusBadge}
       </div>
+      ${starBtn}
     </div>
   `;
+}
+
+// Favoritar/desfavoritar torneio (estrela). Guarda em torneios_favoritos e
+// garante o push ativo — passa a receber aviso de programa/adendo/horário/ordem.
+async function toggleFavorito(torneioId, btn) {
+  if (!_currentUser) { alert('Entre na sua conta para favoritar e receber avisos.'); return; }
+  const id = Number(torneioId);
+  const jaTinha = _favoritos.has(id);
+  try {
+    if (jaTinha) {
+      await sb.from('torneios_favoritos').delete().eq('torneio_id', id).eq('user_id', _currentUser.id);
+      _favoritos.delete(id);
+    } else {
+      await sb.from('torneios_favoritos').insert({ user_id: _currentUser.id, torneio_id: id });
+      _favoritos.add(id);
+      try { inscreverPush(); } catch (_) {}
+    }
+    const on = _favoritos.has(id);
+    btn.textContent = on ? '★' : '☆';
+    btn.style.color = on ? '#f5a623' : 'var(--muted)';
+  } catch (e) { console.warn('[fav]', e); }
 }
 
 async function renderEvents() {
@@ -4574,6 +4604,14 @@ async function renderEvents() {
   } catch (e) {
     container.innerHTML = `<div style="padding:24px 16px;color:var(--muted);font-size:13px;text-align:center">Erro carregando: ${escHtml(e.message)}</div>`;
     return;
+  }
+
+  // favoritos do usuário (pra marcar a estrela) — RLS devolve só os dele
+  if (_currentUser) {
+    try {
+      const { data: favs } = await sb.from('torneios_favoritos').select('torneio_id');
+      _favoritos = new Set((favs || []).map(x => x.torneio_id));
+    } catch (_) {}
   }
 
   const events = _evtMerge(data.torneios, data.cbh, _evtMes);
