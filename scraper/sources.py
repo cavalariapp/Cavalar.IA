@@ -47,6 +47,10 @@ SOURCES = {
     "FSMH":  _macro("FSMH",  "Federação Sul-Mato-Grossense de Hipismo",                     "www.fsmh.com.br"),
     "FEHGO": _macro("FEHGO", "Federação de Esportes Hípicos de Goiás",                      "fehgo.com.br"),
     "FHBR":  _macro("FHBR",  "Federação Hípica de Brasília",                                "www.fhbr.com.br"),
+    # mesma plataforma MacroNetwork — domínios confirmados via URLs dos documentos
+    "FAH":   _macro("FAH",   "Federação de Hipismo (FAH)",                                  "www.fah.org.br"),
+    "FE-PE": _macro("FE-PE", "Federação Equestre de Pernambuco",                            "www.federacaoequestrepe.com.br"),
+    "FPRH":  _macro("FPRH",  "Federação Paranaense de Hipismo",                             "www.fprh.com.br"),
 
     # domínio ainda não confirmado → stub inativo
     "FHIMT": {
