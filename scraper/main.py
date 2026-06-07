@@ -387,6 +387,67 @@ def atualizar_proximos(args, writer):
     return 0
 
 
+def processar_noticias(args, writer):
+    """--noticias: coleta multi-fonte RSS → dedup (url + fingerprint) → reescreve
+    com Claude (memória das recentes) → imagem Unsplash → grava. Lote
+    CAVALARIA_NEWS (default 25). Sem ANTHROPIC_API_KEY: insere cru (RSS)."""
+    import os
+    from scraper import news as N
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    unsplash = os.environ.get("UNSPLASH_ACCESS_KEY")
+    MAX = int(os.environ.get("CAVALARIA_NEWS", "25"))
+
+    itens = N.coletar()
+    print(f"NOTÍCIAS: {len(itens)} itens em {len(N.FEEDS)} fontes | IA={'on' if key else 'off (cru)'}")
+    urls, fps = set(), set()
+    if writer.configured:
+        off = 0
+        while True:
+            ch = writer._get(f"/rest/v1/news?select=source_url,event_fingerprint&limit=1000&offset={off}")
+            for r in ch:
+                if r.get("source_url"):
+                    urls.add(r["source_url"])
+                if r.get("event_fingerprint"):
+                    fps.add(r["event_fingerprint"])
+            if len(ch) < 1000:
+                break
+            off += 1000
+    novos = [it for it in itens if it["link"] not in urls]
+    print(f"  novos por URL: {len(novos)} | processando até {MAX}")
+    memoria = ""
+    if writer.configured:
+        rec = writer._get("/rest/v1/news?select=title,excerpt&order=created_at.desc&limit=15")
+        memoria = "\n".join(f"- {r.get('title','')}: {(r.get('excerpt') or '')[:140]}" for r in rec)
+
+    rows = []
+    for it in novos[:MAX]:
+        rw = None
+        if key:
+            rw = N.reescrever(it, N.fetch_artigo(it["link"]), memoria, key)
+        if not rw:
+            rw = {"titulo": it["title"], "resumo": (it["content"] or "")[:400],
+                  "conteudo": it["content"] or it["title"], "fingerprint": None}
+        fp = rw["fingerprint"]
+        if fp and fp in fps:          # dedup semântica (mesmo evento de outra fonte)
+            continue
+        if fp:
+            fps.add(fp)
+        rows.append({
+            "title": rw["titulo"][:300], "excerpt": (rw["resumo"] or "")[:400],
+            "body": rw["conteudo"], "body_raw": rw["conteudo"],
+            "date": it.get("pubDate", ""), "cat": "hipismo", "featured": False,
+            "source_url": it["link"], "image_url": N.imagem_unsplash(unsplash),
+            "event_fingerprint": fp,
+        })
+    print(f"  prontas p/ gravar: {len(rows)}")
+    if args.write and writer.configured:
+        print("  ", writer.upsert_news(rows))
+    else:
+        for r in rows[:8]:
+            print("   •", r["title"][:72])
+    return 0
+
+
 def estruturar_docs(writer, limit=None):
     """--estruturar: estrutura docs (programa/horário) ainda SEM conteudo_estruturado:
     baixa o PDF → extrai texto → Claude → grava texto_extraido + conteudo_estruturado.
@@ -560,22 +621,14 @@ def main(argv=None):
             return 3
         return atualizar_proximos(args, writer)
 
-    # Notícias (Google News RSS) — reconstrução do feed sem N8N.
+    # Notícias (multi-fonte RSS + reescrita IA) — reconstrução do feed sem N8N.
     if args.noticias:
-        from scraper import news as _news
         writer = SupabaseWriter()
         if args.write and not writer.configured:
             print("⚠ --noticias --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
                   file=sys.stderr)
             return 3
-        rows = _news.coletar_noticias()
-        print(f"NOTÍCIAS: {len(rows)} coletadas (Google News RSS pt-BR)")
-        if args.write:
-            print("  ", writer.upsert_news(rows))
-        else:
-            for r in rows[:12]:
-                print("   ", r["date"][:16], "|", r["title"][:60])
-        return 0
+        return processar_noticias(args, writer)
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:
