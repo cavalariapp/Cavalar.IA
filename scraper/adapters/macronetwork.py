@@ -470,7 +470,11 @@ def parse_resultados(html, base_url=None):
     # DUAS VOLTAS = duas voltas pontuáveis, MESMA estrutura de DOIS PERCURSOS
     # (faltas+tempo por volta). Confirmado ao vivo (FEHGO 9241, container
     # lvResultadoDuasVolta: 0 -> 24 linhas). Roteia pro parser de dois percursos.
-    if ("PERCURSO" in tp_up or "DUAS VOLTAS" in tp_up
+    # DOIS percursos / DUAS VOLTAS (duas rodadas). CUIDADO: "UM PERCURSO C/ TEMPO
+    # CONCEDIDO" é UMA rodada (layout normal, container lvResultadoCronometro) e NÃO
+    # pode cair aqui — vai pro parser geral (faltas/tempo nas células align_center).
+    if ((("PERCURSO" in tp_up or "PERCURSOS" in tp_up) and "UM PERCURSO" not in tp_up)
+            or "DUAS VOLTAS" in tp_up
             or soup.find(id=re.compile("lvPercursos|lvResultadoDuasVolta", re.I))):
         return _parse_resultados_dois_percursos(soup)
     if "DUAS FASES" in tp_up or soup.find(id=re.compile("lvResultadoDuasFases", re.I)):
