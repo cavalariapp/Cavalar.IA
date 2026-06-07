@@ -299,6 +299,23 @@ class SupabaseWriter:
         if patch:
             self._patch(f"/rest/v1/torneio_documentos?id=eq.{doc_id}", patch)
 
+    def upsert_news(self, rows):
+        """Insere notícias NOVAS (dedup por source_url); não toca nas existentes."""
+        self._require()
+        if not rows:
+            return {"inseridos": 0, "vistos": 0}
+        existentes, off = set(), 0
+        while True:
+            chunk = self._get(f"/rest/v1/news?select=source_url&limit=1000&offset={off}")
+            existentes |= {r["source_url"] for r in chunk if r.get("source_url")}
+            if len(chunk) < 1000:
+                break
+            off += 1000
+        novos = [r for r in rows if r.get("source_url") and r["source_url"] not in existentes]
+        if novos:
+            self._post("/rest/v1/news", novos)
+        return {"inseridos": len(novos), "vistos": len(rows)}
+
     # ── resultados (Fase C) — DELETE+REINSERT por prova_id ───────────
     #  POR QUE apagar+reinserir (e não upsert como provas): `resultados` é
     #  FOLHA — nada referencia resultados.id (ao contrário de provas, cujo id

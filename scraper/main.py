@@ -460,6 +460,9 @@ def main(argv=None):
                     help="Estrutura docs (programa/horário) sem conteudo_estruturado: "
                          "PDF→texto→Claude→grava. Lote CAVALARIA_DOCS (default 15). "
                          "Requer ANTHROPIC_API_KEY.")
+    ap.add_argument("--noticias", action="store_true",
+                    help="Coleta notícias (Google News RSS pt-BR de hipismo) e insere as "
+                         "NOVAS na tabela news (dedup por source_url). --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -556,6 +559,23 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return atualizar_proximos(args, writer)
+
+    # Notícias (Google News RSS) — reconstrução do feed sem N8N.
+    if args.noticias:
+        from scraper import news as _news
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --noticias --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        rows = _news.coletar_noticias()
+        print(f"NOTÍCIAS: {len(rows)} coletadas (Google News RSS pt-BR)")
+        if args.write:
+            print("  ", writer.upsert_news(rows))
+        else:
+            for r in rows[:12]:
+                print("   ", r["date"][:16], "|", r["title"][:60])
+        return 0
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:
