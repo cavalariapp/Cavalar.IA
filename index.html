@@ -2260,26 +2260,22 @@ body.tem-notif .btn-hamburger::after {
   </div>
 
   <!-- STATS -->
-  <div class="stats-bar cols5">
+  <div class="stats-bar cols4">
     <div class="stat">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <div class="stat-num">72.5K</div><div class="stat-lbl">Cavalos</div>
+      <div class="stat-num" id="stat-cavalos">—</div><div class="stat-lbl">Cavalos</div>
     </div>
     <div class="stat">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
-      <div class="stat-num">18.3K</div><div class="stat-lbl">Cavaleiros</div>
+      <div class="stat-num" id="stat-cavaleiros">—</div><div class="stat-lbl">Cavaleiros</div>
     </div>
     <div class="stat">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      <div class="stat-num">5.842</div><div class="stat-lbl">Eventos</div>
+      <div class="stat-num" id="stat-torneios">—</div><div class="stat-lbl">Torneios</div>
     </div>
     <div class="stat">
-      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-      <div class="stat-num">86</div><div class="stat-lbl">Países</div>
-    </div>
-    <div class="stat">
-      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <div class="stat-num">2.145</div><div class="stat-lbl">Criadores</div>
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <div class="stat-num" id="stat-resultados">—</div><div class="stat-lbl">Resultados</div>
     </div>
   </div>
 
@@ -2536,15 +2532,15 @@ body.tem-notif .btn-hamburger::after {
   <div class="stats-bar cols3">
     <div class="stat">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      <div class="stat-num">50+</div><div class="stat-lbl">Episódios</div>
+      <div class="stat-num" id="stat-podcasts">—</div><div class="stat-lbl">Podcasts</div>
     </div>
     <div class="stat">
-      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <div class="stat-num">30+</div><div class="stat-lbl">Convidados</div>
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+      <div class="stat-num" id="stat-videocasts">—</div><div class="stat-lbl">Videocasts</div>
     </div>
     <div class="stat">
-      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-      <div class="stat-num">100%</div><div class="stat-lbl">Hipismo</div>
+      <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h20v14H2z"/><path d="M8 21h8M12 17v4"/><polygon points="10 7 15 10 10 13 10 7" fill="currentColor"/></svg>
+      <div class="stat-num" id="stat-videoaulas">—</div><div class="stat-lbl">Videoaulas</div>
     </div>
   </div>
 
@@ -5137,6 +5133,36 @@ function placeBid() {
   showToast('Lance de ' + Util.fmtCurrency(a.price) + ' registrado!');
 }
 
+// ─── ESTATÍSTICAS REAIS (heroes home + casts) ────────────────────────
+function fmtStat(n) {
+  n = +n || 0;
+  if (n >= 1000) return (n / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'K';
+  return n.toLocaleString('pt-BR');
+}
+
+async function carregarEstatisticas() {
+  const set = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = fmtStat(v); };
+  // HOME: cavalos/cavaleiros distintos + torneios + resultados (RPC no banco)
+  try {
+    const { data, error } = await sb.rpc('estatisticas_app');
+    if (!error && data) {
+      set('stat-cavalos', data.cavalos);
+      set('stat-cavaleiros', data.cavaleiros);
+      set('stat-torneios', data.torneios);
+      set('stat-resultados', data.resultados);
+    }
+  } catch (_) {}
+  // CASTS: contagem de mídia por tipo
+  try {
+    const { data } = await sb.from('media').select('tipo');
+    const t = { podcast: 0, videocast: 0, videoaula: 0 };
+    (data || []).forEach(m => { if (t[m.tipo] != null) t[m.tipo]++; });
+    set('stat-podcasts', t.podcast);
+    set('stat-videocasts', t.videocast);
+    set('stat-videoaulas', t.videoaula);
+  } catch (_) {}
+}
+
 // ─── INIT ─────────────────────────────────────────────────────
 async function init() {
   // 1. PRIMEIRO: bindar hamburger e auth — coisas críticas de UX
@@ -5154,6 +5180,7 @@ async function init() {
     renderEvents(),
   ]);
   renderMedia(STATE.mediaTab);
+  carregarEstatisticas();
   initAuth();
   initSearch();
   initCategories();
