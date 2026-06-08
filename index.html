@@ -1531,19 +1531,25 @@ body.tem-notif .btn-hamburger::after {
 /* Player persistente (continua tocando ao navegar) */
 #mini-player { display: none; position: fixed; left: 0; right: 0; bottom: 56px; z-index: 1200; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -6px 24px rgba(0,0,0,.45); }
 #mini-player.show { display: block; }
-#mini-player-bar { display: flex; align-items: center; gap: 8px; padding: 5px 8px; }
+#mini-player-bar { display: flex; align-items: center; gap: 6px; padding: 3px 8px; min-height: 32px; }
 #mini-player-bar > button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
-#mini-player-title { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#mini-player-body { background: #000; }
+#mini-player-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+#mini-player-title { flex: 1; min-width: 0; font-size: 12px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mini-player-body { background: #000; overflow: hidden; }
 #mini-player-body iframe { display: block; width: 100%; border: 0; }
-#mini-player.audio:not(.expanded) #mini-player-body iframe { height: 152px; }
-#mini-player.video:not(.expanded) #mini-player-body { position: relative; width: 100%; aspect-ratio: 16/9; max-height: 34vh; }
+#mini-player.audio #mini-player-body iframe { height: 152px; }
+#mini-player.audio #mp-exp { display: none; }   /* expandir só faz sentido p/ vídeo */
+#mini-player.video:not(.expanded) #mini-player-body { position: relative; width: 100%; aspect-ratio: 16/9; max-height: 32vh; }
 #mini-player.video:not(.expanded) #mini-player-body iframe { position: absolute; inset: 0; height: 100%; }
+/* ESCONDIDO: corpo colapsa, mas o iframe segue no DOM (continua tocando) */
+#mini-player.min #mini-player-body { max-height: 0; }
+#mini-player.min #mp-min svg { transform: rotate(180deg); }
+/* EXPANDIDO: vídeo em tela cheia */
 #mini-player.expanded { top: 0; bottom: 0; z-index: 2000; display: flex; flex-direction: column; }
-#mini-player.expanded #mini-player-body { flex: 1; position: relative; }
+#mini-player.expanded #mini-player-body { flex: 1; position: relative; max-height: none; aspect-ratio: auto; }
 #mini-player.expanded #mini-player-body iframe { position: absolute; inset: 0; height: 100%; }
-#mini-player.expanded #mini-player-expand svg { transform: rotate(180deg); }
-body.player-on .screen { padding-bottom: 230px; }
+body.player-on .screen { padding-bottom: 220px; }
+body.player-on.player-min .screen { padding-bottom: 92px; }
 
 /* ===========================
    AI ANALYSIS CARD
@@ -2937,10 +2943,14 @@ body.player-on .screen { padding-bottom: 230px; }
      esconde/destrói → o áudio/vídeo não para ao trocar de página. -->
 <div id="mini-player">
   <div id="mini-player-bar">
-    <button id="mini-player-expand" onclick="toggleExpandPlayer()" title="Expandir/recolher" aria-label="Expandir">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
-    </button>
+    <span id="mini-player-dot"></span>
     <div id="mini-player-title">—</div>
+    <button id="mp-min" onclick="toggleMinPlayer()" title="Esconder/mostrar (continua tocando)" aria-label="Esconder">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+    <button id="mp-exp" onclick="toggleExpandPlayer()" title="Expandir/recolher" aria-label="Expandir">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+    </button>
     <button onclick="fecharMiniPlayer()" title="Fechar" aria-label="Fechar" style="font-size:20px;line-height:1">×</button>
   </div>
   <div id="mini-player-body"></div>
@@ -4717,7 +4727,7 @@ function mediaEmbed(url) {
   if (m) return `<div class="media-frame"><iframe src="https://www.youtube.com/embed/${m[1]}" title="YouTube" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe></div>`;
   if (/youtube\.com|youtu\.be/.test(u)) { m = u.match(/[?&]list=([\w-]+)/); if (m) return `<div class="media-frame"><iframe src="https://www.youtube.com/embed/videoseries?list=${m[1]}" title="YouTube" allowfullscreen loading="lazy"></iframe></div>`; }
   m = u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(episode|show|track|playlist|album)\/([A-Za-z0-9]+)/);
-  if (m) { const tall = (m[1] === 'episode' || m[1] === 'show'); return `<div class="media-spotify"><iframe src="https://open.spotify.com/embed/${m[1]}/${m[2]}" width="100%" height="${tall ? 232 : 352}" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe></div>`; }
+  if (m) { return `<div class="media-spotify"><iframe src="https://open.spotify.com/embed/${m[1]}/${m[2]}?theme=0" width="100%" height="152" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe></div>`; }
   return `<a href="${escHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`;
 }
 
@@ -4752,8 +4762,9 @@ async function renderMedia(tipo) {
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
-      <button onclick="playMedia('${tipo}',${m.id})" style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#08111c;border:none;border-radius:9px;padding:10px 18px;font-weight:800;font-size:13px;cursor:pointer">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> ${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}
+      ${mediaEmbed(m.url)}
+      <button onclick="playMedia('${tipo}',${m.id})" style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--accent);font-weight:700;font-size:12px;cursor:pointer;padding:2px 0">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Tocar no player flutuante (continua ao navegar)
       </button>
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
@@ -4796,21 +4807,32 @@ function playMedia(tipo, id) {
     const sep = info.src.includes('?') ? '&' : '?';
     const src = info.kind === 'video' ? `${info.src}${sep}autoplay=1&playsinline=1&rel=0` : info.src;
     body.innerHTML = `<iframe src="${src}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`;
-    // vídeo abre expandido (pra assistir); áudio fica na barra inferior
-    mp.className = 'show ' + info.kind + (info.kind === 'video' ? ' expanded' : '');
+    mp.className = 'show ' + info.kind;   // barra fina embaixo; expandir é opcional
   }
   document.body.classList.add('player-on');
+  document.body.classList.remove('player-min');
 }
 
 function fecharMiniPlayer() {
   const mp = document.getElementById('mini-player');
   mp.className = '';                 // remove o iframe → para de tocar
   document.getElementById('mini-player-body').innerHTML = '';
-  document.body.classList.remove('player-on');
+  document.body.classList.remove('player-on', 'player-min');
+}
+
+// esconde o player (corpo colapsa) mas o iframe continua no DOM → segue tocando
+function toggleMinPlayer() {
+  const mp = document.getElementById('mini-player');
+  mp.classList.remove('expanded');
+  const min = mp.classList.toggle('min');
+  document.body.classList.toggle('player-min', min);
 }
 
 function toggleExpandPlayer() {
-  document.getElementById('mini-player').classList.toggle('expanded');
+  const mp = document.getElementById('mini-player');
+  mp.classList.remove('min');
+  document.body.classList.remove('player-min');
+  mp.classList.toggle('expanded');
 }
 
 // ── ADMIN: criar/editar/excluir/reordenar mídia ──────────────────────
