@@ -68,6 +68,14 @@ on:
         description: "ABCCH: espelha o studbook genealógico (pai/mãe, ~46k animais) na tabela genealogia. Grava se write=true."
         type: boolean
         default: false
+      spotify_show:
+        description: "Spotify: URL de um SHOW pra importar TODOS os episódios pra media (podcast). Grava se write=true."
+        type: string
+        default: ""
+      spotify_programa:
+        description: "Spotify: nome do programa/aba (default: nome do show)."
+        type: string
+        default: ""
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -103,6 +111,8 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
           IN_SOURCE: ${{ inputs.source }}
           IN_WRITE: ${{ inputs.write }}
           IN_YEAR: ${{ inputs.year }}
@@ -117,6 +127,8 @@ jobs:
           IN_SHB: ${{ inputs.shb }}
           IN_FGEE: ${{ inputs.fgee }}
           IN_ABCCH: ${{ inputs.abcch }}
+          IN_SPOTIFY_SHOW: ${{ inputs.spotify_show }}
+          IN_SPOTIFY_PROGRAMA: ${{ inputs.spotify_programa }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -175,6 +187,11 @@ jobs:
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
+          elif [ -n "${IN_SPOTIFY_SHOW:-}" ]; then
+            ARGS=(--spotify-show "${IN_SPOTIFY_SHOW}")
+            [ -n "${IN_SPOTIFY_PROGRAMA:-}" ] && ARGS+=(--programa "${IN_SPOTIFY_PROGRAMA}")
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS+=(--write)
+            python -m scraper.main "${ARGS[@]}"
           elif [ -n "${IN_DETAIL:-}" ]; then
             if [ "${IN_DUMP:-false}" = "true" ]; then
               # captura o HTML CRU do detalhe (gera fixture). Não grava.

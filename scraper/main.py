@@ -634,6 +634,59 @@ def _clean_prova(s):
     return re.sub(r"\s+", " ", (s or "").strip()) or None
 
 
+def processar_spotify_show(args, writer):
+    """--spotify-show URL: importa TODOS os episódios de um show do Spotify pra
+    tabela `media` (tipo=podcast), já com a tag do programa (--programa, ou o nome
+    do show), a capa e a cor da marca. Idempotente: pula episódios já presentes
+    (mesma url). Requer SPOTIFY_CLIENT_ID/SECRET."""
+    import os
+    from scraper.adapters import spotify as sp
+    cid = os.environ.get("SPOTIFY_CLIENT_ID")
+    sec = os.environ.get("SPOTIFY_CLIENT_SECRET")
+    if not (cid and sec):
+        print("⚠ --spotify-show precisa de SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET.", file=sys.stderr)
+        return 3
+    sid = sp.show_id(args.spotify_show)
+    try:
+        tok = sp.token(cid, sec)
+        sh = sp.show(sid, tok)
+        eps = sp.episodes(sid, tok)
+    except Exception as e:
+        print(f"⚠ Spotify: {e.__class__.__name__}: {e}", file=sys.stderr)
+        return 3
+    nome_show = sh.get("name") or "Podcast"
+    logo = ((sh.get("images") or [{}])[0] or {}).get("url")
+    programa = (args.programa or nome_show).strip()
+    cor = sp.cor_dominante(logo) if logo else None
+    print(f"SPOTIFY: '{nome_show}' → {len(eps)} episódios | programa='{programa}' | cor={cor}")
+    if not (args.write and writer.configured):
+        print("  (dry-run: nada gravado — use --write para persistir)")
+        return 0
+    # dedup por url já existente em media
+    existentes, off = set(), 0
+    while True:
+        ch = writer._get(f"/rest/v1/media?tipo=eq.podcast&select=url&limit=1000&offset={off}")
+        for x in ch:
+            existentes.add(x.get("url"))
+        if len(ch) < 1000:
+            break
+        off += 1000
+    mx = writer._get("/rest/v1/media?tipo=eq.podcast&select=ordem&order=ordem.desc&limit=1")
+    base = (mx[0]["ordem"] + 1) if mx else 0
+    rows = []
+    for i, e in enumerate(eps):
+        u = (e.get("external_urls") or {}).get("spotify")
+        if not u or u in existentes:
+            continue
+        rows.append({"tipo": "podcast", "url": u, "titulo": e.get("name"),
+                     "programa": programa, "cor": cor, "imagem": logo, "ordem": base + i})
+    if rows:
+        writer._post("/rest/v1/media", rows)
+    print(f"  ✓ {len(rows)} episódios novos inseridos em '{programa}' "
+          f"({len(eps) - len(rows)} já existiam).")
+    return 0
+
+
 def processar_abcch(args, writer):
     """--abcch: espelha o studbook da ABCCH (api.abcch.com.br) → tabela
     genealogia. Varre /pesquisa/ por a–z + 0–9, deduplica por CdToken (~46k
@@ -774,6 +827,9 @@ def main(argv=None):
                          "genealogia. --write grava.")
     ap.add_argument("--refresh-genetica", action="store_true", dest="refresh_genetica",
                     help="Atualiza a materialized view dos rankings genéticos (rpc).")
+    ap.add_argument("--spotify-show", dest="spotify_show", metavar="URL",
+                    help="Importa todos os episódios de um show do Spotify pra media. --write grava.")
+    ap.add_argument("--programa", help="Nome do programa/aba (default: nome do show).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -906,6 +962,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_abcch(args, writer)
+
+    # Importa um show inteiro do Spotify → media (tipo=podcast).
+    if args.spotify_show:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --spotify-show --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return processar_spotify_show(args, writer)
 
     # Atualiza a materialized view dos rankings genéticos (após scrapes do dia).
     if args.refresh_genetica:

@@ -5,4 +5,5 @@ lxml>=5.0
 requests>=2.31
 playwright>=1.44
 pypdf>=4.0
+Pillow>=10.0
 pytest>=8.0
