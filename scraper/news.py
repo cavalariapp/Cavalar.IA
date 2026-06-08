@@ -117,7 +117,8 @@ def reescrever(item, artigo, memoria, key):
     """Claude reescreve a notícia + devolve fingerprint. None se 'Erro'/inválido."""
     user = (f"Título: {item['title']}\nData: {item.get('pubDate','')}\n"
             f"Conteúdo RSS: {item.get('content','')}\n\nArtigo:\n{artigo[:5000]}")
-    body = {"model": MODEL, "max_tokens": 2000, "system": _PROMPT.format(memoria=memoria or "(sem histórico)"),
+    sistema = _PROMPT.replace("{memoria}", memoria or "(sem histórico)")
+    body = {"model": MODEL, "max_tokens": 2000, "system": sistema,
             "messages": [{"role": "user", "content": user}]}
     try:
         r = requests.post(ANTHROPIC_URL, timeout=120, data=json.dumps(body), headers={
