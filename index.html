@@ -1517,6 +1517,17 @@ body.tem-notif .btn-hamburger::after {
 .featured-excerpt { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 10px; }
 .featured-footer { display: flex; align-items: center; justify-content: space-between; }
 
+/* Player embutido (YouTube/Spotify) — vídeo 16:9 responsivo */
+.media-item { padding: 0 16px 20px; }
+.media-item .media-cat { font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 4px; }
+.media-item .media-title { font-size: 15px; font-weight: 800; line-height: 1.3; margin-bottom: 4px; }
+.media-item .media-legenda { font-size: 12.5px; color: var(--muted); line-height: 1.5; margin-bottom: 10px; }
+.media-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
+.media-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.media-spotify iframe { border-radius: 12px; display: block; }
+.media-admin-actions button { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--fg); cursor: pointer; }
+.media-admin-actions button.danger { border-color: #5a2020; background: #2a1212; color: #ff8080; }
+
 /* ===========================
    AI ANALYSIS CARD
 =========================== */
@@ -2539,113 +2550,12 @@ body.tem-notif .btn-hamburger::after {
 
   <!-- TABS -->
   <div class="tabs">
-    <button class="tab active" id="tab-pod" onclick="switchTab('pod')">Podcast</button>
-    <button class="tab" id="tab-vid" onclick="switchTab('vid')">Videoaulas</button>
+    <button class="tab active" id="tab-podcast" onclick="switchTab('podcast')">Podcast</button>
+    <button class="tab" id="tab-videocast" onclick="switchTab('videocast')">Videocast</button>
+    <button class="tab" id="tab-videoaula" onclick="switchTab('videoaula')">Videoaulas</button>
   </div>
 
-  <!-- PODCAST CONTENT -->
-  <div id="pod-content">
-    <div class="sec-hdr"><span class="sec-title">Episódios Recentes</span><button class="sec-link">VER TODOS →</button></div>
-    <div class="ep-list">
-      <div class="ep-card">
-        <div class="ep-thumb" style="background:linear-gradient(145deg,#1a1a2e,#2a1010)">
-          <div class="ep-badge">EP. 51</div>
-        </div>
-        <div class="ep-body">
-          <div class="ep-meta">EP. 51 · 58:27</div>
-          <div class="ep-title">Planejamento e disciplina: o caminho para o alto rendimento</div>
-          <div class="ep-guest">Com Pedro Veniss</div>
-          <div class="waveform" id="wv0"></div>
-        </div>
-        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
-      </div>
-      <div class="ep-card">
-        <div class="ep-thumb" style="background:linear-gradient(145deg,#2a1a10,#101a2e)">
-          <div class="ep-badge">EP. 50</div>
-        </div>
-        <div class="ep-body">
-          <div class="ep-meta">EP. 50 · 47:12</div>
-          <div class="ep-title">Genética, seleção e o futuro do esporte equestre</div>
-          <div class="ep-guest">Com Guilherme Foroni</div>
-          <div class="waveform" id="wv1"></div>
-        </div>
-        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
-      </div>
-      <div class="ep-card">
-        <div class="ep-thumb" style="background:linear-gradient(145deg,#1a1028,#2a1a10)">
-          <div class="ep-badge">EP. 49</div>
-        </div>
-        <div class="ep-body">
-          <div class="ep-meta">EP. 49 · 1:02:33</div>
-          <div class="ep-title">Mentalidade vencedora: dentro e fora da pista</div>
-          <div class="ep-guest">Com Doda Miranda</div>
-          <div class="waveform" id="wv2"></div>
-        </div>
-        <div class="ep-play"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg></div>
-      </div>
-    </div>
-
-    <!-- CATEGORIES -->
-    <div class="sec-hdr"><span class="sec-title">Categorias</span></div>
-    <div class="pills">
-      <button class="pill active">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/></svg>
-        Entrevistas
-      </button>
-      <button class="pill">Genética</button>
-      <button class="pill">Gestão</button>
-      <button class="pill">Treinamento</button>
-      <button class="pill">Mercado</button>
-    </div>
-  </div>
-
-  <!-- VIDEOAULAS CONTENT -->
-  <div id="vid-content" style="display:none">
-    <div class="sec-hdr"><span class="sec-title">Videoaulas em Destaque</span></div>
-    <div class="video-grid">
-      <div class="vid-card">
-        <div class="vid-thumb" style="background:linear-gradient(135deg,#0f1a28,#1a0f0a)">
-          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-        </div>
-        <div class="vid-body">
-          <div class="vid-cat">Salto</div>
-          <div class="vid-title">Fundamentos do oxer perfeito</div>
-          <div class="vid-dur">18:32</div>
-        </div>
-      </div>
-      <div class="vid-card">
-        <div class="vid-thumb" style="background:linear-gradient(135deg,#1a1028,#0a1820)">
-          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-        </div>
-        <div class="vid-body">
-          <div class="vid-cat">Genética</div>
-          <div class="vid-title">Lendo um pedigree em 10 minutos</div>
-          <div class="vid-dur">24:15</div>
-        </div>
-      </div>
-      <div class="vid-card">
-        <div class="vid-thumb" style="background:linear-gradient(135deg,#1a1a0a,#101028)">
-          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-        </div>
-        <div class="vid-body">
-          <div class="vid-cat">Criação</div>
-          <div class="vid-title">Seleção de matrizes: critérios de elite</div>
-          <div class="vid-dur">31:08</div>
-        </div>
-      </div>
-      <div class="vid-card" style="position:relative">
-        <div style="position:absolute;top:6px;right:6px;z-index:3"><span class="badge-premium" style="margin-bottom:0">PREMIUM</span></div>
-        <div class="vid-thumb" style="background:linear-gradient(135deg,#180a28,#1a1a0a)">
-          <div class="vid-play"><svg width="11" height="11" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg></div>
-        </div>
-        <div class="vid-body">
-          <div class="vid-cat">Análise IA</div>
-          <div class="vid-title">Breeding values avançado</div>
-          <div class="vid-dur">45:00</div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div id="media-content" style="padding-top:6px"></div>
 
   <!-- SUBSCRIBE CTA -->
   <div class="cta-banner">
@@ -3056,6 +2966,7 @@ const DB = {
   },
   async podcasts()    { return this.get('podcasts', { order: 'ep', asc: false }); },
   async videos()      { return this.get('videos'); },
+  async media(tipo)   { return this.get('media', { order: 'ordem', asc: true, eq: ['tipo', tipo] }); },
   async rankings()    { return this.get('rankings', { order: 'pos', asc: true }); },
   async events()      { return this.get('events', { order: 'day', asc: true }); },
   async horses()      { return this.get('horses', { order: 'score', asc: false }); },
@@ -3998,9 +3909,12 @@ async function updateAuthButton() {
       _isAdmin = false;
       pararRealtime();
     }
-    // re-renderiza a lista de notícias se estiver aberta (mostra/oculta controles de admin)
+    // re-renderiza listas que têm controles de admin (mostra/oculta conforme login)
     if (document.getElementById('noticias-news-list') && typeof _renderNoticiasFiltered === 'function') {
       try { _renderNoticiasFiltered(); } catch (_) {}
+    }
+    if (document.getElementById('media-content') && typeof renderMedia === 'function') {
+      try { renderMedia(STATE.mediaTab); } catch (_) {}
     }
 
     // Atualiza todos os botões "ENTRAR" do app (têm vários nos diversos screens)
@@ -4666,64 +4580,178 @@ function navMesCalendario(delta) {
   renderEvents();
 }
 
-// ─── TABS: PODCAST / VIDEOAULAS ──────────────────────────────
+// ─── MÍDIA: PODCAST / VIDEOCAST / VIDEOAULAS (player embutido) ────────
+const _MEDIA_TIPOS = ['podcast', 'videocast', 'videoaula'];
+const _MEDIA_LABEL = { podcast: 'Podcast', videocast: 'Videocast', videoaula: 'Videoaula' };
+STATE.mediaTab = STATE.mediaTab || 'podcast';
+STATE.mediaCache = STATE.mediaCache || {};
+
 function switchTab(t) {
-  STATE.podcastTab = t;
-  document.getElementById('tab-pod').classList.toggle('active', t === 'pod');
-  document.getElementById('tab-vid').classList.toggle('active', t === 'vid');
-  document.getElementById('pod-content').style.display = t === 'pod' ? 'block' : 'none';
-  document.getElementById('vid-content').style.display = t === 'vid' ? 'block' : 'none';
+  if (!_MEDIA_TIPOS.includes(t)) t = 'podcast';
+  STATE.mediaTab = t;
+  _MEDIA_TIPOS.forEach(x => {
+    const b = document.getElementById('tab-' + x);
+    if (b) b.classList.toggle('active', x === t);
+  });
+  renderMedia(t);
 }
 
-// ─── WAVEFORM GENERATOR ──────────────────────────────────────
-function genWave(id, played) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const h = [3,4,6,9,6,4,8,12,9,5,4,7,11,14,9,6,4,3,5,9,12,8,5,4,7,11,13,9,5,3,4,8,10,7,5,6,9,7,4,3];
-  el.innerHTML = h.map((v, i) =>
-    `<div class="wbar" style="height:${v}px;background:${i < played ? 'var(--accent)' : 'var(--border)'}"></div>`
-  ).join('');
+// Link YouTube/Spotify → HTML de player embutido (sem redirecionar).
+function mediaEmbed(url) {
+  const u = (url || '').trim();
+  if (!u) return '';
+  let m = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return `<div class="media-frame"><iframe src="https://www.youtube.com/embed/${m[1]}" title="YouTube" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe></div>`;
+  if (/youtube\.com|youtu\.be/.test(u)) { m = u.match(/[?&]list=([\w-]+)/); if (m) return `<div class="media-frame"><iframe src="https://www.youtube.com/embed/videoseries?list=${m[1]}" title="YouTube" allowfullscreen loading="lazy"></iframe></div>`; }
+  m = u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(episode|show|track|playlist|album)\/([A-Za-z0-9]+)/);
+  if (m) { const tall = (m[1] === 'episode' || m[1] === 'show'); return `<div class="media-spotify"><iframe src="https://open.spotify.com/embed/${m[1]}/${m[2]}" width="100%" height="${tall ? 232 : 352}" frameborder="0" allow="autoplay;clipboard-write;encrypted-media;fullscreen;picture-in-picture" loading="lazy"></iframe></div>`; }
+  return `<a href="${escHtml(u)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`;
 }
 
-// ─── PODCAST PLAYER ──────────────────────────────────────────
-function togglePodcast(idx) {
-  if (STATE.podcastNow === idx) {
-    STATE.podcastNow = null;
-    renderPodcasts();
+async function renderMedia(tipo) {
+  tipo = tipo || STATE.mediaTab || 'podcast';
+  const c = document.getElementById('media-content');
+  if (!c) return;
+  c.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Carregando...</div>';
+  const items = await DB.media(tipo);
+  STATE.mediaCache[tipo] = items;
+  const adminBar = _isAdmin
+    ? `<div style="padding:10px 16px;display:flex;gap:8px;align-items:center">
+         <button onclick="openMediaEditor('${tipo}')" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:12px;cursor:pointer">+ Adicionar ${_MEDIA_LABEL[tipo]}</button>
+         <span style="font-size:11px;color:var(--muted)">Modo administrador — cole um link do YouTube ou Spotify</span>
+       </div>` : '';
+  if (!items.length) {
+    c.innerHTML = adminBar + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} disponível ainda.</div>`;
     return;
   }
-  STATE.podcastNow = idx;
-  renderPodcasts();
-  const p = STATE.localPodcasts[idx];
-  if (p) showToast('▶ Tocando: ' + p.title);
+  c.innerHTML = adminBar + items.map((m, i) => `
+    <div class="media-item">
+      <div class="media-cat">${escHtml(_MEDIA_LABEL[tipo])}</div>
+      <div class="media-title">${escHtml(m.titulo || '')}</div>
+      ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
+      ${mediaEmbed(m.url)}
+      ${_isAdmin ? `
+      <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
+        <button onclick="moveMedia('${tipo}',${m.id},1)" ${i === items.length - 1 ? 'disabled style="opacity:.4"' : ''}>↓</button>
+        <button onclick="openMediaEditor('${tipo}',${m.id})">Editar</button>
+        <button class="danger" onclick="deleteMediaAdmin('${tipo}',${m.id})">Excluir</button>
+      </div>` : ''}
+    </div>
+  `).join('');
 }
 
-function renderPodcasts() {
-  const list = document.querySelector('.ep-list');
-  if (!list) return;
-  const items = STATE.localPodcasts;
-  list.innerHTML = items.map((p, i) => {
-    const isPlaying = STATE.podcastNow === i;
-    return `
-      <div class="ep-card" onclick="togglePodcast(${i})">
-        <div class="ep-thumb" style="background:linear-gradient(145deg,${i % 2 === 0 ? '#1a1a2e,#2a1010' : '#2a1a10,#101a2e'})">
-          <div class="ep-badge">EP. ${p.ep}</div>
-        </div>
-        <div class="ep-body">
-          <div class="ep-meta">EP. ${p.ep} · ${p.duration}</div>
-          <div class="ep-title">${p.title}</div>
-          <div class="ep-guest">Com ${p.guest}</div>
-          <div class="waveform" id="wv${i}"></div>
-        </div>
-        <div class="ep-play" style="${isPlaying ? 'background:var(--accent);color:#fff' : ''}">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-            ${isPlaying ? '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>' : '<polygon points="5,3 19,12 5,21"/>'}
-          </svg>
-        </div>
+// ── ADMIN: criar/editar/excluir/reordenar mídia ──────────────────────
+function _ensureMediaEditor() {
+  if (document.getElementById('media-editor-overlay')) return;
+  const el = document.createElement('div');
+  el.id = 'media-editor-overlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px';
+  el.onclick = (e) => { if (e.target === el) closeMediaEditor(); };
+  el.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:560px;width:100%;padding:18px 18px 22px;margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 id="me-title" style="margin:0;font-size:16px">Mídia</h3>
+        <button onclick="closeMediaEditor()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1">×</button>
       </div>
-    `;
+      <input id="me-id" type="hidden"/><input id="me-tipo" type="hidden"/>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Link (YouTube ou Spotify)</label>
+      <input id="me-url" placeholder="https://www.youtube.com/watch?v=… ou https://open.spotify.com/episode/…" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+      <div id="me-preview" style="margin-top:10px"></div>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Título</label>
+      <input id="me-titulo" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Legenda (opcional)</label>
+      <textarea id="me-legenda" rows="3" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;font-family:inherit"></textarea>
+      <div id="me-msg" style="font-size:12px;color:#ff8080;margin-top:10px;min-height:16px"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button id="me-save" onclick="saveMediaEditor()" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer;flex:1">Salvar</button>
+        <button onclick="closeMediaEditor()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:11px 16px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  el.querySelector('#me-url').addEventListener('input', (ev) => {
+    document.getElementById('me-preview').innerHTML = mediaEmbed(ev.target.value);
   });
-  items.forEach((p, i) => genWave('wv' + i, STATE.podcastNow === i ? 30 : (p.played || 0)));
+}
+
+function openMediaEditor(tipo, id) {
+  if (!_isAdmin) return;
+  _ensureMediaEditor();
+  const m = id ? (STATE.mediaCache[tipo] || []).find(x => x.id === id) : null;
+  document.getElementById('me-title').textContent = (m ? 'Editar ' : 'Novo ') + _MEDIA_LABEL[tipo];
+  document.getElementById('me-id').value = m ? m.id : '';
+  document.getElementById('me-tipo').value = tipo;
+  document.getElementById('me-url').value = m ? (m.url || '') : '';
+  document.getElementById('me-titulo').value = m ? (m.titulo || '') : '';
+  document.getElementById('me-legenda').value = m ? (m.legenda || '') : '';
+  document.getElementById('me-preview').innerHTML = m ? mediaEmbed(m.url) : '';
+  document.getElementById('me-msg').textContent = '';
+  document.getElementById('media-editor-overlay').style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMediaEditor() {
+  const ov = document.getElementById('media-editor-overlay');
+  if (ov) ov.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function saveMediaEditor() {
+  const msg = document.getElementById('me-msg');
+  const btn = document.getElementById('me-save');
+  const tipo = document.getElementById('me-tipo').value;
+  const url = document.getElementById('me-url').value.trim();
+  const titulo = document.getElementById('me-titulo').value.trim();
+  if (!url) { msg.textContent = 'Cole o link do YouTube ou Spotify.'; return; }
+  if (!titulo) { msg.textContent = 'Título é obrigatório.'; return; }
+  const id = document.getElementById('me-id').value;
+  const rec = { tipo, url, titulo, legenda: document.getElementById('me-legenda').value.trim() || null };
+  btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
+  try {
+    let error;
+    if (id) ({ error } = await sb.from('media').update(rec).eq('id', id));
+    else {
+      const arr = STATE.mediaCache[tipo] || [];
+      rec.ordem = arr.length ? Math.max(...arr.map(x => x.ordem || 0)) + 1 : 0;
+      ({ error } = await sb.from('media').insert(rec));
+    }
+    if (error) throw error;
+    DB._cache = {};
+    closeMediaEditor();
+    await renderMedia(tipo);
+    showToast(id ? 'Mídia atualizada' : 'Mídia adicionada');
+  } catch (e) {
+    msg.style.color = '#ff8080';
+    msg.textContent = 'Erro ao salvar: ' + (e.message || e) + (String(e.message || '').match(/row-level|policy/i) ? ' (sem permissão de admin?)' : '');
+  } finally { btn.disabled = false; }
+}
+
+async function deleteMediaAdmin(tipo, id) {
+  if (!_isAdmin) return;
+  const m = (STATE.mediaCache[tipo] || []).find(x => x.id === id);
+  if (!confirm('Excluir "' + ((m && m.titulo) || id) + '"?')) return;
+  try {
+    const { error } = await sb.from('media').delete().eq('id', id);
+    if (error) throw error;
+    DB._cache = {};
+    await renderMedia(tipo);
+    showToast('Excluído');
+  } catch (e) { showToast('Erro: ' + (e.message || e)); }
+}
+
+async function moveMedia(tipo, id, dir) {
+  if (!_isAdmin) return;
+  const arr = (STATE.mediaCache[tipo] || []).slice();
+  const i = arr.findIndex(x => x.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  try {
+    // renumera ordem = posição (só grava o que mudou)
+    await Promise.all(arr.map((m, idx) => m.ordem === idx ? null : sb.from('media').update({ ordem: idx }).eq('id', m.id)).filter(Boolean));
+    DB._cache = {};
+    await renderMedia(tipo);
+  } catch (e) { showToast('Erro ao reordenar: ' + (e.message || e)); }
 }
 
 // ─── PILLS / CATEGORY FILTER ─────────────────────────────────
@@ -5125,7 +5153,7 @@ async function init() {
     renderRankings(),
     renderEvents(),
   ]);
-  renderPodcasts();
+  renderMedia(STATE.mediaTab);
   initAuth();
   initSearch();
   initCategories();
