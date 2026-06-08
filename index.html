@@ -1532,8 +1532,8 @@ body.tem-notif .btn-hamburger::after {
 .media-presenter.audio iframe { height: 152px !important; }
 .media-presenter.video { max-width: 420px; }             /* vídeo um pouco menor */
 /* BALÃO do programa: cor da marca + logo encaixado (sem cortar) */
-.media-balloon { display: flex; align-items: center; gap: 12px; margin-top: 6px; border-radius: 12px; padding: 9px 12px; cursor: pointer; color: #fff; }
-.media-balloon-logo { width: 46px; height: 46px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,.14); flex-shrink: 0; }
+.media-balloon { display: flex; align-items: center; gap: 12px; margin-top: 6px; border-radius: 12px; padding: 10px 14px; cursor: pointer; color: #fff; }
+.media-balloon-logo { width: 56px; height: 56px; border-radius: 10px; object-fit: cover; background: rgba(255,255,255,.14); flex-shrink: 0; }
 .media-balloon-prog { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
 .media-balloon-play { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .media-admin-actions button { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--fg); cursor: pointer; }
@@ -4757,6 +4757,10 @@ async function renderMedia(tipo) {
   // sub-abas por PROGRAMA (ex.: PodEquestre, Clac Cast, Big Talk for Breeders)
   const programas = [...new Set(items.map(m => (m.programa || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   STATE._mediaProgramas[tipo] = programas;
+  // branding por PROGRAMA: mesma logo+cor em TODOS os episódios do programa
+  const brand = {};
+  items.forEach(m => { const p = (m.programa || '').trim(); if (!p) return; brand[p] = brand[p] || {}; if (!brand[p].cor && m.cor) brand[p].cor = m.cor; if (!brand[p].imagem && m.imagem) brand[p].imagem = m.imagem; });
+  const brandFor = m => { const b = brand[(m.programa || '').trim()] || {}; return { cor: b.cor || m.cor || '#1e66ff', logo: b.imagem || m.imagem || null }; };
   const sel = STATE.mediaPrograma[tipo] || null;
   let subtabs = '';
   if (programas.length) {
@@ -4773,15 +4777,17 @@ async function renderMedia(tipo) {
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
-      ${m.imagem
-        ? `<div class="media-balloon" style="background:${escHtml(m.cor || '#1e66ff')}" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}">
-             <img class="media-balloon-logo" src="${escHtml(m.imagem)}" alt="" loading="lazy">
+      ${(() => {
+        const bf = brandFor(m);
+        if (bf.logo) return `<div class="media-balloon" style="background:${escHtml(bf.cor)}" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}">
+             <img class="media-balloon-logo" src="${escHtml(bf.logo)}" alt="" loading="lazy">
              <div class="media-balloon-prog">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
              <div class="media-balloon-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><polygon points="5,3 19,12 5,21"/></svg></div>
-           </div>`
-        : (() => { const info = _embedInfo(m.url); return info
-            ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
-            : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`; })()}
+           </div>`;
+        const info = _embedInfo(m.url);
+        return info ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
+          : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`;
+      })()}
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
