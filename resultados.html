@@ -1790,39 +1790,51 @@ function buildProvaBlock(prova, resultados, idx, cavaleiro, cavalo) {
 }
 
 // ─── Tabela de resultados ─────────────────────────────────────
-// Define colunas dependendo do tipo da prova
-function colunasParaTipo(tipo) {
-  switch (tipo) {
-    case 'Duas Fases':
-      return [
-        { label: 'Pen.', key: 'penalidade', cls: 'col-num' },
-        { label: 'T 1ª', key: 'tempo',      cls: 'col-num' },
-        { label: 'T 2ª', key: 'tempo_2',    cls: 'col-num accent' },
-      ];
-    case 'Desempate':
-    case 'Duas Voltas':
-      return [
-        { label: 'Pen 1ª', key: 'penalidade',   cls: 'col-num' },
-        { label: 'T 1ª',   key: 'tempo',        cls: 'col-num' },
-        { label: 'Pen 2ª', key: 'penalidade_2', cls: 'col-num' },
-        { label: 'T 2ª',   key: 'tempo_2',      cls: 'col-num accent' },
-      ];
-    case 'Tempo Ideal':
-      // Na prova ao tempo ideal, a APROXIMAÇÃO (|tempo − tempo ideal|, guardada
-      // em `pontos`) é o dado que classifica. Fica em destaque e VISÍVEL no
-      // celular (sem hideSm); o tempo cru recua pro modo desktop.
-      return [
-        { label: 'Tempo',  key: 'tempo',      cls: 'col-num', hideSm: true },
-        { label: 'Pen.',   key: 'penalidade', cls: 'col-num' },
-        { label: 'Aprox.', key: 'pontos',     cls: 'col-num accent' },
-      ];
-    default: // Tabela A / Cronometro / Outro
-      return [
-        { label: 'Tempo', key: 'tempo',      cls: 'col-num' },
-        { label: 'Pen.',  key: 'penalidade', cls: 'col-num' },
-        { label: 'Pontos',key: 'pontos',     cls: 'col-num accent', hideSm: true },
-      ];
+// Define as colunas. NÃO confia só no tipo_prova (o banco tem dezenas de
+// variantes: "CRONÔMETRO COM UM DESEMPATE", "DUAS VOLTAS", "TEMPO OCULTO
+// ESTENDIDO", "Outro"… que não batiam no match exato e caíam no default,
+// perdendo a 2ª volta / a aproximação). Decide pelos DADOS:
+//   • tem penalidade_2 E tempo_2 → 2 voltas (desempate/duas voltas): Pen1ª T1ª Pen2ª T2ª
+//   • tem só tempo_2             → duas fases: Pen T1ª T2ª
+//   • tipo é TEMPO IDEAL/OCULTO  → Tempo + Pen + Aproximação (ambos visíveis)
+//   • senão                      → Tempo + Pen + Pontos
+function colunasParaTipo(tipo, resultados) {
+  const t = String(tipo || '').toUpperCase();
+  const preenchido = (k) => Array.isArray(resultados) && resultados.some(r => {
+    const v = r[k]; const s = (v == null ? '' : String(v)).trim();
+    return s !== '' && s !== '--' && s !== '-' && s !== '0,00';
+  });
+  const temT2 = preenchido('tempo_2');
+  const temPen2 = preenchido('penalidade_2');
+  const tempoIdeal = /TEMPO\s*IDEAL|TEMPO\s*OCULTO/.test(t);
+
+  if (temT2 && temPen2) {          // desempate / duas voltas
+    return [
+      { label: 'Pen 1ª', key: 'penalidade',   cls: 'col-num' },
+      { label: 'T 1ª',   key: 'tempo',        cls: 'col-num' },
+      { label: 'Pen 2ª', key: 'penalidade_2', cls: 'col-num' },
+      { label: 'T 2ª',   key: 'tempo_2',      cls: 'col-num accent' },
+    ];
   }
+  if (temT2) {                     // duas fases (penalidade_2 não se aplica)
+    return [
+      { label: 'Pen.', key: 'penalidade', cls: 'col-num' },
+      { label: 'T 1ª', key: 'tempo',      cls: 'col-num' },
+      { label: 'T 2ª', key: 'tempo_2',    cls: 'col-num accent' },
+    ];
+  }
+  if (tempoIdeal) {                // APROXIMAÇÃO classifica; tempo E aprox visíveis
+    return [
+      { label: 'Tempo',  key: 'tempo',      cls: 'col-num' },
+      { label: 'Pen.',   key: 'penalidade', cls: 'col-num' },
+      { label: 'Aprox.', key: 'pontos',     cls: 'col-num accent' },
+    ];
+  }
+  return [                         // Tabela A / Cronômetro / Outro
+    { label: 'Tempo', key: 'tempo',      cls: 'col-num' },
+    { label: 'Pen.',  key: 'penalidade', cls: 'col-num' },
+    { label: 'Pontos',key: 'pontos',     cls: 'col-num accent', hideSm: true },
+  ];
 }
 
 function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
@@ -1830,7 +1842,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
     return `<div class="table-empty">Nenhum resultado para os filtros aplicados.</div>`;
   }
 
-  const cols = colunasParaTipo(prova.tipo_prova);
+  const cols = colunasParaTipo(prova.tipo_prova, resultados);
 
   const rows = resultados.map(r => {
     const cells = cols.map(c => {
