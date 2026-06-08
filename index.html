@@ -4665,6 +4665,8 @@ const _MEDIA_TIPOS = ['podcast', 'videocast', 'videoaula'];
 const _MEDIA_LABEL = { podcast: 'Podcast', videocast: 'Videocast', videoaula: 'Videoaula' };
 STATE.mediaTab = STATE.mediaTab || 'podcast';
 STATE.mediaCache = STATE.mediaCache || {};
+STATE.mediaPrograma = STATE.mediaPrograma || {};   // programa selecionado por tipo
+STATE._mediaProgramas = STATE._mediaProgramas || {}; // lista de programas por tipo
 
 function switchTab(t) {
   if (!_MEDIA_TIPOS.includes(t)) t = 'podcast';
@@ -4698,27 +4700,42 @@ async function renderMedia(tipo) {
   const adminBar = _isAdmin
     ? `<div style="padding:10px 16px;display:flex;gap:8px;align-items:center">
          <button onclick="openMediaEditor('${tipo}')" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:12px;cursor:pointer">+ Adicionar ${_MEDIA_LABEL[tipo]}</button>
-         <span style="font-size:11px;color:var(--muted)">Modo administrador — cole um link do YouTube ou Spotify</span>
+         <span style="font-size:11px;color:var(--muted)">Admin — cole link do YouTube/Spotify e defina o programa</span>
        </div>` : '';
-  if (!items.length) {
-    c.innerHTML = adminBar + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} disponível ainda.</div>`;
+  // sub-abas por PROGRAMA (ex.: PodEquestre, Clac Cast, Big Talk for Breeders)
+  const programas = [...new Set(items.map(m => (m.programa || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  STATE._mediaProgramas[tipo] = programas;
+  const sel = STATE.mediaPrograma[tipo] || null;
+  let subtabs = '';
+  if (programas.length) {
+    const chip = (lbl, idx, on) => `<button class="pill${on ? ' active' : ''}" onclick="mediaPrograma('${tipo}',${idx})">${escHtml(lbl)}</button>`;
+    subtabs = `<div class="pills" style="padding:8px 16px 4px">${chip('Todos', -1, !sel)}${programas.map((p, k) => chip(p, k, sel === p)).join('')}</div>`;
+  }
+  const filtered = sel ? items.filter(m => (m.programa || '').trim() === sel) : items;
+  if (!filtered.length) {
+    c.innerHTML = adminBar + subtabs + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} ${sel ? 'em "' + escHtml(sel) + '"' : 'disponível'} ainda.</div>`;
     return;
   }
-  c.innerHTML = adminBar + items.map((m, i) => `
+  c.innerHTML = adminBar + subtabs + filtered.map((m, i) => `
     <div class="media-item">
-      <div class="media-cat">${escHtml(_MEDIA_LABEL[tipo])}</div>
+      <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
       ${mediaEmbed(m.url)}
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
-        <button onclick="moveMedia('${tipo}',${m.id},1)" ${i === items.length - 1 ? 'disabled style="opacity:.4"' : ''}>↓</button>
+        <button onclick="moveMedia('${tipo}',${m.id},1)" ${i === filtered.length - 1 ? 'disabled style="opacity:.4"' : ''}>↓</button>
         <button onclick="openMediaEditor('${tipo}',${m.id})">Editar</button>
         <button class="danger" onclick="deleteMediaAdmin('${tipo}',${m.id})">Excluir</button>
       </div>` : ''}
     </div>
   `).join('');
+}
+
+function mediaPrograma(tipo, idx) {
+  STATE.mediaPrograma[tipo] = idx < 0 ? null : (STATE._mediaProgramas[tipo] || [])[idx] || null;
+  renderMedia(tipo);
 }
 
 // ── ADMIN: criar/editar/excluir/reordenar mídia ──────────────────────
@@ -4740,6 +4757,9 @@ function _ensureMediaEditor() {
       <div id="me-preview" style="margin-top:10px"></div>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Título</label>
       <input id="me-titulo" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Programa / Canal (vira uma aba)</label>
+      <input id="me-programa" list="me-programa-list" placeholder="ex.: PodEquestre, Clac Cast, Big Talk for Breeders" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+      <datalist id="me-programa-list"></datalist>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Legenda (opcional)</label>
       <textarea id="me-legenda" rows="3" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;font-family:inherit"></textarea>
       <div id="me-msg" style="font-size:12px;color:#ff8080;margin-top:10px;min-height:16px"></div>
@@ -4763,6 +4783,10 @@ function openMediaEditor(tipo, id) {
   document.getElementById('me-tipo').value = tipo;
   document.getElementById('me-url').value = m ? (m.url || '') : '';
   document.getElementById('me-titulo').value = m ? (m.titulo || '') : '';
+  document.getElementById('me-programa').value = m ? (m.programa || '') : '';
+  // sugestões de programas já existentes (admin escolhe ou digita um novo)
+  const progs = STATE._mediaProgramas[tipo] || [...new Set((STATE.mediaCache[tipo] || []).map(x => (x.programa || '').trim()).filter(Boolean))];
+  document.getElementById('me-programa-list').innerHTML = (progs || []).map(p => `<option value="${escHtml(p)}">`).join('');
   document.getElementById('me-legenda').value = m ? (m.legenda || '') : '';
   document.getElementById('me-preview').innerHTML = m ? mediaEmbed(m.url) : '';
   document.getElementById('me-msg').textContent = '';
@@ -4785,7 +4809,7 @@ async function saveMediaEditor() {
   if (!url) { msg.textContent = 'Cole o link do YouTube ou Spotify.'; return; }
   if (!titulo) { msg.textContent = 'Título é obrigatório.'; return; }
   const id = document.getElementById('me-id').value;
-  const rec = { tipo, url, titulo, legenda: document.getElementById('me-legenda').value.trim() || null };
+  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, legenda: document.getElementById('me-legenda').value.trim() || null };
   btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
   try {
     let error;
@@ -4821,14 +4845,18 @@ async function deleteMediaAdmin(tipo, id) {
 
 async function moveMedia(tipo, id, dir) {
   if (!_isAdmin) return;
-  const arr = (STATE.mediaCache[tipo] || []).slice();
-  const i = arr.findIndex(x => x.id === id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= arr.length) return;
-  [arr[i], arr[j]] = [arr[j], arr[i]];
+  const all = (STATE.mediaCache[tipo] || []).slice();   // já ordenado por ordem
+  const sel = STATE.mediaPrograma[tipo] || null;
+  const sub = sel ? all.filter(m => (m.programa || '').trim() === sel) : all;
+  const si = sub.findIndex(x => x.id === id);
+  const sj = si + dir;
+  if (si < 0 || sj < 0 || sj >= sub.length) return;
+  // troca a posição dos dois itens-alvo (vizinhos NO PROGRAMA) na lista completa
+  const fi = all.findIndex(x => x.id === sub[si].id);
+  const fj = all.findIndex(x => x.id === sub[sj].id);
+  [all[fi], all[fj]] = [all[fj], all[fi]];
   try {
-    // renumera ordem = posição (só grava o que mudou)
-    await Promise.all(arr.map((m, idx) => m.ordem === idx ? null : sb.from('media').update({ ordem: idx }).eq('id', m.id)).filter(Boolean));
+    await Promise.all(all.map((m, idx) => m.ordem === idx ? null : sb.from('media').update({ ordem: idx }).eq('id', m.id)).filter(Boolean));
     DB._cache = {};
     await renderMedia(tipo);
   } catch (e) { showToast('Erro ao reordenar: ' + (e.message || e)); }
