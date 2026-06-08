@@ -19,6 +19,7 @@ Saída do dry-run: tabela de eventos + contagem + nulos + organizadores
 """
 import argparse
 import datetime as _dt
+import re
 import sys
 
 from scraper import sources as SRC
@@ -520,6 +521,102 @@ def processar_shb(args, writer):
     return 0
 
 
+def processar_fgee(args, writer):
+    """--fgee: resultado POR PROVA da FGEE via LiveHorse (PDF → Claude). Lista
+    eventos (mais recentes primeiro) → por evento, cada PDF 'resultado-...pN' →
+    extrai texto → Claude estrutura → torneio+prova+resultados. RESUMÁVEL: pula
+    prova que já tem resultado (não re-chama Claude). CAVALARIA_FGEE_MAX limita
+    PDFs por execução (default 60); CAVALARIA_FGEE_PAGS = páginas de eventos (25/pág)."""
+    import os
+    from scraper.adapters import livehorse as lh
+    from scraper.db import prova_to_row, resultado_to_row
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        print("⚠ --fgee precisa de ANTHROPIC_API_KEY (estruturação dos PDFs).", file=sys.stderr)
+        return 3
+    MAXPDF = int(os.environ.get("CAVALARIA_FGEE_MAX", "60"))
+    PAGS = int(os.environ.get("CAVALARIA_FGEE_PAGS", "3"))
+    eventos = lh.listar_eventos(max_paginas=PAGS)
+    print(f"FGEE/LiveHorse: {len(eventos)} eventos; orçamento {MAXPDF} PDFs/execução.")
+    feitos = tot_res = tot_prov = 0
+    for ev in eventos:
+        if feitos >= MAXPDF:
+            print("  (orçamento de PDFs atingido — re-rode p/ continuar)")
+            break
+        try:
+            pdfs = lh.resultado_pdfs(ev["link"])
+        except Exception:
+            continue
+        if not pdfs:
+            continue
+        # torneio por (fonte=FGEE, id_nativo=id do evento LiveHorse) — chave estável.
+        # NÃO reconcilia com shells legados por nome: etapas da mesma série colidem
+        # (ordinais são descartados na tokenização) e grudariam resultado na etapa
+        # errada. Shells vazios do N8N são tratados à parte.
+        tid = None
+        if args.write and writer.configured:
+            tid = writer.find_torneio_id("FGEE", str(ev["id"]))
+            if not tid:
+                rep = writer.upsert_torneios([{
+                    "nome": ev["nome"], "fonte": "FGEE", "data_inicio": None,
+                    "data_fim": None, "id_nativo": str(ev["id"]), "organizador": "FGEE"}])
+                tid = (rep[0]["id"] if rep else None) or writer.find_torneio_id("FGEE", str(ev["id"]))
+        datas = []
+        for url in pdfs:
+            if feitos >= MAXPDF:
+                break
+            oid = lh.id_origem_de(url)
+            # resumável: já tem resultado nesta prova? pula (sem Claude)
+            if args.write and writer.configured and tid:
+                ex = writer._get(f"/rest/v1/provas?torneio_id=eq.{tid}&id_origem=eq.{oid}"
+                                 f"&select=id,resultados(id)")
+                if ex and (ex[0].get("resultados")):
+                    continue
+            try:
+                texto = lh.extrair_texto_pdf(url)
+                est = lh.estruturar_resultado(texto, key)
+            except Exception as e:
+                print(f"    ⚠ {url.split('/')[-1]}: {e.__class__.__name__}", file=sys.stderr)
+                continue
+            feitos += 1
+            if not est or not est.get("resultados"):
+                continue
+            dprova = lh.data_iso(est.get("data"))
+            if dprova:
+                datas.append(dprova)
+            numero = re.sub(r"[^\d]", "", str(est.get("prova_numero") or "")) or None
+            if not (args.write and writer.configured and tid):
+                print(f"  [{ev['id']}] {ev['nome'][:34]} | {url.split('/')[-1][:34]}: "
+                      f"{len(est['resultados'])} linhas (dry)")
+                continue
+            prow = prova_to_row({
+                "id_origem": oid, "nome": _clean_prova(est.get("prova_nome")) or f"Prova {numero or ''}".strip(),
+                "numero": numero, "categorias": est.get("tabela"),
+                "tipo_prova": est.get("tabela"), "data_prova": dprova,
+            }, tid)
+            writer.upsert_provas(tid, [prow])
+            pr = writer._get(f"/rest/v1/provas?torneio_id=eq.{tid}&id_origem=eq.{oid}&select=id")
+            if not pr:
+                continue
+            pid = pr[0]["id"]
+            rows = [resultado_to_row(r, pid) for r in est["resultados"]
+                    if (r.get("cavaleiro_nome") or r.get("cavalo_nome"))]
+            rs = writer.upsert_resultados(pid, rows)
+            tot_res += rs.get("inseridos", 0)
+            tot_prov += 1
+        # datas do torneio = min/max das provas
+        if args.write and writer.configured and tid and datas:
+            writer._patch(f"/rest/v1/torneios?id=eq.{tid}",
+                          {"data_inicio": min(datas), "data_fim": max(datas)})
+    print(f"\n=== FGEE === {feitos} PDFs processados, {tot_prov} provas, {tot_res} "
+          f"resultados. {'GRAVADO' if args.write else 'DRY-RUN'}.")
+    return 0
+
+
+def _clean_prova(s):
+    return re.sub(r"\s+", " ", (s or "").strip()) or None
+
+
 def estruturar_docs(writer, limit=None):
     """--estruturar: estrutura docs (programa/horário) ainda SEM conteudo_estruturado:
     baixa o PDF → extrai texto → Claude → grava texto_extraido + conteudo_estruturado.
@@ -599,6 +696,9 @@ def main(argv=None):
     ap.add_argument("--shb", action="store_true",
                     help="Ingere resultado POR PROVA do sistema shb.app.br (concursos "
                          "públicos → torneios+provas+resultados). --write grava.")
+    ap.add_argument("--fgee", action="store_true",
+                    help="Ingere resultado POR PROVA da FGEE via LiveHorse (PDF→Claude). "
+                         "Requer ANTHROPIC_API_KEY. --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -713,6 +813,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_shb(args, writer)
+
+    # FGEE — resultado por prova via LiveHorse (PDF→Claude).
+    if args.fgee:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --fgee --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return processar_fgee(args, writer)
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:
