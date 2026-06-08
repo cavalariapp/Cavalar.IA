@@ -80,11 +80,15 @@ set statement_timeout = '25s' as $$
     group by 1
   ),
   agg as (
+    -- idade entre 4..30 / 8..30: o teto descarta homônimos antigos (fundadores
+    -- dos anos 60-70, ex.: placeholder "TEHRAN × BIBIBEG") que casam por nome com
+    -- cavalos modernos — um cavalo nascido nos anos 70 não compete hoje.
     select (case when papel = 'mae' then mae_norm else pai_norm end) as rep_norm,
            count(distinct cd_token) filter (
-             where (extract(year from current_date)::int - nasc_ano) > 4) as comp4,
+             where (extract(year from current_date)::int - nasc_ano) between 5 and 30) as comp4,
            count(distinct cd_token) filter (
-             where (extract(year from current_date)::int - nasc_ano) > 8 and max_alt >= 1.40) as alto8
+             where (extract(year from current_date)::int - nasc_ano) between 9 and 30
+               and max_alt >= 1.40) as alto8
     from mv_genetica
     where (rankings_geneticos.ano is null or ano_prova = rankings_geneticos.ano)
     group by 1
