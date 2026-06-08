@@ -4,24 +4,19 @@
 --   R1 nº de filhos (registrados na ABCCH)
 --   R2 nº e % de filhos +4 anos (idade atual) que COMPETIRAM
 --   R3 nº e % de filhos +8 anos em provas ≥ 1,40 m
--- Tudo com filtro de ano (ano da prova) ou todos (NULL). % sempre ÷ total de
--- filhos registrados. Roda no servidor (o app só recebe o ranking pronto).
+-- Filtro por ano (ano da prova) ou todos (NULL). % sempre ÷ total de filhos
+-- registrados. Roda no servidor (o app só recebe o ranking pronto).
+--
+-- Normalização SEM extensão unaccent (que no Supabase vive em `extensions` e
+-- complica o índice): acentos PT removidos via translate → IMMUTABLE puro.
 
-create extension if not exists unaccent;
-
--- wrapper IMMUTABLE do unaccent (pra poder indexar / usar em funções immutable)
-create or replace function public.f_unaccent(text)
-returns text language sql immutable strict parallel safe as $$
-  select public.unaccent('public.unaccent', $1)
-$$;
-
--- normaliza nome de animal: 1ª linha (antes do \n), sem acento, sem parênteses
--- (genealogia/(TE)/(IA)), só alfanumérico, MAIÚSCULAS, espaços colapsados.
 create or replace function public.norm_nome(t text)
 returns text language sql immutable parallel safe as $$
   select nullif(upper(trim(regexp_replace(
            regexp_replace(
-             f_unaccent(split_part(coalesce(t, ''), E'\n', 1)),
+             translate(split_part(coalesce(t, ''), E'\n', 1),
+               'áàâãäéèêëíìîïóòôõöúùûüçñÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ',
+               'aaaaaeeeeiiiiooooouuuucnAAAAAEEEEIIIIOOOOOUUUUCN'),
              '\([^)]*\)', '', 'g'),
            '[^A-Za-z0-9]+', ' ', 'g'))), '')
 $$;
@@ -41,9 +36,9 @@ create or replace function public.rankings_geneticos(papel text, ano int default
 returns table (
   reprodutor   text,
   total_filhos bigint,
-  comp4        bigint,   -- filhos +4a que competiram (no filtro)
+  comp4        bigint,
   pct_comp4    numeric,
-  alto8        bigint,   -- filhos +8a em provas ≥1,40m (no filtro)
+  alto8        bigint,
   pct_alto8    numeric
 )
 language sql stable security definer set search_path = public as $$
@@ -60,7 +55,7 @@ language sql stable security definer set search_path = public as $$
     select rep_norm, max(rep_disp) as nome, count(distinct cd_token) as total
     from ger group by rep_norm
   ),
-  ev as (   -- por filho × ano: maior altura saltada
+  ev as (
     select norm_nome(r.cavalo_nome) as filho_norm,
            extract(year from coalesce(p.data_prova, t.data_inicio))::int as ano,
            max(altura_m(p.nome, p.descricao, p.categorias)) as max_alt
