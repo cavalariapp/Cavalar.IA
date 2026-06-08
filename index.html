@@ -4809,6 +4809,36 @@ function _embedInfo(url) {
   return null;
 }
 
+// capa/logo direto da FONTE (YouTube: thumbnail; Spotify: oEmbed — ambos com CORS)
+async function _autoLogo(url) {
+  const info = _embedInfo(url); if (!info) return null;
+  if (info.kind === 'video') { const m = info.src.match(/embed\/([\w-]{11})/); return m ? `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg` : null; }
+  try { const r = await fetch('https://open.spotify.com/oembed?url=' + encodeURIComponent(url)); if (r.ok) { const j = await r.json(); return j.thumbnail_url || null; } } catch (_) {}
+  return null;
+}
+
+// cor dominante (média) da imagem — pro balão ter a cor da marca, sem o admin escolher
+function _dominantColor(src) {
+  return new Promise(resolve => {
+    if (!src) return resolve(null);
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const n = 24, cv = document.createElement('canvas'); cv.width = n; cv.height = n;
+        const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, n, n);
+        const d = ctx.getImageData(0, 0, n, n).data;
+        let r = 0, g = 0, b = 0, c = 0;
+        for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) continue; r += d[i]; g += d[i + 1]; b += d[i + 2]; c++; }
+        if (!c) return resolve(null);
+        const hx = v => Math.round(v / c).toString(16).padStart(2, '0');
+        resolve('#' + hx(r) + hx(g) + hx(b));
+      } catch (_) { resolve(null); }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 function playMedia(tipo, id) {
   const m = (STATE.mediaCache[tipo] || []).find(x => x.id === id);
   if (!m) return;
@@ -4875,12 +4905,12 @@ function _ensureMediaEditor() {
       <datalist id="me-programa-list"></datalist>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px">
         <div>
-          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Cor do programa</label>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Cor (auto)</label>
           <input id="me-cor" type="color" value="#1e66ff" style="width:46px;height:38px;padding:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer"/>
         </div>
         <div style="flex:1">
-          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Logo/Capa do programa (URL)</label>
-          <input id="me-imagem" placeholder="https://…/logo.png" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Capa/logo — preenchida da fonte ao colar o link</label>
+          <input id="me-imagem" placeholder="(automático — só preencha pra trocar)" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
         </div>
       </div>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Legenda (opcional)</label>
@@ -4892,8 +4922,19 @@ function _ensureMediaEditor() {
       </div>
     </div>`;
   document.body.appendChild(el);
+  let _meUrlT;
   el.querySelector('#me-url').addEventListener('input', (ev) => {
     document.getElementById('me-preview').innerHTML = mediaEmbed(ev.target.value);
+    clearTimeout(_meUrlT);
+    _meUrlT = setTimeout(async () => {
+      const u = ev.target.value.trim(); if (!u) return;
+      const logo = await _autoLogo(u);
+      if (logo) {
+        document.getElementById('me-imagem').value = logo;
+        const cor = await _dominantColor(logo);
+        if (cor) document.getElementById('me-cor').value = cor;
+      }
+    }, 350);
   });
   // ao escolher um programa existente, herda cor + logo dele
   const onProg = () => {
@@ -4947,7 +4988,9 @@ async function saveMediaEditor() {
   if (!url) { msg.textContent = 'Cole o link do YouTube ou Spotify.'; return; }
   if (!titulo) { msg.textContent = 'Título é obrigatório.'; return; }
   const id = document.getElementById('me-id').value;
-  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem: document.getElementById('me-imagem').value.trim() || null, legenda: document.getElementById('me-legenda').value.trim() || null };
+  let imagem = document.getElementById('me-imagem').value.trim() || null;
+  if (!imagem) imagem = await _autoLogo(url);   // garante a capa da fonte mesmo sem digitar
+  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null };
   btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
   try {
     let error;
