@@ -38,10 +38,11 @@ def parse_periodo(periodo):
     """'27 A 31 DE MAIO DE 2026' → ('2026-05-27','2026-05-31'); '28 DE MAIO DE
     2026' → (mesma data, mesma data). (ini, fim) ou (None, None)."""
     p = _clean(periodo)
-    m = re.search(r"(\d{1,2})\s+A\s+(\d{1,2})\s+DE\s+(\w+)\s+DE\s+(\d{4})", p, re.I)
+    # "DE" antes do ano é opcional ("03 A 07 DE JUNHO 2026" e "...DE JUNHO DE 2026")
+    m = re.search(r"(\d{1,2})\s+A\s+(\d{1,2})\s+DE\s+(\w+)\s+(?:DE\s+)?(\d{4})", p, re.I)
     if m:
         return _iso(m.group(1), m.group(3), m.group(4)), _iso(m.group(2), m.group(3), m.group(4))
-    m = re.search(r"(\d{1,2})\s+DE\s+(\w+)\s+DE\s+(\d{4})", p, re.I)
+    m = re.search(r"(\d{1,2})\s+DE\s+(\w+)\s+(?:DE\s+)?(\d{4})", p, re.I)
     if m:
         d = _iso(m.group(1), m.group(2), m.group(3))
         return d, d
@@ -104,11 +105,41 @@ def detalhar_concurso(concurso):
             "data_prova": data_atual,
             "tipo_prova": ("DUAS FASES" if "DUAS FASES" in full[max(0, m.start() - 200):m.start()].upper() else None),
         })
-    # nome do concurso + período (cabeçalho: "<NOME> <DD A DD DE MES DE ANO>")
-    mn = re.search(r"SOCIEDADE H[IÍ]PICA BRASILEIRA\s+(.+?)\s+(\d{1,2}\s+A\s+\d{1,2}"
-                   r"\s+DE\s+\w+\s+DE\s+\d{4}|\d{1,2}\s+DE\s+\w+\s+DE\s+\d{4})", full)
-    nome = _clean(mn.group(1)) if mn else f"Concurso SHB {concurso}"
-    periodo = _clean(mn.group(2)) if mn else ""
+    # fallback: provas direto do TEXTO quando os links resultado_online não estão
+    # no HTML estático (ex.: concurso 402, hospedado por outra federação). Casa
+    # "PROVA <cod> - <altura>" e usa o cabeçalho de dia anterior como data.
+    if not provas:
+        data_atual = None
+        rxt = re.compile(
+            r"(?P<data>\b\d{1,2}\s+de\s+\w+\s+de\s+\d{4}\b)"
+            r"|PROVA\s+(?P<cod>\d+[A-Z]?)\s*-\s*(?P<alt>[0-9][0-9,\.]*\s*M(?:\s*X\s*[0-9][0-9,\.]*\s*M)?)",
+            re.I)
+        for m in rxt.finditer(full):
+            if m.group("data"):
+                md = re.match(r"(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})", m.group("data"), re.I)
+                if md:
+                    data_atual = _iso(md.group(1), md.group(2), md.group(3))
+                continue
+            cod = "PROVA " + m.group("cod").upper()
+            if cod in seen:
+                continue
+            seen.add(cod)
+            num = re.search(r"(\d+)", cod)
+            provas.append({
+                "codigo": cod, "nome": _clean(cod + " - " + _clean(m.group("alt"))),
+                "numero": int(num.group(1)) if num else None,
+                "data_prova": data_atual, "tipo_prova": None})
+    # nome do concurso + período. O cabeçalho é "<FEDERAÇÃO> <NOME> <PERÍODO>";
+    # a federação varia (SHB, FEERJ…), então corta a partir do 1º termo de nome
+    # de concurso e isola o período no fim ("DE" antes do ano é opcional).
+    per = re.search(r"(\d{1,2}\s+A\s+\d{1,2}\s+DE\s+\w+\s+(?:DE\s+)?\d{4}"
+                    r"|\d{1,2}\s+DE\s+\w+\s+(?:DE\s+)?\d{4})", full)
+    periodo = _clean(per.group(1)) if per else ""
+    cabecalho = full[:per.start()] if per else full
+    mk = re.search(r"\b(CSN\d*\*?|CSE|CSI\d*\*?|CN|COPA|CONCURSO|CAMPEONATO|TORNEIO|"
+                   r"RANKING|PROVA INTERNA|\d+ª?\s*ETAPA|GRANDE\s+PR[EÊ]MIO|GP)\b",
+                   cabecalho, re.I)
+    nome = _clean(cabecalho[mk.start():]) if mk else f"Concurso SHB {concurso}"
     return {"concurso": concurso, "nome": nome, "periodo": periodo, "provas": provas}
 
 
