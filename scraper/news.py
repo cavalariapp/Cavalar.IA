@@ -118,7 +118,7 @@ def reescrever(item, artigo, memoria, key):
     user = (f"Título: {item['title']}\nData: {item.get('pubDate','')}\n"
             f"Conteúdo RSS: {item.get('content','')}\n\nArtigo:\n{artigo[:5000]}")
     sistema = _PROMPT.replace("{memoria}", memoria or "(sem histórico)")
-    body = {"model": MODEL, "max_tokens": 2000, "system": sistema,
+    body = {"model": MODEL, "max_tokens": 4096, "system": sistema,
             "messages": [{"role": "user", "content": user}]}
     try:
         r = requests.post(ANTHROPIC_URL, timeout=120, data=json.dumps(body), headers={

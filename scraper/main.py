@@ -419,14 +419,14 @@ def processar_noticias(args, writer):
         rec = writer._get("/rest/v1/news?select=title,excerpt&order=created_at.desc&limit=15")
         memoria = "\n".join(f"- {r.get('title','')}: {(r.get('excerpt') or '')[:140]}" for r in rec)
 
+    if not key:
+        print("  ⚠ ANTHROPIC_API_KEY ausente — abortando (não gravamos notícia crua).", file=sys.stderr)
+        return
     rows = []
     for it in novos[:MAX]:
-        rw = None
-        if key:
-            rw = N.reescrever(it, N.fetch_artigo(it["link"]), memoria, key)
-        if not rw:
-            rw = {"titulo": it["title"], "resumo": (it["content"] or "")[:400],
-                  "conteudo": it["content"] or it["title"], "fingerprint": None}
+        rw = N.reescrever(it, N.fetch_artigo(it["link"]), memoria, key)
+        if not rw:                    # reescrita falhou → pula (não grava título solto)
+            continue
         fp = rw["fingerprint"]
         if fp and fp in fps:          # dedup semântica (mesmo evento de outra fonte)
             continue
