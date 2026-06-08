@@ -2978,6 +2978,7 @@ if ('serviceWorker' in navigator) {
 // Cache global do usuário logado — declarado AQUI pra estar disponível pro listener
 let _currentUser = null;
 let _currentProfile = null;
+let _isAdmin = false;   // true quando o profile logado tem is_admin (edição de notícias)
 let _profileLinkMap = new Map();
 
 // Listener REATIVO de auth — pega SIGNED_IN, INITIAL_SESSION, TOKEN_REFRESHED
@@ -3988,12 +3989,18 @@ async function updateAuthButton() {
     const user = session?.user || null;
     _currentUser = user;
     if (user) {
-      const { data: profile } = await sb.from('profiles').select('nome_completo,email,cavaleiro_nome,avatar_url').eq('id', user.id).maybeSingle();
+      const { data: profile } = await sb.from('profiles').select('nome_completo,email,cavaleiro_nome,avatar_url,is_admin').eq('id', user.id).maybeSingle();
       _currentProfile = profile;
+      _isAdmin = !!(profile && profile.is_admin);
       iniciarRealtime();   // assina mensagens/solicitações em tempo real
     } else {
       _currentProfile = null;
+      _isAdmin = false;
       pararRealtime();
+    }
+    // re-renderiza a lista de notícias se estiver aberta (mostra/oculta controles de admin)
+    if (document.getElementById('noticias-news-list') && typeof _renderNoticiasFiltered === 'function') {
+      try { _renderNoticiasFiltered(); } catch (_) {}
     }
 
     // Atualiza todos os botões "ENTRAR" do app (têm vários nos diversos screens)
@@ -4779,19 +4786,32 @@ function _renderNoticiasFiltered() {
     meta.style.display = 'none';
   }
 
+  const adminBar = _isAdmin
+    ? `<div style="padding:10px 16px;display:flex;gap:8px;align-items:center">
+         <button onclick="openNewsEditor()" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:9px 14px;font-weight:800;font-size:12px;cursor:pointer">+ Nova notícia</button>
+         <span style="font-size:11px;color:var(--muted)">Modo administrador</span>
+       </div>`
+    : '';
+
   if (!filtered.length) {
-    container.innerHTML = `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">${q ? 'Nada encontrado para "' + q + '".' : 'Nenhuma notícia disponível.'}</div>`;
+    container.innerHTML = adminBar + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">${q ? 'Nada encontrado para "' + q + '".' : 'Nenhuma notícia disponível.'}</div>`;
     return;
   }
 
-  container.innerHTML = filtered.map((n, i) => `
+  container.innerHTML = adminBar + filtered.map((n, i) => `
     <div class="news-card" onclick="openNews(${n.id})">
       <div class="news-thumb" style="${n.image_url ? `background-image:url('${n.image_url}');background-size:cover;background-position:center` : `background:${THUMB_GRADIENTS[i % THUMB_GRADIENTS.length]}`}"></div>
       <div class="news-body">
-        <div class="news-cat">${n.cat || ''}</div>
+        <div class="news-cat">${n.cat || ''}${n.featured ? ' · ★ DESTAQUE' : ''}</div>
         <div class="news-title">${_highlightTerm(n.title, q)}</div>
         ${n.excerpt ? `<div class="news-excerpt">${_highlightTerm(n.excerpt, q)}</div>` : ''}
         <div class="news-date">${n.date || ''}</div>
+        ${_isAdmin ? `
+        <div class="news-admin-actions" onclick="event.stopPropagation()" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button onclick="openNewsEditor(${n.id})" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);cursor:pointer">Editar</button>
+          <button onclick="toggleFeaturedAdmin(${n.id})" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);cursor:pointer">${n.featured ? 'Remover destaque' : 'Destacar'}</button>
+          <button onclick="deleteNewsAdmin(${n.id})" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #5a2020;background:#2a1212;color:#ff8080;cursor:pointer">Excluir</button>
+        </div>` : ''}
       </div>
     </div>
   `).join('');
@@ -4850,6 +4870,126 @@ function closeNewsModal(e) {
 
 async function initNoticias() {
   await Promise.all([renderNewsScreen(), renderNoticiasScreenList()]);
+}
+
+// ─── ADMIN DE NOTÍCIAS (só aparece p/ profile is_admin) ──────────────
+// Escreve via sessão autenticada (RLS libera só admin). Sem chave secreta.
+function _ensureNewsEditor() {
+  if (document.getElementById('news-editor-overlay')) return;
+  const el = document.createElement('div');
+  el.id = 'news-editor-overlay';
+  el.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px';
+  el.onclick = (e) => { if (e.target === el) closeNewsEditor(); };
+  const F = (id, label, ph, tag) => tag === 'textarea'
+    ? `<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">${label}</label><textarea id="${id}" rows="6" placeholder="${ph||''}" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;font-family:inherit"></textarea>`
+    : `<label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">${label}</label><input id="${id}" placeholder="${ph||''}" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>`;
+  el.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:560px;width:100%;padding:18px 18px 22px;margin-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 id="news-editor-title" style="margin:0;font-size:16px">Notícia</h3>
+        <button onclick="closeNewsEditor()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1">×</button>
+      </div>
+      <input id="ne-id" type="hidden"/>
+      ${F('ne-title','Título','')}
+      ${F('ne-cat','Categoria','ex.: Salto, CSN, Internacional')}
+      ${F('ne-date','Data de publicação','AAAA-MM-DD')}
+      ${F('ne-image','URL da imagem (opcional)','https://...')}
+      ${F('ne-excerpt','Resumo','', 'textarea')}
+      ${F('ne-body','Texto completo','', 'textarea')}
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer">
+        <input type="checkbox" id="ne-featured"/> Destacar (featured)
+      </label>
+      <div id="ne-msg" style="font-size:12px;color:#ff8080;margin-top:10px;min-height:16px"></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button onclick="saveNewsEditor()" id="ne-save" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer;flex:1">Salvar</button>
+        <button onclick="closeNewsEditor()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:11px 16px;cursor:pointer">Cancelar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+}
+
+function openNewsEditor(id) {
+  if (!_isAdmin) return;
+  _ensureNewsEditor();
+  const ov = document.getElementById('news-editor-overlay');
+  const n = id ? _newsCache.find(x => x.id === id) : null;
+  document.getElementById('news-editor-title').textContent = n ? 'Editar notícia' : 'Nova notícia';
+  document.getElementById('ne-id').value = n ? n.id : '';
+  document.getElementById('ne-title').value = n ? (n.title || '') : '';
+  document.getElementById('ne-cat').value = n ? (n.cat || '') : '';
+  document.getElementById('ne-date').value = n ? (n.date || '') : new Date().toISOString().slice(0, 10);
+  document.getElementById('ne-image').value = n ? (n.image_url || '') : '';
+  document.getElementById('ne-excerpt').value = n ? (n.excerpt || '') : '';
+  document.getElementById('ne-body').value = n ? (n.body || n.body_raw || '') : '';
+  document.getElementById('ne-featured').checked = n ? !!n.featured : false;
+  document.getElementById('ne-msg').textContent = '';
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeNewsEditor() {
+  const ov = document.getElementById('news-editor-overlay');
+  if (ov) ov.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+async function saveNewsEditor() {
+  const msg = document.getElementById('ne-msg');
+  const btn = document.getElementById('ne-save');
+  const title = document.getElementById('ne-title').value.trim();
+  if (!title) { msg.textContent = 'Título é obrigatório.'; return; }
+  const body = document.getElementById('ne-body').value.trim();
+  const rec = {
+    title,
+    cat: document.getElementById('ne-cat').value.trim() || null,
+    date: document.getElementById('ne-date').value.trim() || null,
+    image_url: document.getElementById('ne-image').value.trim() || null,
+    excerpt: document.getElementById('ne-excerpt').value.trim() || null,
+    body: body || null,
+    body_raw: body || null,
+    featured: document.getElementById('ne-featured').checked,
+  };
+  const id = document.getElementById('ne-id').value;
+  btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
+  try {
+    let error;
+    if (id) ({ error } = await sb.from('news').update(rec).eq('id', id));
+    else    ({ error } = await sb.from('news').insert(rec));
+    if (error) throw error;
+    DB._cache = {};                       // invalida cache p/ refletir a mudança
+    closeNewsEditor();
+    await renderNoticiasScreenList();
+    showToast(id ? 'Notícia atualizada' : 'Notícia criada');
+  } catch (e) {
+    msg.style.color = '#ff8080';
+    msg.textContent = 'Erro ao salvar: ' + (e.message || e) + (String(e.message || '').match(/row-level|policy/i) ? ' (sem permissão de admin?)' : '');
+  } finally { btn.disabled = false; }
+}
+
+async function deleteNewsAdmin(id) {
+  if (!_isAdmin) return;
+  const n = _newsCache.find(x => x.id === id);
+  if (!confirm('Excluir a notícia "' + ((n && n.title) || id) + '"? Esta ação não pode ser desfeita.')) return;
+  try {
+    const { error } = await sb.from('news').delete().eq('id', id);
+    if (error) throw error;
+    DB._cache = {};
+    await renderNoticiasScreenList();
+    showToast('Notícia excluída');
+  } catch (e) { showToast('Erro ao excluir: ' + (e.message || e)); }
+}
+
+async function toggleFeaturedAdmin(id) {
+  if (!_isAdmin) return;
+  const n = _newsCache.find(x => x.id === id);
+  if (!n) return;
+  try {
+    const { error } = await sb.from('news').update({ featured: !n.featured }).eq('id', id);
+    if (error) throw error;
+    DB._cache = {};
+    await renderNoticiasScreenList();
+    showToast(!n.featured ? 'Notícia destacada' : 'Destaque removido');
+  } catch (e) { showToast('Erro: ' + (e.message || e)); }
 }
 
 // ─── AUCTION ENGINE ──────────────────────────────────────────
