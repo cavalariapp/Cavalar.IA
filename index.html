@@ -3011,6 +3011,25 @@ const THUMB_GRADIENTS = [
   'linear-gradient(135deg,#0a1820,#201008)',
 ];
 
+// Data de publicação NA FONTE de uma notícia → epoch ms (p/ ordenar).
+// Aceita RFC2822 ("Mon, 17 Nov 2025 08:00:00 GMT") e ISO nativamente; trata o
+// formato PT ("05 MAI 2026"); cai em created_at se `date` não for parseável.
+const _PT_MES = { JAN:0, FEV:1, MAR:2, ABR:3, MAI:4, JUN:5, JUL:6, AGO:7, SET:8, OUT:9, NOV:10, DEZ:11 };
+function _newsDateMs(n) {
+  const d = ((n && n.date) || '').trim();
+  if (d) {
+    const t = Date.parse(d);
+    if (!isNaN(t)) return t;
+    const m = d.match(/(\d{1,2})\s+([A-Za-zçÇ]{3,})\.?\s+(\d{4})/);
+    if (m) {
+      const mm = _PT_MES[m[2].slice(0, 3).toUpperCase()];
+      if (mm != null) return Date.UTC(+m[3], mm, +m[1]);
+    }
+  }
+  const c = (n && n.created_at) ? Date.parse(n.created_at) : NaN;
+  return isNaN(c) ? 0 : c;
+}
+
 // ─── DB LAYER ────────────────────────────────────────────────
 const DB = {
   _cache: {},
@@ -3028,7 +3047,12 @@ const DB = {
     this._cache[key] = { data, ts: Date.now() };
     return data;
   },
-  async news()        { return this.get('news', { order: 'created_at', asc: false }); },
+  async news()        {
+    // Ordena pela DATA DE PUBLICAÇÃO NA FONTE (campo `date`), mais recente em
+    // cima — não pela data em que o sistema capturou (created_at).
+    const items = await this.get('news', { order: 'created_at', asc: false });
+    return [...items].sort((a, b) => _newsDateMs(b) - _newsDateMs(a));
+  },
   async podcasts()    { return this.get('podcasts', { order: 'ep', asc: false }); },
   async videos()      { return this.get('videos'); },
   async rankings()    { return this.get('rankings', { order: 'pos', asc: true }); },
