@@ -2265,7 +2265,7 @@ body.tem-notif .btn-hamburger::after {
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <div class="stat-num" id="stat-cavalos">—</div><div class="stat-lbl">Cavalos</div>
     </div>
-    <div class="stat" style="cursor:pointer" onclick="showToast('Em breve: busca de cavaleiros')">
+    <div class="stat" style="cursor:pointer" onclick="nav('cavaleiro')">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
       <div class="stat-num" id="stat-cavaleiros">—</div><div class="stat-lbl">Cavaleiros</div>
     </div>
@@ -2583,6 +2583,25 @@ body.tem-notif .btn-hamburger::after {
   </div>
   <div id="cavalo-list" style="padding:6px 12px 30px"></div>
   <div id="cavalo-perfil" style="display:none;padding:0 0 30px"></div>
+</div>
+
+<!-- ============================================================
+     SCREEN: CAVALEIRO (busca + perfil)
+============================================================ -->
+<div class="screen" id="scr-cavaleiro">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:16px 16px 6px">
+    <h2 style="margin:0 0 12px;font-size:20px;font-weight:900">Cavaleiros</h2>
+    <div class="search-wrap" style="margin:0">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input class="search-input" id="cavaleiro-search" type="search" placeholder="Buscar cavaleiro por nome…" autocomplete="off">
+    </div>
+  </div>
+  <div id="cavaleiro-list" style="padding:6px 12px 30px"></div>
+  <div id="cavaleiro-perfil" style="display:none;padding:0 0 30px"></div>
 </div>
 
 <!-- ============================================================
@@ -3086,7 +3105,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'feed-global', 'mensagens', 'comunidade'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade'];
 
 function nav(id) {
   SCREENS.forEach(s => {
@@ -3112,6 +3131,7 @@ function nav(id) {
   if (id === 'mensagens') auto(initMensagens);
   if (id === 'genetica') auto(initGenetica);
   if (id === 'cavalo') auto(initCavalo);
+  if (id === 'cavaleiro') auto(initCavaleiro);
 }
 
 // ─── MENSAGENS (DM) ───────────────────────────────────────────
@@ -5402,6 +5422,119 @@ async function abrirPerfilCavalo(i) {
         </div>`;
       }).join('')}
     </div>` : (nprovas ? '' : '<div style="padding:24px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavalo.</div>')}
+    <div style="height:20px"></div>`;
+}
+
+// ─── CAVALEIRO (busca + perfil) ──────────────────────────────────────
+let _cavaleiroCache = [];
+let _cavaleiroTimer = null;
+
+function initCavaleiro() {
+  _cavaleiroVoltar(false);
+  const input = document.getElementById('cavaleiro-search');
+  if (input && !input._wired) {
+    input.addEventListener('input', () => {
+      clearTimeout(_cavaleiroTimer);
+      _cavaleiroTimer = setTimeout(() => buscarCavaleiros(input.value), 250);
+    });
+    input._wired = true;
+  }
+  const list = document.getElementById('cavaleiro-list');
+  if (list && !list.innerHTML.trim())
+    list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Digite o nome de um cavaleiro pra buscar.</div>';
+}
+
+async function buscarCavaleiros(termo) {
+  const list = document.getElementById('cavaleiro-list');
+  const t = (termo || '').trim().replace(/[%_(),]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (t.length < 2) { _cavaleiroCache = []; list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Digite ao menos 2 letras.</div>'; return; }
+  list.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Buscando…</div>';
+  const { data } = await sb.from('resultados').select('cavaleiro_nome').ilike('cavaleiro_nome', '%' + t + '%').limit(600);
+  const map = new Map();
+  (data || []).forEach(x => {
+    const n = _normNome(x.cavaleiro_nome); if (!n) return;
+    if (!map.has(n)) { const parts = (x.cavaleiro_nome || '').split('\n'); map.set(n, { nome: parts[0], entidade: (parts[1] || '').trim(), nn: n }); }
+  });
+  _cavaleiroCache = [...map.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).slice(0, 80);
+  if (!_cavaleiroCache.length) { list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum cavaleiro encontrado.</div>'; return; }
+  list.innerHTML = _cavaleiroCache.map((c, i) => `
+    <div onclick="abrirPerfilCavaleiro(${i})" style="display:flex;align-items:center;gap:10px;padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer">
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px">${escHtml(c.nome || '')}</div>
+        ${c.entidade ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${escHtml(c.entidade)}</div>` : ''}
+      </div>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+    </div>`).join('');
+}
+
+function _cavaleiroVoltar(focus) {
+  document.getElementById('cavaleiro-perfil').style.display = 'none';
+  document.getElementById('cavaleiro-list').style.display = '';
+  document.querySelector('#scr-cavaleiro .search-wrap').parentElement.style.display = '';
+  if (focus) { const i = document.getElementById('cavaleiro-search'); if (i) i.focus(); }
+}
+
+async function abrirPerfilCavaleiro(i) {
+  const c = _cavaleiroCache[i];
+  if (!c) return;
+  const wrap = document.getElementById('cavaleiro-perfil');
+  document.getElementById('cavaleiro-list').style.display = 'none';
+  document.querySelector('#scr-cavaleiro .search-wrap').parentElement.style.display = 'none';
+  wrap.style.display = '';
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  wrap.innerHTML = '<div style="padding:30px 16px;color:var(--muted);font-size:13px">Carregando perfil…</div>';
+  const nome1 = (c.nome || '').split('\n')[0];
+  const nn = c.nn || _normNome(nome1);
+  const pref = nome1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
+  const { data } = await sb.from('resultados')
+    .select('colocacao,penalidade,tempo,cavaleiro_nome,cavalo_nome,provas(nome,descricao,categorias,data_prova,torneios(nome,data_inicio))')
+    .ilike('cavaleiro_nome', pref + '%').limit(1200);
+  const meus = (data || []).filter(r => _normNome(r.cavaleiro_nome) === nn);
+  const nprovas = meus.length;
+  const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
+  const cavalos = new Set(meus.map(r => _normNome(r.cavalo_nome)).filter(Boolean)).size;
+  const vit = meus.filter(r => parseInt(r.colocacao) === 1).length;
+  const podios = meus.filter(r => [1, 2, 3].includes(parseInt(r.colocacao))).length;
+  const zeros = meus.filter(r => ['0', '0,0', '0.0'].includes((r.penalidade || '').trim())).length;
+  const alturas = meus.map(r => _alturaProva(r.provas)).filter(Boolean);
+  const melhor = alturas.length ? Math.max(...alturas) : null;
+  const dt = r => (r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio))) || '';
+  const recentes = [...meus].sort((a, b) => String(dt(b)).localeCompare(String(dt(a)))).slice(0, 50);
+  const stat = (n, l) => `<div style="flex:1;min-width:64px;text-align:center;padding:10px 4px;background:var(--surface2);border-radius:10px"><div style="font-size:18px;font-weight:900">${n}</div><div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px">${l}</div></div>`;
+  wrap.innerHTML = `
+    <div style="padding:12px 16px 0">
+      <button onclick="_cavaleiroVoltar(true)" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:4px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Voltar
+      </button>
+      <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
+      ${c.entidade ? `<div style="font-size:12px;color:var(--muted)">${escHtml(c.entidade)}</div>` : ''}
+    </div>
+    ${nprovas ? `
+    <div style="padding:14px 16px 0">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Estatísticas</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${stat(nprovas, 'Provas')}${stat(torneios, 'Torneios')}${stat(cavalos, 'Cavalos')}${stat(vit, 'Vitórias')}${stat(podios, 'Pódios')}
+        ${stat(nprovas ? Math.round(100 * zeros / nprovas) + '%' : '—', 'Zero faltas')}
+        ${stat(melhor ? melhor.toFixed(2).replace('.', ',') + 'm' : '—', 'Melhor altura')}
+      </div>
+    </div>
+    <div style="padding:16px 16px 0">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Resultados (${nprovas})</div>
+      ${recentes.map(r => {
+        const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
+        return `<div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)">
+          <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(colo || '—')}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.cavalo_nome || '').split('\n')[0] || '—')}</div>
+            <div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}${alt ? ' · ' + alt.toFixed(2).replace('.', ',') + 'm' : ''}</div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
+        </div>`;
+      }).join('')}
+    </div>` : '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavaleiro.</div>'}
     <div style="height:20px"></div>`;
 }
 
