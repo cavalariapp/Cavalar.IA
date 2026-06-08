@@ -551,6 +551,8 @@ def processar_fgee(args, writer):
         return 3
     MAXPDF = int(os.environ.get("CAVALARIA_FGEE_MAX", "60"))
     PAGS = int(os.environ.get("CAVALARIA_FGEE_PAGS", "3"))
+    if args.write and writer.configured:
+        _dedup_fgee_shells(writer)               # limpa shells N8N já superados
     eventos = lh.listar_eventos(max_paginas=PAGS)
     print(f"FGEE/LiveHorse: {len(eventos)} eventos; orçamento {MAXPDF} PDFs/execução.")
     feitos = tot_res = tot_prov = 0
@@ -630,6 +632,37 @@ def processar_fgee(args, writer):
 
 def _clean_prova(s):
     return re.sub(r"\s+", " ", (s or "").strip()) or None
+
+
+def _dedup_fgee_shells(writer):
+    """Apaga shells legados do N8N (fonte=FGEE, id_nativo nulo, 0 provas) que já
+    foram SUPERADOS por um torneio rico (id_nativo setado, com data) de mesmo
+    nome (Jaccard≥0.6) e data ±2 dias. DATE-GATED: não confunde etapas diferentes
+    da mesma série (1ª vs 3ª etapa têm datas distintas). Só roda no --write."""
+    import datetime as _d
+    from scraper.reconcile import _tokens, _jaccard
+    tor = writer._get("/rest/v1/torneios?fonte=eq.FGEE"
+                      "&select=id,nome,data_inicio,id_nativo,provas(id)") or []
+    rich = [t for t in tor if t.get("id_nativo") and t.get("data_inicio")]
+    shells = [t for t in tor if not t.get("id_nativo") and not (t.get("provas") or [])]
+
+    def _dp(s):
+        try:
+            return _d.date.fromisoformat(s) if s else None
+        except Exception:
+            return None
+    apagados = 0
+    for sh in shells:
+        st, sd = _tokens(sh["nome"]), _dp(sh.get("data_inicio"))
+        for r in rich:
+            rd = _dp(r.get("data_inicio"))
+            if sd and rd and abs((sd - rd).days) <= 2 and \
+                    _jaccard(st, _tokens(r["nome"])) >= 0.6:
+                writer._delete(f"/rest/v1/torneios?id=eq.{sh['id']}")
+                apagados += 1
+                break
+    if apagados:
+        print(f"  dedup FGEE: {apagados} shells legados superados apagados")
 
 
 def estruturar_docs(writer, limit=None):
