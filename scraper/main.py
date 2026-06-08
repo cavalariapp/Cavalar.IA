@@ -772,6 +772,8 @@ def main(argv=None):
     ap.add_argument("--abcch", action="store_true",
                     help="Espelha o studbook genealógico da ABCCH (pai/mãe) na tabela "
                          "genealogia. --write grava.")
+    ap.add_argument("--refresh-genetica", action="store_true", dest="refresh_genetica",
+                    help="Atualiza a materialized view dos rankings genéticos (rpc).")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -904,6 +906,18 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_abcch(args, writer)
+
+    # Atualiza a materialized view dos rankings genéticos (após scrapes do dia).
+    if args.refresh_genetica:
+        writer = SupabaseWriter()
+        if not writer.configured:
+            print("⚠ --refresh-genetica precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.", file=sys.stderr)
+            return 3
+        import requests as _rq
+        r = _rq.post(f"{writer.url}/rest/v1/rpc/refresh_genetica",
+                     headers=writer._headers("return=minimal"), data="{}", timeout=180)
+        print(f"refresh_genetica: {r.status_code}")
+        return 0 if r.ok else 3
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:

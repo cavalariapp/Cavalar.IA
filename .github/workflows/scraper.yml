@@ -131,6 +131,7 @@ jobs:
             python -m scraper.main --noticias --write || echo "noticias pulado"
             python -m scraper.main --shb --write || echo "shb pulado"
             python -m scraper.main --fgee --write || echo "fgee pulado"
+            python -m scraper.main --refresh-genetica || echo "refresh-genetica pulado"
           elif [ "${IN_RECONCILE:-false}" = "true" ]; then
             # reconcilia id_nativo de TODAS as fontes ativas (mês atual, requests).
             # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
