@@ -1531,6 +1531,11 @@ body.tem-notif .btn-hamburger::after {
 .media-presenter.audio { height: 84px; }                 /* fininho: capa + título do Spotify */
 .media-presenter.audio iframe { height: 152px !important; }
 .media-presenter.video { max-width: 420px; }             /* vídeo um pouco menor */
+/* BALÃO do programa: cor da marca + logo encaixado (sem cortar) */
+.media-balloon { display: flex; align-items: center; gap: 12px; margin-top: 6px; border-radius: 12px; padding: 9px 12px; cursor: pointer; color: #fff; }
+.media-balloon-logo { width: 46px; height: 46px; border-radius: 8px; object-fit: contain; background: rgba(255,255,255,.14); flex-shrink: 0; }
+.media-balloon-prog { flex: 1; min-width: 0; font-weight: 800; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.media-balloon-play { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,.22); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .media-admin-actions button { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--fg); cursor: pointer; }
 .media-admin-actions button.danger { border-color: #5a2020; background: #2a1212; color: #ff8080; }
 
@@ -2932,7 +2937,7 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </button>
   <button class="nav-btn" id="nb-videoaulas" onclick="nav('videoaulas')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-    Vídeos
+    Programas
   </button>
   <button class="nav-btn" id="nb-leilao" onclick="nav('leilao')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
@@ -4768,9 +4773,15 @@ async function renderMedia(tipo) {
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
-      ${(() => { const info = _embedInfo(m.url); return info
-        ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
-        : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`; })()}
+      ${m.imagem
+        ? `<div class="media-balloon" style="background:${escHtml(m.cor || '#1e66ff')}" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}">
+             <img class="media-balloon-logo" src="${escHtml(m.imagem)}" alt="" loading="lazy">
+             <div class="media-balloon-prog">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
+             <div class="media-balloon-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><polygon points="5,3 19,12 5,21"/></svg></div>
+           </div>`
+        : (() => { const info = _embedInfo(m.url); return info
+            ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
+            : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`; })()}
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
@@ -4862,6 +4873,16 @@ function _ensureMediaEditor() {
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Programa / Canal (vira uma aba)</label>
       <input id="me-programa" list="me-programa-list" placeholder="ex.: PodEquestre, Clac Cast, Big Talk for Breeders" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
       <datalist id="me-programa-list"></datalist>
+      <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Cor do programa</label>
+          <input id="me-cor" type="color" value="#1e66ff" style="width:46px;height:38px;padding:2px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer"/>
+        </div>
+        <div style="flex:1">
+          <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Logo/Capa do programa (URL)</label>
+          <input id="me-imagem" placeholder="https://…/logo.png" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
+        </div>
+      </div>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Legenda (opcional)</label>
       <textarea id="me-legenda" rows="3" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;font-family:inherit"></textarea>
       <div id="me-msg" style="font-size:12px;color:#ff8080;margin-top:10px;min-height:16px"></div>
@@ -4874,6 +4895,19 @@ function _ensureMediaEditor() {
   el.querySelector('#me-url').addEventListener('input', (ev) => {
     document.getElementById('me-preview').innerHTML = mediaEmbed(ev.target.value);
   });
+  // ao escolher um programa existente, herda cor + logo dele
+  const onProg = () => {
+    const tipo = document.getElementById('me-tipo').value;
+    const prog = document.getElementById('me-programa').value.trim().toLowerCase();
+    if (!prog) return;
+    const ref = (STATE.mediaCache[tipo] || []).find(x => (x.programa || '').trim().toLowerCase() === prog && (x.cor || x.imagem));
+    if (ref) {
+      if (ref.cor) document.getElementById('me-cor').value = ref.cor;
+      if (ref.imagem && !document.getElementById('me-imagem').value.trim()) document.getElementById('me-imagem').value = ref.imagem;
+    }
+  };
+  el.querySelector('#me-programa').addEventListener('change', onProg);
+  el.querySelector('#me-programa').addEventListener('input', onProg);
 }
 
 function openMediaEditor(tipo, id) {
@@ -4886,6 +4920,8 @@ function openMediaEditor(tipo, id) {
   document.getElementById('me-url').value = m ? (m.url || '') : '';
   document.getElementById('me-titulo').value = m ? (m.titulo || '') : '';
   document.getElementById('me-programa').value = m ? (m.programa || '') : '';
+  document.getElementById('me-cor').value = (m && m.cor) || '#1e66ff';
+  document.getElementById('me-imagem').value = m ? (m.imagem || '') : '';
   // sugestões de programas já existentes (admin escolhe ou digita um novo)
   const progs = STATE._mediaProgramas[tipo] || [...new Set((STATE.mediaCache[tipo] || []).map(x => (x.programa || '').trim()).filter(Boolean))];
   document.getElementById('me-programa-list').innerHTML = (progs || []).map(p => `<option value="${escHtml(p)}">`).join('');
@@ -4911,7 +4947,7 @@ async function saveMediaEditor() {
   if (!url) { msg.textContent = 'Cole o link do YouTube ou Spotify.'; return; }
   if (!titulo) { msg.textContent = 'Título é obrigatório.'; return; }
   const id = document.getElementById('me-id').value;
-  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, legenda: document.getElementById('me-legenda').value.trim() || null };
+  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem: document.getElementById('me-imagem').value.trim() || null, legenda: document.getElementById('me-legenda').value.trim() || null };
   btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
   try {
     let error;
