@@ -64,6 +64,10 @@ on:
         description: "FGEE: resultado por prova via LiveHorse (PDF→Claude). Lote CAVALARIA_FGEE_MAX. Grava se write=true."
         type: boolean
         default: false
+      abcch:
+        description: "ABCCH: espelha o studbook genealógico (pai/mãe, ~46k animais) na tabela genealogia. Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -112,6 +116,7 @@ jobs:
           IN_NOTICIAS: ${{ inputs.noticias }}
           IN_SHB: ${{ inputs.shb }}
           IN_FGEE: ${{ inputs.fgee }}
+          IN_ABCCH: ${{ inputs.abcch }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -161,6 +166,11 @@ jobs:
             python -m scraper.main $ARGS
           elif [ "${IN_FGEE:-false}" = "true" ]; then
             ARGS="--fgee"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_ABCCH:-false}" = "true" ]; then
+            ARGS="--abcch"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS

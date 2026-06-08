@@ -634,6 +634,28 @@ def _clean_prova(s):
     return re.sub(r"\s+", " ", (s or "").strip()) or None
 
 
+def processar_abcch(args, writer):
+    """--abcch: espelha o studbook da ABCCH (api.abcch.com.br) → tabela
+    genealogia. Varre /pesquisa/ por a–z + 0–9, deduplica por CdToken (~46k
+    animais com pai/mãe) e faz upsert idempotente. CAVALARIA_ABCCH_CHARS permite
+    restringir os caracteres (debug)."""
+    import os
+    from scraper.adapters import abcch
+    chars = os.environ.get("CAVALARIA_ABCCH_CHARS", abcch.CHARS)
+    print(f"ABCCH: varrendo studbook ({len(chars)} caracteres)...")
+    uni = abcch.varrer_todos(chars=chars)
+    rows = [abcch.to_row(a) for a in uni.values() if a.get("CdToken")]
+    print(f"\nABCCH: {len(rows)} animais únicos "
+          f"(com pai: {sum(1 for r in rows if r['pai'])}, "
+          f"com mãe: {sum(1 for r in rows if r['mae'])}).")
+    if args.write and writer.configured:
+        n = writer.upsert_genealogia(rows)
+        print(f"  ✓ {n} gravados/atualizados em genealogia")
+    else:
+        print("  (dry-run: nada gravado — use --write para persistir)")
+    return 0
+
+
 def _dedup_fgee_shells(writer):
     """Apaga shells legados do N8N (fonte=FGEE, id_nativo nulo, 0 provas) que já
     foram SUPERADOS por um torneio rico (id_nativo setado, com data) de mesmo
@@ -747,6 +769,9 @@ def main(argv=None):
     ap.add_argument("--fgee", action="store_true",
                     help="Ingere resultado POR PROVA da FGEE via LiveHorse (PDF→Claude). "
                          "Requer ANTHROPIC_API_KEY. --write grava.")
+    ap.add_argument("--abcch", action="store_true",
+                    help="Espelha o studbook genealógico da ABCCH (pai/mãe) na tabela "
+                         "genealogia. --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -870,6 +895,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_fgee(args, writer)
+
+    # ABCCH — espelha o studbook genealógico (pai/mãe) na tabela genealogia.
+    if args.abcch:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --abcch --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return processar_abcch(args, writer)
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:

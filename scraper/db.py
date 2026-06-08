@@ -105,6 +105,25 @@ class SupabaseWriter:
         r.raise_for_status()
         return r.json() if return_repr else None
 
+    def upsert_genealogia(self, rows, chunk=1000):
+        """Upsert em `genealogia` por cd_token (PK → ON CONFLICT nativo funciona).
+        Grava em lotes; return=minimal (a tabela tem ~46k linhas). Devolve o total
+        enviado."""
+        self._require()
+        rows = [r for r in rows if r.get("cd_token")]
+        if not rows:
+            return 0
+        enviados = 0
+        for i in range(0, len(rows), chunk):
+            lote = rows[i:i + chunk]
+            r = requests.post(
+                f"{self.url}/rest/v1/genealogia?on_conflict=cd_token",
+                headers=self._headers("resolution=merge-duplicates,return=minimal"),
+                data=json.dumps(lote), timeout=TIMEOUT)
+            r.raise_for_status()
+            enviados += len(lote)
+        return enviados
+
     # ── torneios (Fase A: calendário) ────────────────────────────────
     def find_torneio_id(self, fonte, id_nativo):
         """Resolve torneios.id por (fonte, id_nativo) — a chave estável da
