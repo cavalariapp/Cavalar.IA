@@ -1525,6 +1525,12 @@ body.tem-notif .btn-hamburger::after {
 .media-frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: #000; }
 .media-frame iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
 .media-spotify iframe { border-radius: 12px; display: block; }
+/* VITRINE: o embed na página é só visual; o toque abre o player flutuante */
+.media-presenter { position: relative; border-radius: 12px; overflow: hidden; margin-top: 4px; }
+.media-presenter .media-presenter-tap { position: absolute; inset: 0; cursor: pointer; background: transparent; z-index: 2; }
+.media-presenter.audio { height: 84px; }                 /* fininho: capa + título do Spotify */
+.media-presenter.audio iframe { height: 152px !important; }
+.media-presenter.video { max-width: 420px; }             /* vídeo um pouco menor */
 .media-admin-actions button { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--fg); cursor: pointer; }
 .media-admin-actions button.danger { border-color: #5a2020; background: #2a1212; color: #ff8080; }
 
@@ -4762,10 +4768,9 @@ async function renderMedia(tipo) {
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
-      ${mediaEmbed(m.url)}
-      <button onclick="playMedia('${tipo}',${m.id})" style="margin-top:6px;display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--accent);font-weight:700;font-size:12px;cursor:pointer;padding:2px 0">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> Tocar no player flutuante (continua ao navegar)
-      </button>
+      ${(() => { const info = _embedInfo(m.url); return info
+        ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
+        : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`; })()}
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
