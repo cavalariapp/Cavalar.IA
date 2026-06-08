@@ -41,7 +41,9 @@ returns table (
   alto8        bigint,
   pct_alto8    numeric
 )
-language sql stable security definer set search_path = public as $$
+language sql stable security definer
+set search_path = public
+set statement_timeout = '25s' as $$
   with ger as (
     select cd_token,
            norm_nome(nome) as filho_norm,
@@ -55,13 +57,19 @@ language sql stable security definer set search_path = public as $$
     select rep_norm, max(rep_disp) as nome, count(distinct cd_token) as total
     from ger group by rep_norm
   ),
+  provas_alt as (   -- altura/ano por PROVA (5,8k) — evita calcular por resultado (138k)
+    select p.id,
+           extract(year from coalesce(p.data_prova, t.data_inicio))::int as ano,
+           altura_m(p.nome, p.descricao, p.categorias) as alt
+    from provas p
+    left join torneios t on t.id = p.torneio_id
+  ),
   ev as (
     select norm_nome(r.cavalo_nome) as filho_norm,
-           extract(year from coalesce(p.data_prova, t.data_inicio))::int as ano,
-           max(altura_m(p.nome, p.descricao, p.categorias)) as max_alt
+           pa.ano,
+           max(pa.alt) as max_alt
     from resultados r
-    join provas p on p.id = r.prova_id
-    left join torneios t on t.id = p.torneio_id
+    join provas_alt pa on pa.id = r.prova_id
     where r.cavalo_nome is not null
     group by 1, 2
   ),
