@@ -2261,11 +2261,11 @@ body.tem-notif .btn-hamburger::after {
 
   <!-- STATS -->
   <div class="stats-bar cols4">
-    <div class="stat" style="cursor:pointer" onclick="nav('genetica')">
+    <div class="stat" style="cursor:pointer" onclick="showToast('Em breve: busca de cavalos')">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
       <div class="stat-num" id="stat-cavalos">—</div><div class="stat-lbl">Cavalos</div>
     </div>
-    <div class="stat" style="cursor:pointer" onclick="nav('genetica')">
+    <div class="stat" style="cursor:pointer" onclick="showToast('Em breve: busca de cavaleiros')">
       <svg class="stat-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
       <div class="stat-num" id="stat-cavaleiros">—</div><div class="stat-lbl">Cavaleiros</div>
     </div>
@@ -2287,17 +2287,17 @@ body.tem-notif .btn-hamburger::after {
 
   <!-- CATEGORY NAV -->
   <div class="cat-scroll">
-    <div class="cat-item on">
+    <div class="cat-item" onclick="abrirGenetica('mae')">
       <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
       <span class="cat-txt">Matrizes</span>
     </div>
-    <div class="cat-item">
+    <div class="cat-item" onclick="abrirGenetica('pai')">
       <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M12 14v8"/><path d="M8 20h8"/></svg></div>
       <span class="cat-txt">Garanhões</span>
     </div>
-    <div class="cat-item">
+    <div class="cat-item" onclick="abrirGenetica('pai')">
       <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
-      <span class="cat-txt">Pedigree</span>
+      <span class="cat-txt">Genética</span>
     </div>
     <div class="cat-item" onclick="location.href='resultados.html'">
       <div class="cat-ico"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
@@ -2333,13 +2333,13 @@ body.tem-notif .btn-hamburger::after {
         <div class="feat-desc">Provas em tempo real</div>
       </div>
     </div>
-    <div class="feat-card">
-      <div class="feat-bg" style="background:linear-gradient(145deg,#180e28,#0e0e1e)"></div>
+    <div class="feat-card" onclick="abrirGenetica('pai')">
+      <div class="feat-bg" style="background:linear-gradient(145deg,#0e2818,#0e1a20)"></div>
       <div class="feat-overlay"></div>
       <div class="feat-content">
-        <div class="badge-premium">PREMIUM</div>
-        <div class="feat-title">IN<br>ÚTERO</div>
-        <div class="feat-desc">Melhores cruzamentos</div>
+        <div class="feat-tag">Genética</div>
+        <div class="feat-title">GARANHÕES<br><span class="ora">MATRIZES</span></div>
+        <div class="feat-desc">Rankings de reprodução</div>
       </div>
     </div>
     <div class="feat-card" onclick="nav('videoaulas')">
@@ -5201,7 +5201,9 @@ function genPapel(p) {
 }
 function genAno(a) { STATE.genAno = a; _genChips(); renderGenetica(); }
 function genSort(s) { STATE.genSort = s; _genChips(); renderGenetica(); }
-function initGenetica() { _genChips(); renderGenetica(); }
+function initGenetica() { _genChips(); genPapel(STATE.genPapel); }
+// abre a tela Genética já na aba certa (Garanhões=pai / Matrizes=mae)
+function abrirGenetica(papel) { STATE.genPapel = papel || 'pai'; nav('genetica'); }
 
 async function renderGenetica() {
   const c = document.getElementById('gen-list');
