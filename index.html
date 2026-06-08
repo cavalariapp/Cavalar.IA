@@ -5360,39 +5360,39 @@ async function abrirPerfilCavalo(i) {
   // prefixo p/ ilike: corta no 1º '(' (o nome guardado mantém "(IA)"/"(TE)") e
   // tira %,_ e vírgula; o casamento exato é feito client-side por _normNome.
   const pref = nome1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
-  // resultados + filhos (se registrado) em paralelo
+  // resultados + progênie (com altura máxima por filho, via RPC) em paralelo
   const tasks = [
-    sb.from('resultados').select('colocacao,penalidade,tempo,cavalo_nome,provas(nome,descricao,categorias,data_prova,torneios(nome,data_inicio))').ilike('cavalo_nome', pref + '%').limit(800),
+    sb.from('resultados').select('colocacao,penalidade,tempo,cavaleiro_nome,cavalo_nome,provas(nome,descricao,categorias,data_prova,torneios(nome,data_inicio))').ilike('cavalo_nome', pref + '%').limit(800),
   ];
-  if (c.gen) tasks.push(sb.from('genealogia').select('nome,sexo,nascimento,pai,mae').or(`pai.ilike.%${pref}%,mae.ilike.%${pref}%`).limit(400));
+  if (c.gen) tasks.push(sb.rpc('progenie', { papel: c.sexo === 'F' ? 'mae' : 'pai', rep: nome1 }));
   const [resQ, filQ] = await Promise.all(tasks);
   const meus = (resQ.data || []).filter(r => _normNome(r.cavalo_nome) === nn);
-  const filhos = c.gen ? (filQ.data || []).filter(f => _normNome(f.pai) === nn || _normNome(f.mae) === nn) : [];
-  // estatísticas
+  const filhos = c.gen ? (filQ.data || []) : [];
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
   const vit = meus.filter(r => parseInt(r.colocacao) === 1).length;
   const zeros = meus.filter(r => ['0', '0,0', '0.0'].includes((r.penalidade || '').trim())).length;
   const alturas = meus.map(r => _alturaProva(r.provas)).filter(Boolean);
   const melhor = alturas.length ? Math.max(...alturas) : null;
-  // resultados recentes (ordenados por data desc)
   const dt = r => (r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio))) || '';
   const recentes = [...meus].sort((a, b) => String(dt(b)).localeCompare(String(dt(a)))).slice(0, 40);
+  _cavaloPD = { item: c, filhos, recentes };
   const stat = (n, l) => `<div style="flex:1;min-width:70px;text-align:center;padding:10px 4px;background:var(--surface2);border-radius:10px"><div style="font-size:18px;font-weight:900">${n}</div><div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px">${l}</div></div>`;
+  const fmtAlt = a => a ? (+a).toFixed(2).replace('.', ',') + 'm' : '';
   wrap.innerHTML = `
     <div style="padding:12px 16px 0">
       <button onclick="_cavaloVoltarBusca(true)" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:4px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Voltar
       </button>
       <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
-      <div style="font-size:12px;color:var(--muted)">${_sexoLabel(c.sexo)}${c.nascimento ? ' · ' + String(c.nascimento).slice(0, 4) : ''}${c.registro ? ' · Reg. ' + escHtml(c.registro) : ''}</div>
+      <div style="font-size:12px;color:var(--muted)">${_sexoLabel(c.sexo)}${c.nascimento ? ' · ' + String(c.nascimento).slice(0, 4) : ''}${melhor ? ' · máx. ' + fmtAlt(melhor) : ''}${c.registro ? ' · Reg. ' + escHtml(c.registro) : ''}</div>
     </div>
     ${c.gen ? `
     <div style="padding:14px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Genética</div>
       <div style="display:flex;gap:10px">
-        <div style="flex:1;background:var(--surface2);border-radius:10px;padding:10px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pai</div><div style="font-weight:700;font-size:13px;margin-top:2px">${escHtml(c.pai || '—')}</div></div>
-        <div style="flex:1;background:var(--surface2);border-radius:10px;padding:10px"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Mãe</div><div style="font-weight:700;font-size:13px;margin-top:2px">${escHtml(c.mae || '—')}</div></div>
+        <div onclick="_abrirPaiMae('pai')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pai</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.pai ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.pai || '—')}</div></div>
+        <div onclick="_abrirPaiMae('mae')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Mãe</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.mae ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.mae || '—')}</div></div>
       </div>
     </div>` : ''}
     ${nprovas ? `
@@ -5401,23 +5401,29 @@ async function abrirPerfilCavalo(i) {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${stat(nprovas, 'Provas')}${stat(torneios, 'Torneios')}${stat(vit, 'Vitórias')}
         ${stat(nprovas ? Math.round(100 * zeros / nprovas) + '%' : '—', 'Zero faltas')}
-        ${stat(melhor ? melhor.toFixed(2).replace('.', ',') + 'm' : '—', 'Melhor altura')}
+        ${stat(melhor ? fmtAlt(melhor) : '—', 'Melhor altura')}
       </div>
     </div>` : ''}
     ${filhos.length ? `
     <div style="padding:16px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Filhos (${filhos.length})</div>
-      ${filhos.slice(0, 60).map(f => `<div style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px"><span style="font-weight:600">${escHtml((f.nome || '').split('\n')[0])}</span> <small style="color:var(--muted)">${_sexoLabel(f.sexo)}${f.nascimento ? ' · ' + String(f.nascimento).slice(0, 4) : ''}</small></div>`).join('')}
+      ${filhos.slice(0, 80).map((f, i) => `<div onclick="_abrirFilho(${i})" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer">
+        <span style="flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((f.nome || '').split('\n')[0])} <small style="color:var(--muted);font-weight:400">${_sexoLabel(f.sexo)}${f.nascimento ? ' · ' + String(f.nascimento).slice(0, 4) : ''}</small></span>
+        ${f.max_alt ? `<span style="font-size:11px;font-weight:800;color:var(--accent);flex-shrink:0">${fmtAlt(f.max_alt)}</span>` : ''}
+      </div>`).join('')}
     </div>` : ''}
     ${recentes.length ? `
     <div style="padding:16px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Resultados (${nprovas})</div>
-      ${recentes.map(r => {
+      ${recentes.map((r, i) => {
         const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
+        const rider = (r.cavaleiro_nome || '').split('\n')[0];
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)">
           <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(colo || '—')}</div>
-          <div style="flex:1;min-width:0"><div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}</div>
-          <div style="font-size:10.5px;color:var(--muted)">${alt ? alt.toFixed(2).replace('.', ',') + 'm · ' : ''}${escHtml((r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio)) || '').toString().slice(0, 10).split('-').reverse().join('/'))}</div></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}</div>
+            <div style="font-size:10.5px;color:var(--muted)">${rider ? `<span onclick="_riderDoCavalo(${i})" style="color:var(--accent);cursor:pointer">${escHtml(rider)}</span> · ` : ''}${alt ? fmtAlt(alt) + ' · ' : ''}${escHtml((dt(r) || '').toString().slice(0, 10).split('-').reverse().join('/'))}</div>
+          </div>
           <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
         </div>`;
       }).join('')}
@@ -5503,6 +5509,10 @@ async function abrirPerfilCavaleiro(i) {
   const melhor = alturas.length ? Math.max(...alturas) : null;
   const dt = r => (r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio))) || '';
   const recentes = [...meus].sort((a, b) => String(dt(b)).localeCompare(String(dt(a)))).slice(0, 50);
+  _cavaleiroPD = { recentes };
+  // usuário do app com esse nome de cavaleiro (mapa nome→id já carregado)
+  let userId = null;
+  try { if (typeof _profileLinkMap !== 'undefined' && _profileLinkMap) userId = _profileLinkMap.get(nome1.toLowerCase().trim()) || null; } catch (_) {}
   const stat = (n, l) => `<div style="flex:1;min-width:64px;text-align:center;padding:10px 4px;background:var(--surface2);border-radius:10px"><div style="font-size:18px;font-weight:900">${n}</div><div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px">${l}</div></div>`;
   wrap.innerHTML = `
     <div style="padding:12px 16px 0">
@@ -5511,6 +5521,8 @@ async function abrirPerfilCavaleiro(i) {
       </button>
       <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
       ${c.entidade ? `<div style="font-size:12px;color:var(--muted)">${escHtml(c.entidade)}</div>` : ''}
+      ${userId ? `<a href="perfil.html?u=${encodeURIComponent(userId)}" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--accent);color:#08111c;border-radius:8px;padding:8px 14px;font-weight:800;font-size:12px;text-decoration:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Ver perfil no app</a>` : ''}
     </div>
     ${nprovas ? `
     <div style="padding:14px 16px 0">
@@ -5523,12 +5535,12 @@ async function abrirPerfilCavaleiro(i) {
     </div>
     <div style="padding:16px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Resultados (${nprovas})</div>
-      ${recentes.map(r => {
+      ${recentes.map((r, i) => {
         const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)">
           <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(colo || '—')}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.cavalo_nome || '').split('\n')[0] || '—')}</div>
+            <div onclick="_cavaloDoRider(${i})" style="font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.cavalo_nome || '').split('\n')[0] || '—')}</div>
             <div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}${alt ? ' · ' + alt.toFixed(2).replace('.', ',') + 'm' : ''}</div>
           </div>
           <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
@@ -5537,6 +5549,45 @@ async function abrirPerfilCavaleiro(i) {
     </div>` : '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavaleiro.</div>'}
     <div style="height:20px"></div>`;
 }
+
+// ─── LINKS ENTRE TELAS (cavalo ⇄ cavaleiro ⇄ reprodutor ⇄ usuário) ────
+let _cavaloPD = {};      // dados do perfil de cavalo aberto (p/ handlers por índice)
+let _cavaleiroPD = {};   // idem cavaleiro
+
+async function abrirCavaloPorNome(nome) {
+  const n1 = (nome || '').split('\n')[0];
+  if (!n1) return;
+  if (STATE.screen !== 'cavalo') nav('cavalo');
+  document.getElementById('cavalo-list').style.display = 'none';
+  document.querySelector('#scr-cavalo .search-wrap').parentElement.style.display = 'none';
+  const wrap = document.getElementById('cavalo-perfil');
+  wrap.style.display = ''; window.scrollTo({ top: 0, behavior: 'instant' });
+  wrap.innerHTML = '<div style="padding:30px 16px;color:var(--muted);font-size:13px">Carregando perfil…</div>';
+  const nn = _normNome(n1);
+  const pref = n1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
+  let item = { nome: n1, nn, gen: false, comp: true };
+  try {
+    const { data } = await sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').ilike('nome', '%' + pref + '%').limit(25);
+    const hit = (data || []).find(g => _normNome(g.nome) === nn);
+    if (hit) item = { ...hit, nn, gen: true };
+  } catch (_) {}
+  _cavaloCache = [item];
+  abrirPerfilCavalo(0);
+}
+
+async function abrirCavaleiroPorNome(nome) {
+  const n1 = (nome || '').split('\n')[0];
+  if (!n1) return;
+  if (STATE.screen !== 'cavaleiro') nav('cavaleiro');
+  const parts = (nome || '').split('\n');
+  _cavaleiroCache = [{ nome: parts[0], entidade: (parts[1] || '').trim(), nn: _normNome(n1) }];
+  abrirPerfilCavaleiro(0);
+}
+
+function _abrirFilho(i) { const f = (_cavaloPD.filhos || [])[i]; if (f) abrirCavaloPorNome(f.nome); }
+function _abrirPaiMae(k) { const v = _cavaloPD.item && _cavaloPD.item[k]; if (v) abrirCavaloPorNome(v); }
+function _riderDoCavalo(i) { const r = (_cavaloPD.recentes || [])[i]; if (r && r.cavaleiro_nome) abrirCavaleiroPorNome(r.cavaleiro_nome); }
+function _cavaloDoRider(i) { const r = (_cavaleiroPD.recentes || [])[i]; if (r && r.cavalo_nome) abrirCavaloPorNome(r.cavalo_nome); }
 
 // ─── ESTATÍSTICAS REAIS (heroes home + casts) ────────────────────────
 function fmtStat(n) {
