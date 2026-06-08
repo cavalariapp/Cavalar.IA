@@ -1528,6 +1528,23 @@ body.tem-notif .btn-hamburger::after {
 .media-admin-actions button { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--fg); cursor: pointer; }
 .media-admin-actions button.danger { border-color: #5a2020; background: #2a1212; color: #ff8080; }
 
+/* Player persistente (continua tocando ao navegar) */
+#mini-player { display: none; position: fixed; left: 0; right: 0; bottom: 56px; z-index: 1200; background: var(--surface); border-top: 1px solid var(--border); box-shadow: 0 -6px 24px rgba(0,0,0,.45); }
+#mini-player.show { display: block; }
+#mini-player-bar { display: flex; align-items: center; gap: 8px; padding: 5px 8px; }
+#mini-player-bar > button { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+#mini-player-title { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mini-player-body { background: #000; }
+#mini-player-body iframe { display: block; width: 100%; border: 0; }
+#mini-player.audio:not(.expanded) #mini-player-body iframe { height: 152px; }
+#mini-player.video:not(.expanded) #mini-player-body { position: relative; width: 100%; aspect-ratio: 16/9; max-height: 34vh; }
+#mini-player.video:not(.expanded) #mini-player-body iframe { position: absolute; inset: 0; height: 100%; }
+#mini-player.expanded { top: 0; bottom: 0; z-index: 2000; display: flex; flex-direction: column; }
+#mini-player.expanded #mini-player-body { flex: 1; position: relative; }
+#mini-player.expanded #mini-player-body iframe { position: absolute; inset: 0; height: 100%; }
+#mini-player.expanded #mini-player-expand svg { transform: rotate(180deg); }
+body.player-on .screen { padding-bottom: 230px; }
+
 /* ===========================
    AI ANALYSIS CARD
 =========================== */
@@ -2914,6 +2931,20 @@ body.tem-notif .btn-hamburger::after {
     Perfil
   </button>
 </nav>
+
+<!-- ─── PLAYER PERSISTENTE (continua tocando ao navegar) ─────────────
+     Fica FORA das telas (filho direto do body), então nav() nunca o
+     esconde/destrói → o áudio/vídeo não para ao trocar de página. -->
+<div id="mini-player">
+  <div id="mini-player-bar">
+    <button id="mini-player-expand" onclick="toggleExpandPlayer()" title="Expandir/recolher" aria-label="Expandir">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+    <div id="mini-player-title">—</div>
+    <button onclick="fecharMiniPlayer()" title="Fechar" aria-label="Fechar" style="font-size:20px;line-height:1">×</button>
+  </div>
+  <div id="mini-player-body"></div>
+</div>
 
 <!-- ─── NEWS DETAIL MODAL ───────────────────────────────────── -->
 <div class="news-modal-overlay" id="news-modal-overlay" onclick="closeNewsModal(event)">
@@ -4721,7 +4752,9 @@ async function renderMedia(tipo) {
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
       <div class="media-title">${escHtml(m.titulo || '')}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
-      ${mediaEmbed(m.url)}
+      <button onclick="playMedia('${tipo}',${m.id})" style="margin-top:8px;display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#08111c;border:none;border-radius:9px;padding:10px 18px;font-weight:800;font-size:13px;cursor:pointer">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg> ${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}
+      </button>
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
@@ -4736,6 +4769,48 @@ async function renderMedia(tipo) {
 function mediaPrograma(tipo, idx) {
   STATE.mediaPrograma[tipo] = idx < 0 ? null : (STATE._mediaProgramas[tipo] || [])[idx] || null;
   renderMedia(tipo);
+}
+
+// ── PLAYER PERSISTENTE ───────────────────────────────────────────────
+function _embedInfo(url) {
+  const u = (url || '').trim(); if (!u) return null;
+  let m = u.match(/(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  if (m) return { kind: 'video', src: `https://www.youtube.com/embed/${m[1]}` };
+  if (/youtube\.com|youtu\.be/.test(u)) { m = u.match(/[?&]list=([\w-]+)/); if (m) return { kind: 'video', src: `https://www.youtube.com/embed/videoseries?list=${m[1]}` }; }
+  m = u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(episode|show|track|playlist|album)\/([A-Za-z0-9]+)/);
+  if (m) return { kind: 'audio', src: `https://open.spotify.com/embed/${m[1]}/${m[2]}` };
+  return null;
+}
+
+function playMedia(tipo, id) {
+  const m = (STATE.mediaCache[tipo] || []).find(x => x.id === id);
+  if (!m) return;
+  const mp = document.getElementById('mini-player');
+  const body = document.getElementById('mini-player-body');
+  document.getElementById('mini-player-title').textContent = m.titulo || '';
+  const info = _embedInfo(m.url);
+  if (!info) {
+    body.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px">Link não suportado. <a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Abrir ↗</a></div>`;
+    mp.className = 'show audio';
+  } else {
+    const sep = info.src.includes('?') ? '&' : '?';
+    const src = info.kind === 'video' ? `${info.src}${sep}autoplay=1&playsinline=1&rel=0` : info.src;
+    body.innerHTML = `<iframe src="${src}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`;
+    // vídeo abre expandido (pra assistir); áudio fica na barra inferior
+    mp.className = 'show ' + info.kind + (info.kind === 'video' ? ' expanded' : '');
+  }
+  document.body.classList.add('player-on');
+}
+
+function fecharMiniPlayer() {
+  const mp = document.getElementById('mini-player');
+  mp.className = '';                 // remove o iframe → para de tocar
+  document.getElementById('mini-player-body').innerHTML = '';
+  document.body.classList.remove('player-on');
+}
+
+function toggleExpandPlayer() {
+  document.getElementById('mini-player').classList.toggle('expanded');
 }
 
 // ── ADMIN: criar/editar/excluir/reordenar mídia ──────────────────────
