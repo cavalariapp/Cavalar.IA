@@ -8,12 +8,16 @@ sem Claude). Três telas:
 
 O TOKEN é público (vem da config da fonte). Encoding das páginas: ISO-8859-1.
 """
+import io
+import json
 import re
 import requests
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 from bs4 import BeautifulSoup
 
 BASE = "https://www.shb.app.br/inscricao-online"
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+MODEL = "claude-sonnet-4-5-20250929"
 H = {
     "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"),
@@ -229,4 +233,98 @@ def parse_resultados(concurso, prova_codigo):
             vistos.add(chave)
             out.append({"colocacao": colo, "cavaleiro_nome": conc,
                         "cavalo_nome": cav, "penalidade": penal, "tempo": tempo})
+    return out
+
+
+# ── fallback: provas cujo resultado sai só em PDF ("RESULTADO FINAL") ─────────
+#  Algumas provas não publicam no resultado_online (classificação fica vazia),
+#  só no PDF outros_resultados_pdf. O PDF é tabela de 2 fases com genealogia e
+#  premiação que o pypdf embaralha → estruturação via Claude (igual à FGEE).
+def _provanorm(codigo):
+    """'PROVA 04A'/'PR 04A'/'PROVA 01' → chave canônica '4A'/'1' (sem zeros à
+    esquerda) p/ casar prova (online) com seu PDF."""
+    m = re.search(r"(\d+)\s*([A-Z]?)", (codigo or "").upper())
+    return (str(int(m.group(1))) + m.group(2)) if m else (codigo or "").upper()
+
+
+def resultado_pdfs(concurso):
+    """Mapa {chave_canônica_da_prova: url_do_PDF} dos 'RESULTADO FINAL'
+    (outros_resultados_pdf) na tela de ordem. Vazio se não houver."""
+    h = _get(f"{BASE}/ordem_de_entrada_resultado/?concurso={concurso}")
+    out = {}
+    for rel in re.findall(r"_lib/file/doc/outros_resultados_pdf/\d+/\d+/[^\"']+?\.pdf", h):
+        fn = unquote(rel.split("/")[-1])
+        m = re.search(r"\bPR\s*0*(\d+[A-Z]?)\b", fn, re.I)
+        if not m:
+            continue
+        out.setdefault(_provanorm(m.group(1)), f"{BASE}/{rel}")
+    return out
+
+
+def _pdf_layout(url):
+    """Texto do PDF preservando layout espacial (pypdf), p/ alinhar colunas."""
+    from pypdf import PdfReader
+    r = requests.get(url, headers=H, timeout=60)
+    r.raise_for_status()
+    rd = PdfReader(io.BytesIO(r.content))
+    return "\n".join((p.extract_text(extraction_mode="layout") or "") for p in rd.pages)
+
+
+_PROMPT_PDF = (
+    "Você recebe o TEXTO (layout) de um PDF de RESULTADO de UMA prova de hipismo "
+    "(salto) — pode ter 1 percurso, duas fases ou desempate (jump-off). Extraia "
+    "SOMENTE o que está no texto, em JSON válido:\n"
+    '{"resultados": [{"colocacao": 1, "cavalo_nome": "", "cavaleiro_nome": "", '
+    '"entidade": "", "penalidade": "0", "tempo": "00,00"}]}\n'
+    "REGRAS:\n"
+    "- Colunas típicas: Nº ID CAVALO CAVALEIRO FED (1ºpercurso TEMPO PTS) "
+    "(desempate TEMPO PTS) Clas. ESPÉCIE. CAVALO vem ANTES do CAVALEIRO; separe "
+    "os dois (a sigla da FED — FPH, FEERJ, FHMG, FHBR… — é a fronteira).\n"
+    "- IGNORE linhas de genealogia (Pai-Avo-Data Nasc-Sexo-Raça-Pelagem / "
+    "Proprietário / CAT.) e os valores de premiação em R$.\n"
+    "- Resultado FINAL: se foi ao desempate (tem tempo na 2ª fase ≠ 0,00), use o "
+    "TEMPO e os PONTOS do DESEMPATE; senão use os do 1º percurso. tempo no "
+    "formato 00,00.\n"
+    "- colocacao = número da coluna Clas. (sem 'º'). Eliminado/desistência/"
+    "forfait (ELIM, DES, FF, NC) → penalidade com esse status, tempo=null, "
+    "colocacao=null.\n"
+    "- NÃO invente nem altere nomes próprios. Responda APENAS o JSON."
+)
+
+
+def parse_resultados_pdf(pdf_url, api_key):
+    """PDF 'RESULTADO FINAL' → linhas canônicas via Claude. [] se falhar."""
+    if not api_key:
+        return []
+    try:
+        texto = _pdf_layout(pdf_url)
+    except Exception:
+        return []
+    if not texto.strip():
+        return []
+    body = {"model": MODEL, "max_tokens": 8192,
+            "messages": [{"role": "user",
+                          "content": _PROMPT_PDF + "\n\n=== TEXTO ===\n" + texto[:60000]}]}
+    try:
+        r = requests.post(ANTHROPIC_URL, timeout=180, data=json.dumps(body), headers={
+            "x-api-key": api_key, "anthropic-version": "2023-06-01",
+            "content-type": "application/json"})
+        r.raise_for_status()
+        txt = "".join(b.get("text", "") for b in r.json().get("content", []))
+        m = re.search(r"\{.*\}", txt, re.S)
+        d = json.loads(m.group(0)) if m else None
+    except Exception:
+        return []
+    if not isinstance(d, dict):
+        return []
+    out = []
+    for r in d.get("resultados", []):
+        if not (r.get("cavaleiro_nome") or r.get("cavalo_nome")):
+            continue
+        out.append({"colocacao": r.get("colocacao"),
+                    "cavaleiro_nome": r.get("cavaleiro_nome"),
+                    "cavalo_nome": r.get("cavalo_nome"),
+                    "entidade": r.get("entidade"),
+                    "penalidade": r.get("penalidade"),
+                    "tempo": r.get("tempo")})
     return out

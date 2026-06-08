@@ -459,6 +459,7 @@ def processar_shb(args, writer):
     import os
     from scraper.adapters import shb
     from scraper.db import prova_to_row, resultado_to_row
+    key = os.environ.get("ANTHROPIC_API_KEY")   # habilita fallback de PDF (IA)
     src = SRC.get("SHB")
     token = (src or {}).get("token")
     if not token:
@@ -501,7 +502,14 @@ def processar_shb(args, writer):
             }, tid))
         writer.upsert_provas(tid, prova_rows)
         tot_prov += len(prova_rows)
-        cres = 0
+        # PDFs "RESULTADO FINAL" (fallback p/ provas sem resultado online)
+        pdf_map = {}
+        if key:
+            try:
+                pdf_map = shb.resultado_pdfs(cid)
+            except Exception:
+                pdf_map = {}
+        cres = npdf = 0
         for seq, p in enumerate(d["provas"]):
             pid = writer.find_prova_id(cid * 1000 + seq, fonte="SHB")
             if not pid:
@@ -509,13 +517,20 @@ def processar_shb(args, writer):
             try:
                 R = shb.parse_resultados(cid, p["codigo"])
             except Exception:
-                continue
+                R = []
+            if not R and pdf_map:                  # online vazio → tenta o PDF (IA)
+                url = pdf_map.get(shb._provanorm(p["codigo"]))
+                if url:
+                    R = shb.parse_resultados_pdf(url, key)
+                    if R:
+                        npdf += 1
             if not R:
                 continue
             rs = writer.upsert_resultados(pid, [resultado_to_row(r, pid) for r in R])
             cres += rs.get("inseridos", 0)
         tot_res += cres
-        print(f"   ✓ {len(prova_rows)} provas, {cres} resultados")
+        print(f"   ✓ {len(prova_rows)} provas, {cres} resultados"
+              + (f" ({npdf} via PDF/IA)" if npdf else ""))
     print(f"\n=== SHB === {tot_prov} provas, {tot_res} resultados. "
           f"{'GRAVADO' if args.write else 'DRY-RUN'}.")
     return 0
