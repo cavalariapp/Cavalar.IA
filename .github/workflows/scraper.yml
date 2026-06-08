@@ -56,6 +56,10 @@ on:
         description: "Coleta notícias (Google News RSS pt-BR) e insere as novas na tabela news. Grava se write=true."
         type: boolean
         default: false
+      shb:
+        description: "SHB: resultado por prova (shb.app.br) → torneios+provas+resultados. Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -102,6 +106,7 @@ jobs:
           IN_PROXIMOS: ${{ inputs.proximos }}
           IN_ESTRUTURAR: ${{ inputs.estruturar }}
           IN_NOTICIAS: ${{ inputs.noticias }}
+          IN_SHB: ${{ inputs.shb }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -114,6 +119,7 @@ jobs:
             python -m scraper.main --proximos --write
             python -m scraper.main --estruturar || echo "estruturar pulado (falta ANTHROPIC_API_KEY?)"
             python -m scraper.main --noticias --write || echo "noticias pulado"
+            python -m scraper.main --shb --write || echo "shb pulado"
           elif [ "${IN_RECONCILE:-false}" = "true" ]; then
             # reconcilia id_nativo de TODAS as fontes ativas (mês atual, requests).
             # Backfilla a chave (fonte,id_nativo) nos torneios legados → destrava
@@ -139,6 +145,11 @@ jobs:
             python -m scraper.main --estruturar
           elif [ "${IN_NOTICIAS:-false}" = "true" ]; then
             ARGS="--noticias"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_SHB:-false}" = "true" ]; then
+            ARGS="--shb"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
