@@ -54,8 +54,14 @@ def _get(url):
     return r.text
 
 
+_CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
 def _clean(s):
-    return re.sub(r"\s+", " ", (s or "").replace("\xa0", " ")).strip()
+    # remove caracteres de controle/C1 (lixo de nomes corrompidos na origem SHB,
+    # ex.: entidade &#135;) e normaliza espaços.
+    s = _CTRL.sub("", (s or "").replace("\xa0", " "))
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def listar_concursos(token):
@@ -106,8 +112,23 @@ def detalhar_concurso(concurso):
     return {"concurso": concurso, "nome": nome, "periodo": periodo, "provas": provas}
 
 
+def _num(s):
+    """'0'→'0', '4'→'4', '12'→'12'; texto sem dígito volta como veio."""
+    s = (s or "").strip()
+    d = re.sub(r"[^\d]", "", s)
+    return d if d != "" else (s or None)
+
+
+def _tempo_val(s):
+    """Limpa prefixos ('DT: 75,13'→'75,13') e valida formato de tempo."""
+    s = re.sub(r"(?i)^\s*(DT|T)\s*:?\s*", "", (s or "").strip())
+    return s if _TEMPO.match(s) else None
+
+
 def _map_header(cells):
-    """Índices das colunas a partir de uma linha de cabeçalho da tabela."""
+    """Índices das colunas a partir de uma linha de cabeçalho da tabela.
+    Layouts SHB: 1 par FALTA/TEMPO (TAB.A), 2 pares + TOTAL (DUAS FASES), 2 pares
+    sem TOTAL (DESEMPATE/jump-off). Devolve os PARES (falta,tempo) em ordem."""
     up = [c.upper() for c in cells]
     if "CONCORRENTE" not in up or "CAVALO" not in up:
         return None
@@ -115,13 +136,13 @@ def _map_header(cells):
     tempo = [i for i, c in enumerate(up) if c == "TEMPO"]
     total = next((i for i, c in enumerate(up) if c == "TOTAL"), None)
     cl = [i for i, c in enumerate(up) if c == "CL"]
+    pares = list(zip(falta, tempo))      # pareia 1:1 na ordem
     return {
         "conc": up.index("CONCORRENTE"),
         "cav": up.index("CAVALO"),
-        "falta_final": (total if total is not None else (falta[-1] if falta else None)),
-        "tempo_final": (tempo[-1] if tempo else None),
+        "pares": pares,
+        "total": total,
         "cl": (cl[0] if cl else None),
-        "ncols": len(cells),
     }
 
 
@@ -144,29 +165,33 @@ def parse_resultados(concurso, prova_codigo):
             if mh:
                 hdr = mh
                 continue
-            if not hdr or len(cells) < hdr["conc"] + 1:
+            if not hdr or len(cells) <= hdr["conc"]:
                 continue
             cav = cells[hdr["cav"]] if hdr["cav"] < len(cells) else ""
             conc = cells[hdr["conc"]] if hdr["conc"] < len(cells) else ""
             if not conc or not cav or conc.upper() == "CONCORRENTE":
                 continue
-            # colocação
             colo = None
             if hdr["cl"] is not None and hdr["cl"] < len(cells):
                 m = re.search(r"\d+", cells[hdr["cl"]])
                 colo = int(m.group(0)) if m else None
-            # eliminado / forfait → status em FALTA, sem tempo/colocação
-            row_txt = " ".join(cells)
-            st = _STATUS.search(row_txt)
-            falta = cells[hdr["falta_final"]] if (hdr["falta_final"] is not None
-                                                  and hdr["falta_final"] < len(cells)) else ""
-            tempo = cells[hdr["tempo_final"]] if (hdr["tempo_final"] is not None
-                                                  and hdr["tempo_final"] < len(cells)) else ""
-            if st and not _TEMPO.match(tempo or ""):
-                penal, tempo, colo = st.group(0).upper().rstrip(".") , None, None
+            # valores dos PARES (falta,tempo) — pega o ÚLTIMO par não-vazio
+            # (desempate, se houve; senão a fase/percurso anterior).
+            faltas = [cells[fi] for fi, _ in hdr["pares"] if fi < len(cells)]
+            tempos = [cells[ti] for _, ti in hdr["pares"] if ti < len(cells)]
+            tempo = next((v for v in (_tempo_val(t) for t in reversed(tempos)) if v), None)
+            st = _STATUS.search(" ".join(cells))
+            if st and tempo is None:                  # elim/forfait sem tempo
+                penal, colo = st.group(0).upper().rstrip("."), None
             else:
-                penal = re.sub(r"[^\d]", "", falta) or ("0" if falta == "0" else falta) or None
-                tempo = tempo if _TEMPO.match(tempo or "") else None
+                penal = None
+                tot = hdr["total"]
+                if tot is not None and tot < len(cells) and cells[tot].strip():
+                    penal = _num(cells[tot])          # DUAS FASES: faltas TOTAIS
+                else:
+                    penal = next((_num(f) for f in reversed(faltas) if f.strip()), None)
+            if colo is None and penal is None and tempo is None:
+                continue                              # inscrito sem resultado: ignora
             chave = (conc, cav, colo)
             if chave in vistos:
                 continue

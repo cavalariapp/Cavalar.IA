@@ -479,6 +479,8 @@ def processar_shb(args, writer):
             continue
         ini, fim = shb.parse_periodo(d["periodo"])
         print(f"\n→ concurso {cid}: {d['nome'][:48]} ({ini}..{fim}) — {len(d['provas'])} provas")
+        if not d["provas"]:
+            continue                                  # concurso vazio: não cria torneio
         if not (args.write and writer.configured):
             continue
         trow = {"nome": d["nome"], "fonte": "SHB", "data_inicio": ini,
