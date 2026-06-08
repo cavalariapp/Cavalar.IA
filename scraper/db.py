@@ -157,25 +157,54 @@ class SupabaseWriter:
             rows = self._get(f"/rest/v1/provas?id_origem=eq.{id_origem}&select=id")
         return rows[0]["id"] if rows else None
 
+    _TORNEIO_PATCH = ("nome", "data_inicio", "data_fim", "organizador")
+
     def upsert_torneios(self, rows):
         """
-        Upsert idempotente em torneios por (fonte, id_nativo).
-        `rows`: lista de dicts {nome, fonte, data_inicio, data_fim,
-                                id_nativo, organizador}.
-        Retorna a representação gravada (inclui id + id_nativo) p/ ligar provas.
+        Upsert idempotente em torneios por (fonte, id_nativo) — MANUAL (find →
+        PATCH/POST). NÃO usa ON CONFLICT: o banco não tem constraint único em
+        (fonte, id_nativo) (PostgREST devolve 42P10), o que quebrava o upsert
+        nativo p/ TODAS as fontes. Aqui resolvemos a chave estável na mão:
+        existe → PATCH (preserva torneios.id e os vínculos de provas/docs);
+        novo → POST. Dedup intra-lote por (fonte, id_nativo).
+        `rows`: [{nome, fonte, data_inicio, data_fim, id_nativo, organizador}].
+        Retorna [{id, ...}] (inclui id + id_nativo) p/ ligar provas.
         """
         self._require()
         if not rows:
             return []
-        endpoint = f"{self.url}/rest/v1/torneios?on_conflict=fonte,id_nativo"
-        r = requests.post(
-            endpoint,
-            headers=self._headers("resolution=merge-duplicates,return=representation"),
-            data=json.dumps(rows),
-            timeout=TIMEOUT,
-        )
-        r.raise_for_status()
-        return r.json()
+        from collections import defaultdict
+        # 1) busca existentes por fonte (id_nativo em lote)
+        by_fonte = defaultdict(set)
+        for r in rows:
+            if r.get("id_nativo") is not None and r.get("fonte"):
+                by_fonte[r["fonte"]].add(str(r["id_nativo"]))
+        existing = {}
+        for fonte, idns in by_fonte.items():
+            inlist = ",".join('"%s"' % i.replace('"', "") for i in idns)
+            got = self._get(
+                f"/rest/v1/torneios?fonte=eq.{fonte}&id_nativo=in.({inlist})"
+                f"&select=id,id_nativo")
+            for g in got:
+                existing[(fonte, str(g["id_nativo"]))] = g["id"]
+        # 2) PATCH existentes / acumula novos (dedup intra-lote)
+        out, novos, vistos = [], [], set()
+        for r in rows:
+            idn = r.get("id_nativo")
+            key = (r.get("fonte"), str(idn)) if idn is not None else None
+            tid = existing.get(key) if key else None
+            if tid:
+                patch = {k: r[k] for k in self._TORNEIO_PATCH if k in r}
+                if patch:
+                    self._patch(f"/rest/v1/torneios?id=eq.{tid}", patch)
+                out.append({"id": tid, **r})
+            elif key and key not in vistos:
+                vistos.add(key)
+                novos.append(r)
+        if novos:
+            rep = self._post("/rest/v1/torneios", novos, return_repr=True) or []
+            out.extend(rep)
+        return out
 
     # ── provas (Fase B) — UPSERT FK-SAFE por (torneio_id, id_origem) ──
     #  DESCOBERTA-CHAVE (recon 3436): cada prova tem ID NATIVO estável no href

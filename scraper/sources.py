@@ -60,6 +60,17 @@ SOURCES = {
         "resultados_url": None, "ordem_url": None, "ativo": False,
     },
 
+    # ── SHB — sistema próprio shb.app.br/inscricao-online (Scriptcase) ───
+    #  Resultado POR PROVA em HTML limpo (adapters/shb.py). O token é público
+    #  (vem da grade pública de concursos). Não é MacroNetwork.
+    "SHB": {
+        "codigo": "SHB", "nome": "Sociedade Hípica Brasileira",
+        "plataforma": "shb-app",
+        "base": "https://www.shb.app.br/inscricao-online",
+        "token": "J3J4H-5J3H4-FJ3H5-GJGN5-QIWY4",
+        "ativo": True,
+    },
+
     # ── outras plataformas (tasks #91) ───────────────────────────────────
     "CHSA": {
         "codigo": "CHSA", "nome": "Clube Hípico de Santo Amaro",

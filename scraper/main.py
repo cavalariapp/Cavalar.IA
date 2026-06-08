@@ -448,6 +448,76 @@ def processar_noticias(args, writer):
     return 0
 
 
+def processar_shb(args, writer):
+    """--shb: ingere RESULTADO POR PROVA do sistema shb.app.br (Scriptcase).
+    Lista concursos públicos → por concurso cria/atualiza torneio + provas +
+    resultados (classificação geral). Idempotente: upsert torneio/prova por chave
+    estável e delete+reinsert de resultados por prova. id_origem da prova é
+    sintético e estável (concurso*1000 + posição). CAVALARIA_SHB_MAX limita
+    quantos concursos por execução (default: todos do grid público)."""
+    import os
+    from scraper.adapters import shb
+    from scraper.db import prova_to_row, resultado_to_row
+    src = SRC.get("SHB")
+    token = (src or {}).get("token")
+    if not token:
+        print("⚠ SHB: token ausente na config.", file=sys.stderr)
+        return 3
+    try:
+        concursos = shb.listar_concursos(token)
+    except Exception as e:
+        print(f"⚠ SHB: falha ao listar concursos: {e}", file=sys.stderr)
+        return 3
+    MAX = int(os.environ.get("CAVALARIA_SHB_MAX", str(len(concursos) or 1)))
+    print(f"SHB: {len(concursos)} concursos no grid público; processando até {MAX}.")
+    tot_prov = tot_res = 0
+    for cid in concursos[:MAX]:
+        try:
+            d = shb.detalhar_concurso(cid)
+        except Exception as e:
+            print(f"  ⚠ concurso {cid}: {e.__class__.__name__}: {e}", file=sys.stderr)
+            continue
+        ini, fim = shb.parse_periodo(d["periodo"])
+        print(f"\n→ concurso {cid}: {d['nome'][:48]} ({ini}..{fim}) — {len(d['provas'])} provas")
+        if not (args.write and writer.configured):
+            continue
+        trow = {"nome": d["nome"], "fonte": "SHB", "data_inicio": ini,
+                "data_fim": fim, "id_nativo": str(cid), "organizador": "SHB"}
+        rep = writer.upsert_torneios([trow])
+        tid = (rep[0]["id"] if rep else None) or writer.find_torneio_id("SHB", str(cid))
+        if not tid:
+            print("   ⚠ sem torneio_id; pulando", file=sys.stderr)
+            continue
+        prova_rows = []
+        for seq, p in enumerate(d["provas"]):
+            alt = p["nome"].split(" - ", 1)[1] if " - " in p["nome"] else None
+            prova_rows.append(prova_to_row({
+                "id_origem": cid * 1000 + seq, "nome": p["nome"],
+                "numero": p["numero"], "categorias": alt,
+                "tipo_prova": p.get("tipo_prova"), "data_prova": p.get("data_prova"),
+            }, tid))
+        writer.upsert_provas(tid, prova_rows)
+        tot_prov += len(prova_rows)
+        cres = 0
+        for seq, p in enumerate(d["provas"]):
+            pid = writer.find_prova_id(cid * 1000 + seq, fonte="SHB")
+            if not pid:
+                continue
+            try:
+                R = shb.parse_resultados(cid, p["codigo"])
+            except Exception:
+                continue
+            if not R:
+                continue
+            rs = writer.upsert_resultados(pid, [resultado_to_row(r, pid) for r in R])
+            cres += rs.get("inseridos", 0)
+        tot_res += cres
+        print(f"   ✓ {len(prova_rows)} provas, {cres} resultados")
+    print(f"\n=== SHB === {tot_prov} provas, {tot_res} resultados. "
+          f"{'GRAVADO' if args.write else 'DRY-RUN'}.")
+    return 0
+
+
 def estruturar_docs(writer, limit=None):
     """--estruturar: estrutura docs (programa/horário) ainda SEM conteudo_estruturado:
     baixa o PDF → extrai texto → Claude → grava texto_extraido + conteudo_estruturado.
@@ -524,6 +594,9 @@ def main(argv=None):
     ap.add_argument("--noticias", action="store_true",
                     help="Coleta notícias (Google News RSS pt-BR de hipismo) e insere as "
                          "NOVAS na tabela news (dedup por source_url). --write grava.")
+    ap.add_argument("--shb", action="store_true",
+                    help="Ingere resultado POR PROVA do sistema shb.app.br (concursos "
+                         "públicos → torneios+provas+resultados). --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -629,6 +702,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_noticias(args, writer)
+
+    # SHB — resultado por prova do sistema shb.app.br (não-MacroNetwork).
+    if args.shb:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --shb --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return processar_shb(args, writer)
 
     # Estruturar docs (PDF→Claude→conteudo_estruturado) — programa/horário no app.
     if args.estruturar:
