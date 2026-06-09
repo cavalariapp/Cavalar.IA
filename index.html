@@ -183,6 +183,9 @@ body.tem-notif .btn-hamburger::after {
 .ham-menu-item:hover { background: var(--surface2); }
 .ham-menu-item:last-child { border-bottom: none; }
 .ham-menu-item.danger { color: #ff6b6b; }
+.banner-zone { width: 100%; margin: 8px 0; line-height: 0; }
+.banner-zone .banner-slide { display: block; }
+.banner-zone img { width: 100%; display: block; }
 .ham-menu-item svg { width: 16px; height: 16px; opacity: .7; flex-shrink: 0; }
 .ham-menu-header {
   padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface2);
@@ -2396,12 +2399,8 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     </div>
   </div>
 
-  <!-- PARCEIROS & OFERTAS (patrocinadores — visível a todos) -->
-  <div class="sec-hdr" id="patro-hdr" style="display:none">
-    <span class="sec-title">Parceiros &amp; Ofertas</span>
-    <button class="sec-link" id="patro-add-btn" style="display:none" onclick="openPatrocinadorEditor()">+ ADICIONAR</button>
-  </div>
-  <div id="home-patrocinadores" style="padding:0 16px 6px"></div>
+  <!-- BANNER DE PATROCÍNIO (carrossel, borda a borda) -->
+  <div id="banner-home" class="banner-zone"></div>
 
   <!-- ÚLTIMOS EPISÓDIOS (3 mais recentes, dinâmico) -->
   <div class="sec-hdr"><span class="sec-title">Últimos Episódios</span><button class="sec-link" onclick="nav('videoaulas')">VER TODOS →</button></div>
@@ -2544,6 +2543,7 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </div>
   <div id="noticias-search-meta" style="margin:0 16px 12px;font-size:11px;color:var(--muted);display:none"></div>
 
+  <div id="banner-noticias" class="banner-zone"></div>
   <!-- NEWS LIST -->
   <div class="news-list" id="noticias-news-list"></div>
 </div>
@@ -2596,6 +2596,7 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     <button class="tab" id="tab-videoaula" onclick="switchTab('videoaula')">Videoaulas</button>
   </div>
 
+  <div id="banner-programas" class="banner-zone"></div>
   <div id="media-content" style="padding-top:6px"></div>
 
   <!-- SUBSCRIBE CTA -->
@@ -2652,6 +2653,21 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 <!-- ============================================================
      SCREEN: GENÉTICA (rankings de reprodução)
 ============================================================ -->
+<div class="screen" id="scr-admin-patrocinios">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px">
+      <h2 style="font-size:21px;margin:0;font-weight:900">Patrocínios</h2>
+      <button onclick="openPatrocinadorEditor()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 14px;font-weight:800;cursor:pointer;white-space:nowrap">+ Novo banner</button>
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.5">Banner = imagem pura (borda a borda, alta definição). Defina a URL da imagem, link, página, ordem e tempo de exposição. Páginas com mais de um banner giram em carrossel pelo tempo de cada um.</p>
+    <div id="admin-patro-list"></div>
+  </div>
+</div>
+
 <div class="screen" id="scr-assinatura">
   <div class="topbar">
     <svg class="logo-img" viewBox="300 770 3390 370" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
@@ -3196,7 +3212,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios'];
 
 function nav(id) {
   SCREENS.forEach(s => {
@@ -3224,6 +3240,10 @@ function nav(id) {
   if (id === 'cavalo') auto(initCavalo);
   if (id === 'cavaleiro') auto(initCavaleiro);
   if (id === 'assinatura') auto(renderAssinatura);
+  if (id === 'admin-patrocinios') auto(renderAdminPatrocinios);
+  if (id === 'noticias') renderBanners('noticias', 'banner-noticias');
+  if (id === 'videoaulas') renderBanners('programas', 'banner-programas');
+  if (id === 'home') renderBanners('home', 'banner-home');
 }
 
 // ─── MENSAGENS (DM) ───────────────────────────────────────────
@@ -4038,7 +4058,8 @@ function initCategories() {
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
 async function renderHomeContent() {
-  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios(), renderPatrocinadores()]);
+  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios(), loadBanners()]);
+  renderBanners('home', 'banner-home');
 }
 
 // ─── HOME: 3 últimos episódios de podcast (dinâmico) ─────────────────
@@ -4067,86 +4088,123 @@ async function renderHomeEpisodios() {
 }
 function playHomeEpisodio(i) { const m = _homeEpisodios[i]; if (m) playMediaDirect(m); }
 
-// ─── PATROCINADORES (parceiros & ofertas — visível a todos, gerido pelo admin) ─
-let _patrocinadores = [];
-async function renderPatrocinadores() {
-  const c = document.getElementById('home-patrocinadores');
-  const hdr = document.getElementById('patro-hdr');
-  const addBtn = document.getElementById('patro-add-btn');
-  if (!c) return;
+// ─── PATROCÍNIOS — banners (imagem pura, borda a borda) em carrossel ──────────
+const _BANNER_POS = { home: 'Home', noticias: 'Notícias', resultados: 'Resultados', programas: 'Programas' };
+let _bannersByPos = {};
+let _adminBanners = [];
+
+async function loadBanners() {
   try {
-    const { data } = await sb.from('patrocinadores').select('*').eq('ativo', true).eq('posicao', 'home').order('ordem', { ascending: true });
-    _patrocinadores = data || [];
-  } catch (_) { _patrocinadores = []; }
-  if (addBtn) addBtn.style.display = _isAdmin ? '' : 'none';
-  if (!_patrocinadores.length && !_isAdmin) { if (hdr) hdr.style.display = 'none'; c.innerHTML = ''; return; }
-  if (hdr) hdr.style.display = 'flex';
-  if (!_patrocinadores.length) { c.innerHTML = '<div style="color:var(--muted);font-size:12.5px;padding:6px 2px">Nenhum patrocinador ainda — toque em <b>+ Adicionar</b>.</div>'; return; }
-  const TL = { leilao: 'Leilão', criador: 'Criador', produto: 'Produto' };
-  c.innerHTML = `<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch">${_patrocinadores.map((p, i) => `
-    <div style="flex:0 0 78%;max-width:300px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);position:relative">
-      <div onclick="abrirPatrocinador(${i})" style="cursor:pointer">
-        ${p.imagem_url
-          ? `<div style="height:118px;background:#0a0f1a;background-image:url('${escHtml(p.imagem_url)}');background-size:cover;background-position:center"></div>`
-          : `<div style="height:118px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-weight:700">${escHtml(p.nome)}</div>`}
-        <div style="padding:10px 12px">
-          ${TL[p.tipo] ? `<div style="font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">${TL[p.tipo]}</div>` : ''}
-          <div style="font-weight:800;font-size:14px;margin-top:2px">${escHtml(p.nome)}</div>
-          ${p.descricao ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">${escHtml(p.descricao)}</div>` : ''}
-        </div>
-      </div>
-      ${_isAdmin ? `<div style="position:absolute;top:6px;right:6px;display:flex;gap:4px">
-        <button onclick="openPatrocinadorEditor('${p.id}')" style="background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">✎</button>
-        <button onclick="deletePatrocinador('${p.id}')" style="background:rgba(0,0,0,.6);color:#ff8080;border:none;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">🗑</button>
-      </div>` : ''}
-    </div>`).join('')}</div>`;
+    const { data } = await sb.from('patrocinadores').select('*').eq('ativo', true).order('ordem', { ascending: true });
+    _bannersByPos = {};
+    (data || []).forEach(b => { (_bannersByPos[b.posicao || 'home'] ||= []).push(b); });
+  } catch (_) { _bannersByPos = {}; }
 }
-function abrirPatrocinador(i) { const p = _patrocinadores[i]; if (p && p.link) window.open(p.link, '_blank', 'noopener'); }
+
+// Renderiza o carrossel de banners de uma página (rotaciona pelo tempo de cada um).
+function renderBanners(posicao, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (el._timer) { clearTimeout(el._timer); el._timer = null; }
+  const banners = _bannersByPos[posicao] || [];
+  if (!banners.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.innerHTML = banners.map((b, i) => `<a href="${escHtml(b.link || '#')}" target="_blank" rel="noopener" class="banner-slide" style="display:${i === 0 ? 'block' : 'none'}"><img src="${escHtml(b.imagem_url || '')}" alt="" loading="lazy"></a>`).join('');
+  if (banners.length > 1) {
+    const slides = el.querySelectorAll('.banner-slide');
+    let idx = 0;
+    const schedule = () => {
+      el._timer = setTimeout(() => {
+        slides[idx].style.display = 'none';
+        idx = (idx + 1) % slides.length;
+        slides[idx].style.display = 'block';
+        schedule();
+      }, Math.max(2, banners[idx].tempo_exposicao || 6) * 1000);
+    };
+    schedule();
+  }
+}
+
+// ─── Página de CONFIG (admin, no hambúrguer) ──────────────────────────────────
+async function renderAdminPatrocinios() {
+  const c = document.getElementById('admin-patro-list');
+  if (!c) return;
+  if (!_isAdmin) { c.innerHTML = '<div style="padding:24px 16px;color:var(--muted)">Acesso restrito.</div>'; return; }
+  try {
+    const { data } = await sb.from('patrocinadores').select('*').order('posicao', { ascending: true }).order('ordem', { ascending: true });
+    _adminBanners = data || [];
+  } catch (_) { _adminBanners = []; }
+  c.innerHTML = _adminBanners.length ? _adminBanners.map(b => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;display:flex;gap:10px;align-items:center;${b.ativo ? '' : 'opacity:.5'}">
+      <div style="width:96px;height:46px;border-radius:6px;background:var(--surface2);flex-shrink:0;${b.imagem_url ? `background-image:url('${escHtml(b.imagem_url)}');background-size:cover;background-position:center` : ''}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(b.nome || '(sem rótulo)')}</div>
+        <div style="font-size:10.5px;color:var(--muted)">${_BANNER_POS[b.posicao] || b.posicao} · ordem ${b.ordem} · ${b.tempo_exposicao}s${b.ativo ? '' : ' · inativo'}</div>
+      </div>
+      <button onclick="openPatrocinadorEditor('${b.id}')" style="background:var(--surface2);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 10px;cursor:pointer">✎</button>
+      <button onclick="deletePatrocinador('${b.id}')" style="background:var(--surface2);border:1px solid var(--border);color:#ff8080;border-radius:6px;padding:6px 10px;cursor:pointer">🗑</button>
+    </div>`).join('') : '<div style="color:var(--muted);font-size:13px;padding:10px 2px">Nenhum banner ainda. Toque em <b>+ Novo banner</b>.</div>';
+}
 
 function openPatrocinadorEditor(id) {
-  const p = id ? _patrocinadores.find(x => x.id === id) : null;
+  const p = id ? _adminBanners.find(x => x.id === id) : null;
   const esc = v => (v == null ? '' : String(v).replace(/"/g, '&quot;'));
   const inp = 'width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;margin-top:8px';
   let ov = document.getElementById('patro-editor');
   if (!ov) { ov = document.createElement('div'); ov.id = 'patro-editor'; document.body.appendChild(ov); }
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
-  const opt = (v, l) => `<option value="${v}" ${p && p.tipo === v ? 'selected' : ''}>${l}</option>`;
-  ov.innerHTML = `<div style="background:var(--surface);width:100%;max-width:460px;border-radius:16px 16px 0 0;padding:18px;max-height:88vh;overflow:auto">
-    <h3 style="margin:0 0 6px;font-size:16px">${p ? 'Editar' : 'Novo'} patrocinador</h3>
-    <input id="pe-nome" placeholder="Nome" value="${esc(p && p.nome)}" style="${inp}">
-    <select id="pe-tipo" style="${inp}">${opt('', 'Tipo…')}${opt('leilao', 'Leilão')}${opt('criador', 'Criador')}${opt('produto', 'Produto')}</select>
-    <input id="pe-desc" placeholder="Oferta/descrição (ex.: 20% OFF até domingo)" value="${esc(p && p.descricao)}" style="${inp}">
-    <input id="pe-img" placeholder="URL da imagem/banner" value="${esc(p && p.imagem_url)}" style="${inp}">
-    <input id="pe-link" placeholder="Link de destino (https://…)" value="${esc(p && p.link)}" style="${inp}">
-    <input id="pe-ordem" type="number" placeholder="Ordem" value="${p ? (p.ordem ?? 0) : 0}" style="${inp}">
-    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer"><input id="pe-ativo" type="checkbox" ${!p || p.ativo ? 'checked' : ''} style="width:18px;height:18px"> Ativo</label>
+  const posOpt = Object.entries(_BANNER_POS).map(([v, l]) => `<option value="${v}" ${(p ? p.posicao : 'home') === v ? 'selected' : ''}>${l}</option>`).join('');
+  ov.innerHTML = `<div style="background:var(--surface);width:100%;max-width:460px;border-radius:16px 16px 0 0;padding:18px;max-height:90vh;overflow:auto">
+    <h3 style="margin:0 0 6px;font-size:16px">${p ? 'Editar' : 'Novo'} banner</h3>
+    <label style="font-size:11px;color:var(--muted)">Rótulo interno (só você vê)</label>
+    <input id="pe-nome" placeholder="ex.: Leilão Haras X — junho" value="${esc(p && p.nome)}" style="${inp}">
+    <label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">URL da imagem (banner pronto, alta definição)</label>
+    <input id="pe-img" placeholder="https://…/banner.jpg" value="${esc(p && p.imagem_url)}" style="${inp}">
+    <div id="pe-prev" style="margin-top:8px;line-height:0">${p && p.imagem_url ? `<img src="${esc(p.imagem_url)}" style="width:100%;border-radius:8px">` : ''}</div>
+    <label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Link de redirecionamento</label>
+    <input id="pe-link" placeholder="https://…" value="${esc(p && p.link)}" style="${inp}">
+    <div style="display:flex;gap:8px">
+      <div style="flex:1"><label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Página</label><select id="pe-pos" style="${inp}">${posOpt}</select></div>
+      <div style="width:80px"><label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Ordem</label><input id="pe-ordem" type="number" value="${p ? (p.ordem ?? 0) : 0}" style="${inp}"></div>
+      <div style="width:96px"><label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Tempo (s)</label><input id="pe-tempo" type="number" value="${p ? (p.tempo_exposicao ?? 6) : 6}" style="${inp}"></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;cursor:pointer"><input id="pe-ativo" type="checkbox" ${!p || p.ativo ? 'checked' : ''} style="width:18px;height:18px"> Ativo</label>
     <div id="pe-msg" style="color:#ff8080;font-size:12px;margin-top:8px;min-height:14px"></div>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button onclick="savePatrocinador('${p ? p.id : ''}')" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:800;cursor:pointer">Salvar</button>
       <button onclick="document.getElementById('patro-editor').remove()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:11px 16px;cursor:pointer">Cancelar</button>
     </div>
   </div>`;
+  const img = document.getElementById('pe-img');
+  img.addEventListener('input', () => { document.getElementById('pe-prev').innerHTML = img.value.trim() ? `<img src="${img.value.trim().replace(/"/g, '&quot;')}" style="width:100%;border-radius:8px">` : ''; });
 }
+
 async function savePatrocinador(id) {
   const g = i => { const e = document.getElementById(i); return e ? e.value.trim() : ''; };
   const rec = {
-    nome: g('pe-nome'), tipo: g('pe-tipo') || null, descricao: g('pe-desc') || null,
+    nome: g('pe-nome') || null,
     imagem_url: g('pe-img') || null, link: g('pe-link') || null,
+    posicao: g('pe-pos') || 'home',
     ordem: parseInt(document.getElementById('pe-ordem').value) || 0,
-    ativo: document.getElementById('pe-ativo').checked, posicao: 'home',
+    tempo_exposicao: Math.max(2, parseInt(document.getElementById('pe-tempo').value) || 6),
+    ativo: document.getElementById('pe-ativo').checked,
   };
-  if (!rec.nome) { document.getElementById('pe-msg').textContent = 'Nome é obrigatório.'; return; }
+  if (!rec.imagem_url) { document.getElementById('pe-msg').textContent = 'A URL da imagem é obrigatória.'; return; }
   let error;
   if (id) ({ error } = await sb.from('patrocinadores').update(rec).eq('id', id));
   else ({ error } = await sb.from('patrocinadores').insert(rec));
   if (error) { document.getElementById('pe-msg').textContent = error.message; return; }
   const ov = document.getElementById('patro-editor'); if (ov) ov.remove();
-  renderPatrocinadores();
+  await loadBanners();
+  renderAdminPatrocinios();
+  renderBanners('home', 'banner-home');
 }
 async function deletePatrocinador(id) {
-  if (!confirm('Remover este patrocinador?')) return;
+  if (!confirm('Remover este banner?')) return;
   await sb.from('patrocinadores').delete().eq('id', id);
-  renderPatrocinadores();
+  await loadBanners();
+  renderAdminPatrocinios();
+  renderBanners('home', 'banner-home');
 }
 
 // Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
@@ -4255,6 +4313,11 @@ function updateHamMenu() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/><circle cx="17" cy="7" r="3"/><path d="M21 21v-2a4 4 0 0 0-3-3.87"/></svg>
         Comunidade
       </button>
+      ${_isAdmin ? `
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-patrocinios')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4M2 11h20"/></svg>
+        Gerir patrocínios
+      </button>` : ''}
       <button class="ham-menu-item danger" onclick="logout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sair
@@ -6155,7 +6218,7 @@ async function init() {
   renderMedia(STATE.mediaTab);
   carregarEstatisticas();
   renderHomeEpisodios();
-  renderPatrocinadores();
+  loadBanners().then(() => renderBanners('home', 'banner-home'));
   initAuth();
   initSearch();
   initCategories();
