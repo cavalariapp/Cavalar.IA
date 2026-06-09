@@ -4770,8 +4770,16 @@ async function renderMedia(tipo) {
     subtabs = `<div class="pills" style="padding:8px 16px 4px">${chip('Todos', -1, !sel)}${programas.map((p, k) => chip(p, k, sel === p)).join('')}</div>`;
   }
   let filtered = sel ? items.filter(m => (m.programa || '').trim() === sel) : items.slice();
-  // aba "Todos": mistura os programas por DATA DE PUBLICAÇÃO (mais novo no topo)
-  if (!sel) filtered.sort((a, b) => String(b.data_pub || b.created_at || '').localeCompare(String(a.data_pub || a.created_at || '')));
+  // aba "Todos": mistura os programas por DATA DE PUBLICAÇÃO (mais novo no topo).
+  // Episódios SEM data (ainda não importados/backfillados) vão pro FIM — nunca
+  // flutuam pro topo pela data de importação.
+  if (!sel) filtered.sort((a, b) => {
+    const da = a.data_pub || '', db = b.data_pub || '';
+    if (da && db) return db.localeCompare(da);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
+  });
   if (!filtered.length) {
     c.innerHTML = adminBar + subtabs + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} ${sel ? 'em "' + escHtml(sel) + '"' : 'disponível'} ainda.</div>`;
     return;
