@@ -30,6 +30,10 @@ function cleanFirstLine(s: string | null | undefined): string {
   if (!s) return "";
   return s.split(/\n/)[0].split(/\s*\|\s*/)[0].trim();
 }
+function normNome(s: string): string {
+  return (s || "").split("\n")[0].normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/\([^)]*\)/g, "").replace(/[^A-Za-z0-9 ]/g, " ").replace(/\s+/g, " ").trim().toUpperCase();
+}
 function isPenZero(p: any): boolean {
   if (!p) return false;
   return /^0([\s\n(,]|$)/.test(String(p).trim());
@@ -122,6 +126,17 @@ const TOOLS = [
     input_schema: { type: "object", properties: {
       torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
     }, required: ["torneio_termo"] } },
+  // ───────────────── GENEALOGIA / REPRODUÇÃO / MÍDIA ────────────────
+  { name: "genealogia_cavalo", description: "Genealogia de um cavalo na ABCCH: pai, mãe, sexo, nascimento, registro, proprietário e a lista de FILHOS (progênie). Use pra 'quem é o pai/mãe de X', 'quantos filhos tem o garanhão Y', 'filhos da matriz Z'.",
+    input_schema: { type: "object", properties: { nome: { type: "string" } }, required: ["nome"] } },
+  { name: "rankings_geneticos", description: "Ranking de reprodutores (garanhões/matrizes): nº de filhos, filhos +4 anos competindo, filhos +8 anos saltando >=1,40m (com %). Use pra 'quais garanhões têm mais filhos competindo', 'matriz que mais produz cavalos de 1,40m', 'top reprodutores'.",
+    input_schema: { type: "object", properties: { papel: { type: "string", enum: ["pai", "mae"] }, ano: { type: ["number", "string"], description: "ano específico, ou omitir p/ todos" }, ordenar: { type: "string", enum: ["total", "comp", "pct_comp", "m140", "pct140"], description: "total=nº filhos; comp=competindo; pct_comp=% dos +4a que competem; m140=saltam >=1,40; pct140=% dos +8a em >=1,40" } }, required: ["papel"] } },
+  { name: "buscar_noticias", description: "Notícias do portal. Com 'termo' busca por assunto; sem termo, retorna as mais recentes.",
+    input_schema: { type: "object", properties: { termo: { type: "string" }, limit: { type: "number" } } } },
+  { name: "buscar_podcasts", description: "Episódios de podcast/videocast/videoaula. Filtra por 'termo' (título) e/ou 'programa' (ex.: PodEquestre, Clac Cast). Use pra 'tem podcast sobre X', 'últimos episódios do PodEquestre'.",
+    input_schema: { type: "object", properties: { termo: { type: "string" }, programa: { type: "string" }, limit: { type: "number" } } } },
+  { name: "ordem_entrada", description: "Ordem de entrada (lista de largada) de UMA prova de um torneio. Use pra 'qual a ordem de entrada da prova X', 'quem larga primeiro'.",
+    input_schema: { type: "object", properties: { torneio_termo: { type: "string" }, prova_termo: { type: "string" }, limit: { type: "number" } }, required: ["torneio_termo", "prova_termo"] } },
 ];
 
 // ─── EXECUTORES ─────────────────────────────────────────────────────
@@ -547,6 +562,72 @@ async function tool_adendos_torneio({ torneio_termo }: any) {
   };
 }
 
+async function tool_genealogia_cavalo({ nome }: any) {
+  const { data } = await sb.from("genealogia")
+    .select("nome,registro,nascimento,sexo,pai,mae,proprietario")
+    .ilike("nome", `%${nome}%`).limit(25);
+  if (!data || !data.length) return { erro: `"${nome}" não está na genealogia da ABCCH (pode ser importado/sem registro brasileiro).` };
+  const nn = normNome(nome);
+  const a: any = data.find((x: any) => normNome(x.nome) === nn) || data[0];
+  const pref = (a.nome || "").split("(")[0].replace(/[%,]/g, " ").trim();
+  const { data: fl } = await sb.from("genealogia")
+    .select("nome,sexo,nascimento,pai,mae").or(`pai.ilike.%${pref}%,mae.ilike.%${pref}%`).limit(400);
+  const an = normNome(a.nome);
+  const filhos = (fl || []).filter((f: any) => normNome(f.pai) === an || normNome(f.mae) === an);
+  return {
+    nome: a.nome, sexo: a.sexo, nascimento: a.nascimento, registro: a.registro,
+    pai: a.pai, mae: a.mae, proprietario: a.proprietario,
+    total_filhos: filhos.length,
+    filhos_amostra: filhos.slice(0, 20).map((f: any) => ({ nome: cleanFirstLine(f.nome), sexo: f.sexo, nascimento: f.nascimento })),
+  };
+}
+
+async function tool_rankings_geneticos({ papel = "pai", ano, ordenar = "total" }: any) {
+  const { data, error } = await sb.rpc("rankings_geneticos", { papel, ano: ano ?? null });
+  if (error || !data) return { erro: error?.message || "sem dados" };
+  const key = ({ total: "total_filhos", comp: "comp", pct_comp: "pct_comp", m140: "m140", pct140: "pct140" } as any)[ordenar] || "total_filhos";
+  const top = [...(data as any[])].sort((a: any, b: any) => (b[key] || 0) - (a[key] || 0)).slice(0, 12);
+  return { papel, ano: ano ?? "todos", ordenado_por: ordenar, top };
+}
+
+async function tool_buscar_noticias({ termo, limit = 5 }: any) {
+  let q = sb.from("news").select("title,excerpt,date,cat,source_url,created_at")
+    .order("created_at", { ascending: false }).limit(termo ? 60 : limit);
+  if (termo) q = q.or(`title.ilike.%${termo}%,excerpt.ilike.%${termo}%,body.ilike.%${termo}%`);
+  const { data } = await q;
+  return (data || []).slice(0, limit).map((n: any) => ({ titulo: n.title, data: n.date, categoria: n.cat, resumo: n.excerpt, link: n.source_url }));
+}
+
+async function tool_buscar_podcasts({ termo, programa, limit = 8 }: any) {
+  let q = sb.from("media").select("titulo,programa,tipo,url,data_pub")
+    .in("tipo", ["podcast", "videocast", "videoaula"])
+    .order("data_pub", { ascending: false, nullsFirst: false }).limit((termo || programa) ? 200 : limit);
+  if (programa) q = q.ilike("programa", `%${programa}%`);
+  if (termo) q = q.or(`titulo.ilike.%${termo}%,programa.ilike.%${termo}%`);
+  const { data } = await q;
+  return (data || []).slice(0, limit).map((m: any) => ({ titulo: m.titulo, programa: m.programa, tipo: m.tipo, data: m.data_pub, link: m.url }));
+}
+
+async function tool_ordem_entrada({ torneio_termo, prova_termo, limit = 40 }: any) {
+  const matched = await buscarTorneiosSmart(torneio_termo);
+  if (!matched.length) return { erro: `Nenhum torneio com "${torneio_termo}"` };
+  const t: any = matched[0];
+  const { data: provas } = await sb.from("provas").select("id,nome,numero,descricao").eq("torneio_id", t.id);
+  const pn = (prova_termo || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const toks = pn.split(/\s+/).filter((x: string) => x.length >= 2);
+  const prova: any = (provas || []).find((p: any) => {
+    const n = (p.nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    return toks.every(tk => n.includes(tk));
+  }) || (provas || [])[0];
+  if (!prova) return { torneio: t.nome, erro: "Torneio sem provas." };
+  const { data: oe } = await sb.from("ordem_entrada")
+    .select("ordem,cavaleiro_nome,cavalo_nome,categoria").eq("prova_id", prova.id)
+    .order("ordem", { ascending: true }).limit(limit);
+  if (!oe || !oe.length) return { torneio: t.nome, prova: prova.nome, erro: "Ordem de entrada ainda não publicada pra essa prova." };
+  return { torneio: t.nome, prova: prova.nome, total: oe.length,
+    ordem: oe.map((o: any) => ({ ordem: o.ordem, cavaleiro: cleanFirstLine(o.cavaleiro_nome), cavalo: cleanFirstLine(o.cavalo_nome), categoria: o.categoria })) };
+}
+
 const TOOLS_MAP: Record<string, (input: any) => Promise<any>> = {
   buscar_cavaleiro: tool_buscar_cavaleiro,
   buscar_cavalo: tool_buscar_cavalo,
@@ -562,6 +643,11 @@ const TOOLS_MAP: Record<string, (input: any) => Promise<any>> = {
   programa_torneio: tool_programa_torneio,
   horarios_torneio: tool_horarios_torneio,
   adendos_torneio: tool_adendos_torneio,
+  genealogia_cavalo: tool_genealogia_cavalo,
+  rankings_geneticos: tool_rankings_geneticos,
+  buscar_noticias: tool_buscar_noticias,
+  buscar_podcasts: tool_buscar_podcasts,
+  ordem_entrada: tool_ordem_entrada,
 };
 
 const SYSTEM_PROMPT = `Você é o assistente de hipismo do portal Cavalar.IA. Responde em português brasileiro, com conhecimento técnico do esporte (salto principalmente).
@@ -615,6 +701,17 @@ PRINCÍPIO #8: PROGRAMAS, HORÁRIOS E ADENDOS. Pra perguntas sobre programa ofic
 - Pra busca livre em qualquer texto (regulamento detalhado, observações), use buscar_em_documentos como fallback.
 
 IMPORTANTE: Quando responder com base em programa/horários/adendos, SEMPRE mencione a data de publicação do documento (publicado_em) — assim o usuário sabe se a info é recente. Se houver adendos posteriores ao programa, mencione que houve atualização.
+
+PRINCÍPIO #9: VOCÊ TEM ACESSO A TODO O CONTEÚDO DO APP — use as ferramentas certas sem hesitar:
+- pai/mãe/filhos/progênie de um cavalo → genealogia_cavalo
+- top garanhões/matrizes, % de filhos competindo ou saltando 1,40m → rankings_geneticos
+- notícias do portal → buscar_noticias
+- podcasts/videocasts/videoaulas/episódios → buscar_podcasts
+- ordem de largada de uma prova → ordem_entrada
+- resultados, vencedores, estatísticas de cavaleiro/cavalo, calendário → as tools de resultados/torneios
+- programa, horários, adendos, regulamento, premiação, juízes → programa_torneio / horarios_torneio / adendos_torneio / buscar_em_documentos
+Combine ferramentas quando útil (ex.: genealogia + resultados pra falar de um cavalo e seu desempenho).
+Cobertura da genealogia: ABCCH (cavalos brasileiros registrados; importados podem não constar). Se algo não existir no banco, diga com franqueza em vez de inventar.
 
 Estilo: direto, técnico, sem rodeios. Use números, percentuais. Frases curtas. Não cite as ferramentas pelo nome.`;
 
