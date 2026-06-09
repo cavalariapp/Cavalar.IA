@@ -131,6 +131,8 @@ const TOOLS = [
     input_schema: { type: "object", properties: { nome: { type: "string" } }, required: ["nome"] } },
   { name: "rankings_geneticos", description: "Ranking de reprodutores (garanhões/matrizes): nº de filhos, filhos +4 anos competindo, filhos +8 anos saltando >=1,40m (com %). Use pra 'quais garanhões têm mais filhos competindo', 'matriz que mais produz cavalos de 1,40m', 'top reprodutores'.",
     input_schema: { type: "object", properties: { papel: { type: "string", enum: ["pai", "mae"] }, ano: { type: ["number", "string"], description: "ano específico, ou omitir p/ todos" }, ordenar: { type: "string", enum: ["total", "comp", "pct_comp", "m140", "pct140"], description: "total=nº filhos; comp=competindo; pct_comp=% dos +4a que competem; m140=saltam >=1,40; pct140=% dos +8a em >=1,40" } }, required: ["papel"] } },
+  { name: "estatisticas_reprodutor", description: "Estatísticas EXATAS de UM reprodutor específico (garanhão ou matriz): total de filhos, filhos +4 anos, filhos competindo, filhos +8 anos, filhos saltando >=1,40m e as %. Use SEMPRE que a pergunta é sobre UM reprodutor nomeado (ex.: 'quantos filhos do Cornet Obolensky saltando 1,40m esse ano', 'quantos filhos da [matriz] competem'). Passe ano quando o usuário disser 'esse ano'/um ano.",
+    input_schema: { type: "object", properties: { nome: { type: "string" }, papel: { type: "string", enum: ["pai", "mae"], description: "pai=garanhão, mae=matriz; omita se não souber" }, ano: { type: ["number", "string"], description: "ano (ex.: 2026) ou omita p/ todos" } }, required: ["nome"] } },
   { name: "buscar_noticias", description: "Notícias do portal. Com 'termo' busca por assunto; sem termo, retorna as mais recentes.",
     input_schema: { type: "object", properties: { termo: { type: "string" }, limit: { type: "number" } } } },
   { name: "buscar_podcasts", description: "Episódios de podcast/videocast/videoaula. Filtra por 'termo' (título) e/ou 'programa' (ex.: PodEquestre, Clac Cast). Use pra 'tem podcast sobre X', 'últimos episódios do PodEquestre'.",
@@ -590,6 +592,27 @@ async function tool_rankings_geneticos({ papel = "pai", ano, ordenar = "total" }
   return { papel, ano: ano ?? "todos", ordenado_por: ordenar, top };
 }
 
+async function tool_estatisticas_reprodutor({ nome, papel, ano }: any) {
+  const nn = normNome(nome);
+  const tentar = papel ? [papel] : ["pai", "mae"];
+  for (const p of tentar) {
+    const { data } = await sb.rpc("rankings_geneticos", { papel: p, ano: ano ?? null });
+    const hit: any = (data || []).find((r: any) => normNome(r.reprodutor) === nn);
+    if (hit) return {
+      reprodutor: hit.reprodutor, papel: p === "pai" ? "garanhão" : "matriz",
+      ano: ano ?? "todos os anos",
+      total_filhos: hit.total_filhos,
+      filhos_mais_4_anos: hit.f4,
+      filhos_competindo: hit.comp,
+      pct_dos_mais4_que_competem: hit.pct_comp,
+      filhos_mais_8_anos: hit.f8,
+      filhos_saltando_1_40_ou_mais: hit.m140,
+      pct_dos_mais8_em_1_40: hit.pct140,
+    };
+  }
+  return { erro: `"${nome}" não aparece com filhos competindo${ano ? ` em ${ano}` : ""}. Pode não ter filhos no período, ou ser importado/sem registro na ABCCH.` };
+}
+
 async function tool_buscar_noticias({ termo, limit = 5 }: any) {
   let q = sb.from("news").select("title,excerpt,date,cat,source_url,created_at")
     .order("created_at", { ascending: false }).limit(termo ? 60 : limit);
@@ -645,6 +668,7 @@ const TOOLS_MAP: Record<string, (input: any) => Promise<any>> = {
   adendos_torneio: tool_adendos_torneio,
   genealogia_cavalo: tool_genealogia_cavalo,
   rankings_geneticos: tool_rankings_geneticos,
+  estatisticas_reprodutor: tool_estatisticas_reprodutor,
   buscar_noticias: tool_buscar_noticias,
   buscar_podcasts: tool_buscar_podcasts,
   ordem_entrada: tool_ordem_entrada,
@@ -704,7 +728,8 @@ IMPORTANTE: Quando responder com base em programa/horários/adendos, SEMPRE menc
 
 PRINCÍPIO #9: VOCÊ TEM ACESSO A TODO O CONTEÚDO DO APP — use as ferramentas certas sem hesitar:
 - pai/mãe/filhos/progênie de um cavalo → genealogia_cavalo
-- top garanhões/matrizes, % de filhos competindo ou saltando 1,40m → rankings_geneticos
+- "quantos filhos do [garanhão/matriz] competindo / saltando 1,40m / +4 anos" (UM reprodutor nomeado) → estatisticas_reprodutor (NÃO use buscar_cavalo pra isso — ele só conta nomes parecidos, não filiação). É o número EXATO; responda direto sem estimar.
+- top/ranking de garanhões/matrizes → rankings_geneticos
 - notícias do portal → buscar_noticias
 - podcasts/videocasts/videoaulas/episódios → buscar_podcasts
 - ordem de largada de uma prova → ordem_entrada
