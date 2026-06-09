@@ -47,17 +47,17 @@ as $$
   ),
   agg as (
     select e.altura, e.nome, e.ult,
-           coalesce(max(case when r.max_rn = e.last_rn then r.run_len end), 0) as trailing,
+           coalesce(max(case when r.max_rn = e.last_rn then r.run_len end), 0) as corrente,
            coalesce(max(case when r.max_rn <> e.last_rn then r.run_len end), 0) as best_completed
     from ent e left join runs r on r.altura = e.altura and r.nome = e.nome
     group by e.altura, e.nome, e.ult
   )
   select altura, nome,
-         case when trailing > 0 and trailing >= best_completed then trailing else best_completed end,
-         (trailing > 0 and trailing >= best_completed),
+         case when corrente > 0 and corrente >= best_completed then corrente else best_completed end,
+         (corrente > 0 and corrente >= best_completed),
          ult
   from agg
-  where (case when trailing > 0 and trailing >= best_completed then trailing else best_completed end) > 0;
+  where (case when corrente > 0 and corrente >= best_completed then corrente else best_completed end) > 0;
 $$;
 grant execute on function public.ranking_zeros(text) to anon, authenticated;
 
