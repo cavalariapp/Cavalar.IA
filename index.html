@@ -2987,7 +2987,14 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 </div><!-- end .app -->
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<!-- Spotify IFrame API: permite dar PLAY automático ao abrir o player -->
+<!-- Spotify IFrame API: permite dar PLAY automático ao abrir o player.
+     O handler é definido ANTES do script (que é async) pra não perder o callback. -->
+<script>
+  window.onSpotifyIframeApiReady = function (api) {
+    window.__spotifyAPI = api;
+    if (typeof window.__onSpotifyReady === 'function') window.__onSpotifyReady();
+  };
+</script>
 <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -4857,11 +4864,11 @@ function _dominantColor(src) {
   });
 }
 
-// Spotify IFrame API — permite dar PLAY automático ao abrir (o embed cru não tem
-// autoplay). A API carrega no load; o controller toca no callback.
-let _spotifyAPI = null, _spotifyCtrl = null, _spotifyPending = null;
-window.onSpotifyIframeApiReady = (api) => {
-  _spotifyAPI = api;
+// Spotify IFrame API — PLAY automático ao abrir (o embed cru não tem autoplay).
+// O handler que registra a API fica no <head> (window.onSpotifyIframeApiReady),
+// pra não perder o callback do script async.
+let _spotifyCtrl = null, _spotifyPending = null;
+window.__onSpotifyReady = () => {
   if (_spotifyPending) { const p = _spotifyPending; _spotifyPending = null; _spotifyMount(p.uri); }
 };
 function _spotifyUri(url) {
@@ -4872,10 +4879,13 @@ function _spotifyMount(uri) {
   if (_spotifyCtrl) { try { _spotifyCtrl.destroy(); } catch (_) {} _spotifyCtrl = null; }
   const holder = document.getElementById('sp-embed');
   if (!holder || !uri) return;
-  if (!_spotifyAPI) { _spotifyPending = { uri }; return; }   // API carregando → toca quando pronta
-  _spotifyAPI.createController(holder, { uri, width: '100%', height: 152 }, (ctrl) => {
+  const api = window.__spotifyAPI;
+  if (!api) { _spotifyPending = { uri }; return; }            // API carregando → toca quando pronta
+  api.createController(holder, { uri, width: '100%', height: 152 }, (ctrl) => {
     _spotifyCtrl = ctrl;
-    try { ctrl.play(); } catch (_) {}                        // PLAY automático
+    const go = () => { try { ctrl.play(); } catch (_) {} };
+    try { ctrl.addListener('ready', go); } catch (_) {}        // toca quando o embed fica pronto
+    go(); setTimeout(go, 500); setTimeout(go, 1200);           // + tentativas (timing de load)
   });
 }
 
