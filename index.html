@@ -2380,9 +2380,9 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
       <div class="feat-bg" style="background:linear-gradient(145deg,#0a1820,#141008)"></div>
       <div class="feat-overlay"></div>
       <div class="feat-content">
-        <div class="feat-tag">Podcast</div>
-        <div class="feat-title">EP.<br><span class="ora">51</span></div>
-        <div class="feat-desc">Pedro Veniss · 58:27</div>
+        <div class="feat-tag">Programas</div>
+        <div class="feat-title">POD<br><span class="ora">CASTS</span></div>
+        <div class="feat-desc">Episódios e vídeos</div>
       </div>
     </div>
     <div class="feat-card" onclick="nav('leilao')">
@@ -2395,6 +2395,10 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
       </div>
     </div>
   </div>
+
+  <!-- ÚLTIMOS EPISÓDIOS (3 mais recentes, dinâmico) -->
+  <div class="sec-hdr"><span class="sec-title">Últimos Episódios</span><button class="sec-link" onclick="nav('videoaulas')">VER TODOS →</button></div>
+  <div id="home-episodios" style="padding:0 16px 6px"></div>
 
   <!-- ZERO-STREAK RANKINGS -->
   <div class="sec-hdr">
@@ -4007,8 +4011,34 @@ function initCategories() {
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
 async function renderHomeContent() {
-  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton()]);
+  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios()]);
 }
+
+// ─── HOME: 3 últimos episódios de podcast (dinâmico) ─────────────────
+let _homeEpisodios = [];
+async function renderHomeEpisodios() {
+  const c = document.getElementById('home-episodios');
+  if (!c) return;
+  const { data } = await sb.from('media').select('*').eq('tipo', 'podcast')
+    .order('data_pub', { ascending: false, nullsFirst: false }).limit(3);
+  _homeEpisodios = data || [];
+  if (!_homeEpisodios.length) { c.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:4px 0">Em breve.</div>'; return; }
+  c.innerHTML = _homeEpisodios.map((m, i) => {
+    const cor = m.cor || '#1e66ff';
+    const logo = m.imagem || '';
+    const dataBr = m.data_pub ? String(m.data_pub).slice(0, 10).split('-').reverse().join('/') : '';
+    return `<div onclick="playHomeEpisodio(${i})" style="display:flex;align-items:center;gap:12px;padding:9px 10px;margin-bottom:8px;border-radius:12px;background:var(--surface2);cursor:pointer">
+      <div style="width:50px;height:50px;border-radius:10px;flex-shrink:0;background:${escHtml(cor)}${logo ? `;background-image:url('${escHtml(logo)}');background-size:cover;background-position:center` : ''}"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)">${escHtml(m.programa || 'Podcast')}</div>
+        <div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(m.titulo || '')}</div>
+        ${dataBr ? `<div style="font-size:10.5px;color:var(--muted)">${dataBr}</div>` : ''}
+      </div>
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 24 24" fill="#08111c"><polygon points="5,3 19,12 5,21"/></svg></div>
+    </div>`;
+  }).join('');
+}
+function playHomeEpisodio(i) { const m = _homeEpisodios[i]; if (m) playMediaDirect(m); }
 
 // Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
 async function loadProfileLinkMap() {
@@ -4891,6 +4921,11 @@ function _spotifyMount(uri) {
 
 function playMedia(tipo, id) {
   const m = (STATE.mediaCache[tipo] || []).find(x => x.id === id);
+  if (m) playMediaDirect(m);
+}
+
+// toca um item de mídia (objeto completo) — usado também pela home, sem cache
+function playMediaDirect(m) {
   if (!m) return;
   const mp = document.getElementById('mini-player');
   const body = document.getElementById('mini-player-body');
@@ -5904,6 +5939,7 @@ async function init() {
   ]);
   renderMedia(STATE.mediaTab);
   carregarEstatisticas();
+  renderHomeEpisodios();
   initAuth();
   initSearch();
   initCategories();
