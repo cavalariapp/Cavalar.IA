@@ -2987,6 +2987,8 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 </div><!-- end .app -->
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<!-- Spotify IFrame API: permite dar PLAY automático ao abrir o player -->
+<script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
 <script>
 // ═══════════════════════════════════════════════════════════════
 //  CAVALAR.IA — APP ENGINE (Supabase)
@@ -4845,27 +4847,57 @@ function _dominantColor(src) {
   });
 }
 
+// Spotify IFrame API — permite dar PLAY automático ao abrir (o embed cru não tem
+// autoplay). A API carrega no load; o controller toca no callback.
+let _spotifyAPI = null, _spotifyCtrl = null, _spotifyPending = null;
+window.onSpotifyIframeApiReady = (api) => {
+  _spotifyAPI = api;
+  if (_spotifyPending) { const p = _spotifyPending; _spotifyPending = null; _spotifyMount(p.uri); }
+};
+function _spotifyUri(url) {
+  const m = (url || '').match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(episode|show|track|playlist|album)\/([A-Za-z0-9]+)/);
+  return m ? `spotify:${m[1]}:${m[2]}` : null;
+}
+function _spotifyMount(uri) {
+  if (_spotifyCtrl) { try { _spotifyCtrl.destroy(); } catch (_) {} _spotifyCtrl = null; }
+  const holder = document.getElementById('sp-embed');
+  if (!holder || !uri) return;
+  if (!_spotifyAPI) { _spotifyPending = { uri }; return; }   // API carregando → toca quando pronta
+  _spotifyAPI.createController(holder, { uri, width: '100%', height: 152 }, (ctrl) => {
+    _spotifyCtrl = ctrl;
+    try { ctrl.play(); } catch (_) {}                        // PLAY automático
+  });
+}
+
 function playMedia(tipo, id) {
   const m = (STATE.mediaCache[tipo] || []).find(x => x.id === id);
   if (!m) return;
   const mp = document.getElementById('mini-player');
   const body = document.getElementById('mini-player-body');
   document.getElementById('mini-player-title').textContent = m.titulo || '';
+  if (_spotifyCtrl) { try { _spotifyCtrl.destroy(); } catch (_) {} _spotifyCtrl = null; }
+  _spotifyPending = null;
   const info = _embedInfo(m.url);
   if (!info) {
     body.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px">Link não suportado. <a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Abrir ↗</a></div>`;
     mp.className = 'show audio';
+  } else if (info.kind === 'audio') {
+    body.innerHTML = '<div id="sp-embed"></div>';
+    mp.className = 'show audio';
+    _spotifyMount(_spotifyUri(m.url));                        // abre já tocando
   } else {
     const sep = info.src.includes('?') ? '&' : '?';
-    const src = info.kind === 'video' ? `${info.src}${sep}autoplay=1&playsinline=1&rel=0` : info.src;
+    const src = `${info.src}${sep}autoplay=1&playsinline=1&rel=0`;
     body.innerHTML = `<iframe src="${src}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`;
-    mp.className = 'show ' + info.kind;   // barra fina embaixo; expandir é opcional
+    mp.className = 'show video';
   }
   document.body.classList.add('player-on');
   document.body.classList.remove('player-min');
 }
 
 function fecharMiniPlayer() {
+  if (_spotifyCtrl) { try { _spotifyCtrl.destroy(); } catch (_) {} _spotifyCtrl = null; }
+  _spotifyPending = null;
   const mp = document.getElementById('mini-player');
   mp.className = '';                 // remove o iframe → para de tocar
   document.getElementById('mini-player-body').innerHTML = '';
