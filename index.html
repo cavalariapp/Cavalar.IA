@@ -5524,7 +5524,7 @@ STATE.genPapel = STATE.genPapel || 'pai';
 STATE.genAno = (STATE.genAno === undefined ? null : STATE.genAno);
 STATE.genSort = STATE.genSort || 'total';
 const _GEN_ANOS = [['Todos', null], ['2026', 2026], ['2025', 2025], ['2024', 2024]];
-const _GEN_SORTS = [['Nº filhos', 'total'], ['+4a competindo', 'comp'], ['+8a ≥1,40m', 'alto']];
+const _GEN_SORTS = [['Filhos', 'total'], ['Competindo', 'comp'], ['% +4a', 'pct_comp'], ['≥1,40m', 'm140'], ['% +8a', 'pct140']];
 
 function _genChips() {
   const anos = document.getElementById('gen-anos');
@@ -5556,29 +5556,22 @@ async function renderGenetica() {
     c.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem dados pra esse filtro ainda.</div>';
     return;
   }
-  const key = { total: 'total_filhos', comp: 'comp4', alto: 'alto8' }[STATE.genSort];
+  const key = { total: 'total_filhos', comp: 'comp', pct_comp: 'pct_comp', m140: 'm140', pct140: 'pct140' }[STATE.genSort];
   const arr = [...rows].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 200);
-  const papelLbl = STATE.genPapel === 'pai' ? 'Garanhão' : 'Matriz';
-  const hl = (col) => STATE.genSort === col ? ' style="color:var(--accent);font-weight:800"' : '';
-  c.innerHTML = `
-    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12.5px">
-      <thead><tr style="text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">
-        <th style="padding:8px 6px">#</th>
-        <th style="padding:8px 6px">${papelLbl}</th>
-        <th style="padding:8px 6px;text-align:right"${hl('total')}>Filhos</th>
-        <th style="padding:8px 6px;text-align:right"${hl('comp')}>+4a comp.</th>
-        <th style="padding:8px 6px;text-align:right"${hl('alto')}>+8a ≥1,40m</th>
-      </tr></thead><tbody>
-      ${arr.map((r, i) => `
-        <tr style="border-top:1px solid var(--border)">
-          <td style="padding:9px 6px;color:var(--muted)">${i + 1}</td>
-          <td style="padding:9px 6px;font-weight:700">${escHtml(r.reprodutor || '')}</td>
-          <td style="padding:9px 6px;text-align:right"${hl('total')}>${r.total_filhos}</td>
-          <td style="padding:9px 6px;text-align:right"${hl('comp')}>${r.comp4} <small style="color:var(--muted)">(${r.pct_comp4}%)</small></td>
-          <td style="padding:9px 6px;text-align:right"${hl('alto')}>${r.alto8} <small style="color:var(--muted)">(${r.pct_alto8}%)</small></td>
-        </tr>`).join('')}
-      </tbody></table></div>
-    <div style="padding:14px 8px;color:var(--muted);font-size:10.5px;line-height:1.5">% sobre o total de filhos registrados na ABCCH. Idade atual. Cobertura limitada a cavalos registrados na ABCCH (importados podem não constar).</div>`;
+  const em = (on, txt) => on ? `<b style="color:var(--accent)">${txt}</b>` : txt;
+  c.innerHTML = arr.map((r, i) => `
+    <div style="border-top:1px solid var(--border);padding:11px 14px">
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span style="color:var(--muted);font-weight:800;min-width:20px;font-size:13px">${i + 1}</span>
+        <span style="font-weight:800;font-size:15px;flex:1;min-width:0">${escHtml(r.reprodutor || '')}</span>
+        <span style="font-size:11px;color:var(--muted);white-space:nowrap">${em(STATE.genSort === 'total', r.total_filhos + ' filhos')}</span>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.75">
+        +4 anos: <b style="color:var(--fg)">${r.f4}</b> · competindo: ${em(STATE.genSort === 'comp', r.comp)} · ${em(STATE.genSort === 'pct_comp', r.pct_comp + '%')} competem<br>
+        +8 anos: <b style="color:var(--fg)">${r.f8}</b> · ≥1,40m: ${em(STATE.genSort === 'm140', r.m140)} · ${em(STATE.genSort === 'pct140', r.pct140 + '%')} saltam ≥1,40
+      </div>
+    </div>`).join('') +
+    `<div style="padding:14px;color:var(--muted);font-size:10.5px;line-height:1.6">As <b>%</b> são dentro da faixa de idade: "% competem" = filhos +4 anos que competem ÷ total de filhos +4 anos; "% saltam ≥1,40" = filhos +8 anos que saltam ≥1,40 ÷ total de filhos +8 anos. Idade atual; só cavalos registrados na ABCCH.</div>`;
 }
 
 // ─── CAVALO (busca + perfil) ─────────────────────────────────────────
