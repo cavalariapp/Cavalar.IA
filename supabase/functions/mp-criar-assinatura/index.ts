@@ -69,76 +69,29 @@ Deno.serve(async (req) => {
     const backUrl = req.headers.get("origin") ? `${req.headers.get("origin")}/perfil.html` : `${SUPABASE_URL}`;
 
     const reason = `Cavalar.IA Premium ${plano === "anual" ? "Anual" : "Mensal"}`;
-    let checkoutUrl = "";
-    if (metodo === "recorrente") {
-      // ── Cartão recorrente: preapproval_plan (cria 1x/cacheia) + assinatura ──
-      // 1) garante o plano
-      const { data: planoRow } = await sb.from("mp_planos").select("plan_id").eq("plano", plano).maybeSingle();
-      let planId = planoRow?.plan_id as string | undefined;
-      if (!planId) {
-        const planBody = {
-          reason,
-          auto_recurring: {
-            frequency: meses, frequency_type: "months",
-            transaction_amount: valor, currency_id: "BRL",
-          },
-          back_url: backUrl,
-          payment_methods_allowed: { payment_types: [{ id: "credit_card" }] },
-        };
-        const pr = await fetch("https://api.mercadopago.com/preapproval_plan", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${MP_TOKEN}`, "Content-Type": "application/json" },
-          body: JSON.stringify(planBody),
-        });
-        const pj = await pr.json();
-        if (!pr.ok) return json({ erro: "MP preapproval_plan: " + JSON.stringify(pj).slice(0, 400) }, 502);
-        planId = pj.id;
-        await sb.from("mp_planos").upsert({ plano, plan_id: planId, init_point: pj.init_point });
-      }
-      // 2) cria a assinatura ligada ao plano (external_reference liga à nossa linha)
-      const subBody = {
-        preapproval_plan_id: planId,
-        reason,
-        external_reference: extRef,
-        payer_email: email,
-        back_url: backUrl,
-        status: "pending",
-      };
-      const r = await fetch("https://api.mercadopago.com/preapproval", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${MP_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify(subBody),
-      });
-      const j = await r.json();
-      if (!r.ok) return json({ erro: "MP preapproval: " + JSON.stringify(j).slice(0, 400) }, 502);
-      await sb.from("assinaturas").update({ mp_preapproval_id: j.id }).eq("id", extRef);
-      checkoutUrl = (MP_TEST && j.sandbox_init_point) ? j.sandbox_init_point : j.init_point;
-    } else {
-      // ── Pix avulso: preference (Checkout Pro) ──
-      const body = {
-        items: [{
-          title: `Cavalar.IA Premium ${plano === "anual" ? "Anual" : "Mensal"}`,
-          quantity: 1, unit_price: valor, currency_id: "BRL",
-        }],
-        payer: { email },
-        external_reference: String(extRef),
-        notification_url: webhook,
-        back_urls: { success: backUrl, pending: backUrl, failure: backUrl },
-        auto_return: "approved",
-        payment_methods: {
-          // avulso = Pix (exclui cartão pra não confundir com o plano recorrente)
-          excluded_payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
-        },
-      };
-      const r = await fetch("https://api.mercadopago.com/checkout/preferences", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${MP_TOKEN}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const j = await r.json();
-      if (!r.ok) return json({ erro: "MP preference: " + JSON.stringify(j).slice(0, 300) }, 502);
-      checkoutUrl = (MP_TEST && j.sandbox_init_point) ? j.sandbox_init_point : j.init_point;
-    }
+    // Pagamento por PERÍODO via Checkout Pro (preference) — cartão OU Pix.
+    // (Renovação automática no cartão exige formulário tokenizado do MP; fica pra depois.)
+    const soPix = metodo === "avulso";   // botão "Pix" → restringe a Pix; "Cartão" → libera cartão
+    const prefBody = {
+      items: [{ title: reason, quantity: 1, unit_price: valor, currency_id: "BRL" }],
+      payer: { email },
+      external_reference: String(extRef),
+      notification_url: webhook,
+      back_urls: { success: backUrl, pending: backUrl, failure: backUrl },
+      auto_return: "approved",
+      payment_methods: {
+        excluded_payment_types: soPix ? [{ id: "credit_card" }, { id: "debit_card" }] : [],
+        installments: 1,
+      },
+    };
+    const r = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${MP_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(prefBody),
+    });
+    const j = await r.json();
+    if (!r.ok) return json({ erro: "MP preference: " + JSON.stringify(j).slice(0, 400) }, 502);
+    const checkoutUrl = (MP_TEST && j.sandbox_init_point) ? j.sandbox_init_point : j.init_point;
 
     return json({ url: checkoutUrl, assinatura_id: extRef });
   } catch (e: any) {

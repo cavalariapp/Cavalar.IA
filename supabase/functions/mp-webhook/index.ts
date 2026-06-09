@@ -66,13 +66,12 @@ Deno.serve(async (req) => {
           .select("id, plano, metodo").eq("id", ref).single();
         if (ass) {
           const meses = ass.plano === "anual" ? 12 : 1;
-          const patch: Record<string, unknown> = {
+          // pagamento por período (cartão ou Pix) → libera 1 mês / 1 ano
+          await sb.from("assinaturas").update({
             status: "ativa", mp_payment_id: String(id),
-            inicio: new Date().toISOString(), atualizado_em: new Date().toISOString(),
-          };
-          // avulso (Pix): vale por 1 período; recorrente: sem expiração (vale enquanto authorized)
-          patch.fim = ass.metodo === "avulso" ? addMonths(meses) : null;
-          await sb.from("assinaturas").update(patch).eq("id", ass.id);
+            inicio: new Date().toISOString(), fim: addMonths(meses),
+            atualizado_em: new Date().toISOString(),
+          }).eq("id", ass.id);
         }
       }
       return new Response("ok", { status: 200 });

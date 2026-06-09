@@ -5658,8 +5658,8 @@ function renderAssinatura() {
         <div style="text-align:right"><div style="font-weight:900;font-size:22px;color:var(--accent)">${preco}</div><div style="font-size:10px;color:var(--muted)">${sub}</div></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:14px">
-        <button onclick="assinarPlano('${plano}','recorrente')" style="flex:1;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">💳 Cartão<br><span style="font-weight:600;font-size:9px;opacity:.85">renova automático</span></button>
-        <button onclick="assinarPlano('${plano}','avulso')" style="flex:1;background:var(--surface2);color:var(--fg);border:1px solid var(--border);padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">⚡ Pix<br><span style="font-weight:600;font-size:9px;opacity:.7">paga o período</span></button>
+        <button onclick="assinarPlano('${plano}','recorrente')" style="flex:1;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">💳 Cartão<br><span style="font-weight:600;font-size:9px;opacity:.85">${plano === 'anual' ? '1 ano' : '1 mês'}</span></button>
+        <button onclick="assinarPlano('${plano}','avulso')" style="flex:1;background:var(--surface2);color:var(--fg);border:1px solid var(--border);padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">⚡ Pix<br><span style="font-weight:600;font-size:9px;opacity:.7">${plano === 'anual' ? '1 ano' : '1 mês'}</span></button>
       </div>
     </div>`;
   c.innerHTML = `
@@ -5675,8 +5675,9 @@ function renderAssinatura() {
 }
 
 async function assinarPlano(plano, metodo) {
-  // sem conta ainda → cria conta (cadastro cria; quem já tem, loga). Depois volta e paga.
-  if (!_currentUser) { sessionStorage.setItem('cav_pos_login', 'assinatura'); window.location.href = 'cadastro.html'; return; }
+  // sem conta ainda → cria conta (cadastro cria; quem já tem, loga). Guarda o plano
+  // escolhido pra retomar o pagamento automaticamente ao voltar.
+  if (!_currentUser) { sessionStorage.setItem('cav_pos_login', JSON.stringify({ plano, metodo })); window.location.href = 'cadastro.html'; return; }
   try {
     const { data: { session } } = await sb.auth.getSession();
     const token = session?.access_token;
@@ -6071,7 +6072,15 @@ async function init() {
   //    tela trata logado/deslogado); senão, pula o onboarding se já logado.
   const _params = new URLSearchParams(window.location.search);
   const _posLogin = sessionStorage.getItem('cav_pos_login');
-  if (_posLogin === 'assinatura' && _currentUser) { sessionStorage.removeItem('cav_pos_login'); nav('assinatura'); }
+  if (_posLogin && _currentUser) {
+    sessionStorage.removeItem('cav_pos_login');
+    let _intent = null; try { _intent = JSON.parse(_posLogin); } catch (_) {}
+    nav('assinatura');
+    // retoma o pagamento do plano que a pessoa escolheu antes de criar a conta
+    if (_intent && _intent.plano && typeof assinarPlano === 'function') {
+      setTimeout(() => assinarPlano(_intent.plano, _intent.metodo), 400);
+    }
+  }
   else if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
   else if (_currentUser) nav('home');
 
