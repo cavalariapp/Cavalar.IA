@@ -3022,6 +3022,7 @@ if ('serviceWorker' in navigator) {
 let _currentUser = null;
 let _currentProfile = null;
 let _isAdmin = false;   // true quando o profile logado tem is_admin (edição de notícias)
+let _isPremium = false; // true quando o usuário tem assinatura ativa (is_premium())
 let _profileLinkMap = new Map();
 
 // Listener REATIVO de auth — pega SIGNED_IN, INITIAL_SESSION, TOKEN_REFRESHED
@@ -4076,10 +4077,13 @@ async function updateAuthButton() {
       const { data: profile } = await sb.rpc('meu_perfil');
       _currentProfile = profile;
       _isAdmin = !!(profile && profile.is_admin);
+      try { const { data: prem } = await sb.rpc('is_premium'); _isPremium = !!prem; }
+      catch (_) { _isPremium = false; }
       iniciarRealtime();   // assina mensagens/solicitações em tempo real
     } else {
       _currentProfile = null;
       _isAdmin = false;
+      _isPremium = false;
       pararRealtime();
     }
     // re-renderiza listas que têm controles de admin (mostra/oculta conforme login)
@@ -5552,8 +5556,15 @@ function abrirGenetica(papel) { STATE.genPapel = papel || 'pai'; nav('genetica')
 async function renderGenetica() {
   const c = document.getElementById('gen-list');
   if (!c) return;
+  if (!_isPremium) {
+    c.innerHTML = paywallHTML('Rankings genéticos',
+      'Rankings de garanhões e matrizes, % de filhos competindo e saltando ≥1,40m, progênie com altura máxima e cruzamentos — exclusivo para assinantes.');
+    return;
+  }
   c.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Carregando rankings…</div>';
-  const rows = await DB.rankingsGeneticos(STATE.genPapel, STATE.genAno);
+  let rows;
+  try { rows = await DB.rankingsGeneticos(STATE.genPapel, STATE.genAno); }
+  catch (e) { c.innerHTML = paywallHTML('Rankings genéticos', 'Recurso exclusivo para assinantes.'); return; }
   if (!rows.length) {
     c.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem dados pra esse filtro ainda.</div>';
     return;
@@ -5593,6 +5604,24 @@ function _alturaProva(p) {
   return m ? (parseInt(m[1]) + parseInt(m[2]) / 100) : null;
 }
 function _sexoLabel(s) { return s === 'M' ? 'Garanhão' : s === 'F' ? 'Matriz' : '—'; }
+
+// Cartão de paywall reutilizável: aparece no lugar de um recurso premium.
+// `titulo` = nome do recurso; `desc` = o que desbloqueia ao assinar.
+function paywallHTML(titulo, desc) {
+  return `
+    <div style="margin:18px 14px;padding:26px 20px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);text-align:center">
+      <div style="font-size:30px;margin-bottom:8px">🔒</div>
+      <div style="font-family:var(--font-display,inherit);font-weight:900;font-size:19px;margin-bottom:6px">${escHtml(titulo)}</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.6;max-width:320px;margin:0 auto 16px">${escHtml(desc)}</div>
+      <button onclick="abrirAssinatura()" style="background:var(--accent);color:#fff;border:none;padding:13px 26px;border-radius:6px;font-weight:800;font-size:13px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer">Assinar o Cavalar.IA</button>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted)">Já é assinante? <a href="login.html" style="color:var(--accent)">Entrar</a></div>
+    </div>`;
+}
+// Abre o fluxo de assinatura (Fase 3 — Mercado Pago). Placeholder até integrar.
+function abrirAssinatura() {
+  if (typeof nav === 'function' && document.getElementById('scr-assinatura')) { nav('assinatura'); return; }
+  alert('Assinatura em breve — Mercado Pago (Pix + cartão), planos mensal e anual.');
+}
 // Colocação uniforme ('1' SHB / '1º' demais → '1º'); preserva 'NC','EL' etc
 function _colocFmt(c) {
   const s = (c == null ? '' : c).toString().trim();
