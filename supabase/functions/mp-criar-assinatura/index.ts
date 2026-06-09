@@ -50,6 +50,13 @@ Deno.serve(async (req) => {
     const meses = plano === "anual" ? 12 : 1;
     const email = user.email;
 
+    // garante que o profile existe (FK de assinaturas). Se o cadastro não criou
+    // a linha por algum motivo, cria uma mínima aqui (service_role, sem sobrescrever).
+    await sb.from("profiles").upsert(
+      { id: user.id, email, visibilidade: "publico" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+
     // 2) cria a assinatura pendente (external_reference = id)
     const { data: ass, error: errIns } = await sb.from("assinaturas").insert({
       profile_id: user.id, status: "pendente", plano, metodo,
