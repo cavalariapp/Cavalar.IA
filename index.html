@@ -2245,9 +2245,9 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
         ENTRAR COM EMAIL
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </button>
-      <button class="btn-full outline" onclick="window.location.href='cadastro.html'">CRIAR CONTA GRÁTIS</button>
+      <button class="btn-full outline" onclick="abrirAssinatura()">SEJA UM ASSINANTE</button>
       <div class="divider">ou</div>
-      <button class="btn-full outline" onclick="nav('home')" style="opacity:.7">CONTINUAR SEM CONTA</button>
+      <button class="btn-full outline" onclick="nav('home')" style="opacity:.7">CONTINUAR GRÁTIS</button>
     </div>
   </div>
 </div>
@@ -4177,9 +4177,9 @@ function updateHamMenu() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
         Entrar
       </button>
-      <button class="ham-menu-item" onclick="closeHamMenu();window.location.href='cadastro.html'">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
-        Criar conta grátis
+      <button class="ham-menu-item" onclick="closeHamMenu();abrirAssinatura()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7.4-6.3-4.6L5.7 21 8 14 2 9.4h7.6z"/></svg>
+        Seja um assinante
       </button>
       <button class="ham-menu-item" onclick="closeHamMenu();nav('comunidade')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
@@ -5675,7 +5675,8 @@ function renderAssinatura() {
 }
 
 async function assinarPlano(plano, metodo) {
-  if (!_currentUser) { window.location.href = 'login.html'; return; }
+  // sem conta ainda → cria conta (cadastro cria; quem já tem, loga). Depois volta e paga.
+  if (!_currentUser) { sessionStorage.setItem('cav_pos_login', 'assinatura'); window.location.href = 'cadastro.html'; return; }
   try {
     const { data: { session } } = await sb.auth.getSession();
     const token = session?.access_token;
@@ -6069,7 +6070,9 @@ async function init() {
   // 3. Roteamento inicial. Deep-link ?msg=<id> abre as Mensagens (a própria
   //    tela trata logado/deslogado); senão, pula o onboarding se já logado.
   const _params = new URLSearchParams(window.location.search);
-  if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
+  const _posLogin = sessionStorage.getItem('cav_pos_login');
+  if (_posLogin === 'assinatura' && _currentUser) { sessionStorage.removeItem('cav_pos_login'); nav('assinatura'); }
+  else if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
   else if (_currentUser) nav('home');
 
   if (!document.getElementById('shake-style')) {

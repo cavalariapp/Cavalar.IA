@@ -54,8 +54,8 @@ a.link:hover { text-decoration:underline; }
   <p class="subtitle">Entre na sua conta</p>
 
   <div class="card" id="step-email">
-    <h2>Bem-vindo de volta</h2>
-    <p class="hint">Vamos enviar um código pro seu email</p>
+    <h2>Entrar</h2>
+    <p class="hint">Já é assinante? Enviamos um código pro seu email. Ainda não tem conta? <a href="cadastro.html" class="link">Assine aqui</a>.</p>
     <div class="field">
       <label>Email</label>
       <input id="f-email" class="input" type="email" placeholder="voce@email.com" autocomplete="email">
@@ -100,7 +100,15 @@ async function enviarOtp() {
     email,
     options: { shouldCreateUser: false }, // login: NÃO cria novo usuário
   });
-  if (error) { $('err-1').textContent = error.message || 'Erro ao enviar código'; return; }
+  if (error) {
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('signups not allowed') || m.includes('not found') || m.includes('user not')) {
+      $('err-1').innerHTML = 'Não encontramos uma conta com esse email. <a href="cadastro.html" class="link">Crie sua conta para assinar →</a>';
+    } else {
+      $('err-1').textContent = error.message || 'Erro ao enviar código';
+    }
+    return;
+  }
   $('show-email').textContent = email;
   $('step-email').style.display = 'none';
   $('step-otp').style.display = 'block';
