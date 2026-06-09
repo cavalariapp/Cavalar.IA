@@ -2645,6 +2645,24 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 <!-- ============================================================
      SCREEN: GENÉTICA (rankings de reprodução)
 ============================================================ -->
+<div class="screen" id="scr-assinatura">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="300 770 3390 370" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div class="hero" style="min-height:170px">
+    <div class="hero-bg" style="background:linear-gradient(150deg,#080d18,#1a1206,#100a04)"></div>
+    <div class="hero-accent-line"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Premium</div>
+      <h2 class="hero-h1">DESBLOQUEIE<br>O <span class="ora">CAVALAR.IA</span>.</h2>
+      <p class="hero-sub">Resultados compilados, estatísticas, genética, alertas e o assistente de IA — tudo liberado.</p>
+    </div>
+  </div>
+  <div id="assinatura-content"></div>
+</div>
+
 <div class="screen" id="scr-genetica">
   <div class="topbar">
     <svg class="logo-img" viewBox="300 770 3390 370" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="2000"/></svg>
@@ -3171,7 +3189,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura'];
 
 function nav(id) {
   SCREENS.forEach(s => {
@@ -3198,6 +3216,7 @@ function nav(id) {
   if (id === 'genetica') auto(initGenetica);
   if (id === 'cavalo') auto(initCavalo);
   if (id === 'cavaleiro') auto(initCavaleiro);
+  if (id === 'assinatura') auto(renderAssinatura);
 }
 
 // ─── MENSAGENS (DM) ───────────────────────────────────────────
@@ -5610,10 +5629,65 @@ function paywallHTML(titulo, desc) {
       <div style="margin-top:10px;font-size:11px;color:var(--muted)">Já é assinante? <a href="login.html" style="color:var(--accent)">Entrar</a></div>
     </div>`;
 }
-// Abre o fluxo de assinatura (Fase 3 — Mercado Pago). Placeholder até integrar.
-function abrirAssinatura() {
-  if (typeof nav === 'function' && document.getElementById('scr-assinatura')) { nav('assinatura'); return; }
-  alert('Assinatura em breve — Mercado Pago (Pix + cartão), planos mensal e anual.');
+// Abre a tela de planos (Mercado Pago).
+function abrirAssinatura() { nav('assinatura'); }
+
+function renderAssinatura() {
+  const c = document.getElementById('assinatura-content');
+  if (!c) return;
+  if (_isPremium) {
+    c.innerHTML = `<div style="margin:20px 14px;padding:26px 20px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);text-align:center">
+      <div style="font-size:30px;margin-bottom:6px">✓</div>
+      <div style="font-family:var(--font-display,inherit);font-weight:900;font-size:19px;margin-bottom:6px">Você já é assinante</div>
+      <div style="color:var(--muted);font-size:13px;line-height:1.6">Tudo do Cavalar.IA está liberado pra você. Obrigado por apoiar! 🐎</div></div>`;
+    return;
+  }
+  const benef = [
+    'Compilado de resultados de qualquer cavalo e cavaleiro',
+    'Estatísticas e altura máxima competida',
+    'Rankings genéticos, progênie e cruzamentos',
+    'Alertas e favoritos no calendário',
+    'Assistente de IA (chatbot)',
+    'Navegação sem anúncios',
+  ];
+  const planoCard = (titulo, preco, sub, plano, destaque) => `
+    <div style="border:1px solid ${destaque ? 'var(--accent)' : 'var(--border)'};border-radius:14px;padding:18px;background:var(--surface);margin-bottom:14px;position:relative">
+      ${destaque ? `<div style="position:absolute;top:-10px;left:18px;background:var(--accent);color:#fff;font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 9px;border-radius:20px">Melhor valor</div>` : ''}
+      <div style="display:flex;align-items:baseline;justify-content:space-between">
+        <div style="font-weight:900;font-size:17px">${titulo}</div>
+        <div style="text-align:right"><div style="font-weight:900;font-size:22px;color:var(--accent)">${preco}</div><div style="font-size:10px;color:var(--muted)">${sub}</div></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button onclick="assinarPlano('${plano}','recorrente')" style="flex:1;background:var(--accent);color:#fff;border:none;padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">💳 Cartão<br><span style="font-weight:600;font-size:9px;opacity:.85">renova automático</span></button>
+        <button onclick="assinarPlano('${plano}','avulso')" style="flex:1;background:var(--surface2);color:var(--fg);border:1px solid var(--border);padding:11px;border-radius:8px;font-weight:800;font-size:12px;cursor:pointer;line-height:1.3">⚡ Pix<br><span style="font-weight:600;font-size:9px;opacity:.7">paga o período</span></button>
+      </div>
+    </div>`;
+  c.innerHTML = `
+    <div style="padding:16px 16px 0">
+      <div style="background:var(--surface2);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+        ${benef.map(b => `<div style="display:flex;gap:8px;align-items:flex-start;font-size:13px;padding:3px 0"><span style="color:var(--accent);font-weight:900">✓</span><span>${b}</span></div>`).join('')}
+      </div>
+      ${planoCard('Anual', 'R$ 299', 'R$ 24,92/mês · economize 17%', 'anual', true)}
+      ${planoCard('Mensal', 'R$ 29,90', 'por mês', 'mensal', false)}
+      ${!_currentUser ? `<div style="text-align:center;color:var(--muted);font-size:11.5px;margin-top:2px">Você vai entrar/criar conta antes de pagar.</div>` : ''}
+      <div style="height:24px"></div>
+    </div>`;
+}
+
+async function assinarPlano(plano, metodo) {
+  if (!_currentUser) { window.location.href = 'login.html'; return; }
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token;
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/mp-criar-assinatura`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'apikey': SUPABASE_KEY },
+      body: JSON.stringify({ plano, metodo }),
+    });
+    const j = await res.json();
+    if (j.url) { window.location.href = j.url; return; }   // vai pro checkout do MP
+    alert('Não consegui iniciar o pagamento: ' + (j.erro || 'tente de novo'));
+  } catch (e) { alert('Falha de conexão: ' + e.message); }
 }
 // Colocação uniforme ('1' SHB / '1º' demais → '1º'); preserva 'NC','EL' etc
 function _colocFmt(c) {
