@@ -4337,30 +4337,23 @@ async function _zrFetchData() {
 /** Computa, para a entidade escolhida, top 10 por altura */
 async function _zrCompute(entity) {
   if (_zrComputedCache[entity]) return _zrComputedCache[entity];
-  const data = await _zrFetchData();
+  // Ranking calculado no SERVIDOR (RPC free): devolve só o ranking, nunca as
+  // linhas cruas de resultados (protege o gargalo).
+  let _zrRows = [];
+  try { const { data } = await sb.rpc('ranking_zeros', { p_entity: entity }); _zrRows = data || []; }
+  catch (_) { _zrRows = []; }
 
   const porAltura = {};
-  for (const alt of ZR_ALTURAS) porAltura[alt] = {};
-
-  // Agrupa por (altura, entidade) preservando ordem cronológica
-  for (const r of data) {
-    const nome = entity === 'cavaleiro' ? r.cavaleiro : r.cavalo;
-    if (!nome) continue;
-    const bucket = porAltura[r.altura];
-    if (!bucket) continue;
-    if (!bucket[nome]) bucket[nome] = [];
-    bucket[nome].push(r);
+  for (const alt of ZR_ALTURAS) porAltura[alt] = [];
+  for (const r of _zrRows) {
+    if (!porAltura[r.altura]) continue;
+    porAltura[r.altura].push({ nome: r.nome, length: r.comprimento, active: r.ativo, lastDate: r.ultima_data });
   }
 
-  // Calcula streak e ordena
+  // Ordena e fatia top 10
   const result = {};
   for (const alt of ZR_ALTURAS) {
-    const arr = [];
-    for (const [nome, lst] of Object.entries(porAltura[alt])) {
-      const s = _zrComputeStreak(lst);
-      if (s.length === 0) continue;
-      arr.push({ nome, ...s });
-    }
+    const arr = porAltura[alt];
     arr.sort((a, b) => {
       if (b.length !== a.length) return b.length - a.length;       // streak DESC
       if (b.active !== a.active) return b.active ? 1 : -1;          // ativos primeiro
@@ -5652,11 +5645,11 @@ async function buscarCavalos(termo) {
   list.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Buscando…</div>';
   const [g, r] = await Promise.all([
     sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').ilike('nome', '%' + t + '%').limit(40),
-    sb.from('resultados').select('cavalo_nome').ilike('cavalo_nome', '%' + t + '%').limit(400),
+    sb.rpc('buscar_nomes_cavalos', { termo: t }),   // só nomes (free); resultados são premium
   ]);
   const map = new Map();
   (g.data || []).forEach(x => { const n = _normNome(x.nome); if (n && !map.has(n)) map.set(n, { ...x, gen: true, comp: false, nn: n }); });
-  (r.data || []).forEach(x => { const n = _normNome(x.cavalo_nome); if (!n) return; if (map.has(n)) map.get(n).comp = true; else map.set(n, { nome: (x.cavalo_nome || '').split('\n')[0], gen: false, comp: true, nn: n }); });
+  (r.data || []).forEach(x => { const n = _normNome(x.nome); if (!n) return; if (map.has(n)) map.get(n).comp = true; else map.set(n, { nome: (x.nome || '').split('\n')[0], gen: false, comp: true, nn: n }); });
   _cavaloCache = [...map.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).slice(0, 80);
   if (!_cavaloCache.length) { list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum cavalo encontrado.</div>'; return; }
   list.innerHTML = _cavaloCache.map((c, i) => `
@@ -5799,11 +5792,11 @@ async function buscarCavaleiros(termo) {
   const t = (termo || '').trim().replace(/[%_(),]/g, ' ').replace(/\s+/g, ' ').trim();
   if (t.length < 2) { _cavaleiroCache = []; list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Digite ao menos 2 letras.</div>'; return; }
   list.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Buscando…</div>';
-  const { data } = await sb.from('resultados').select('cavaleiro_nome').ilike('cavaleiro_nome', '%' + t + '%').limit(600);
+  const { data } = await sb.rpc('buscar_nomes_cavaleiros', { termo: t });   // só nomes (free)
   const map = new Map();
   (data || []).forEach(x => {
-    const n = _normNome(x.cavaleiro_nome); if (!n) return;
-    if (!map.has(n)) { const parts = (x.cavaleiro_nome || '').split('\n'); map.set(n, { nome: parts[0], entidade: (parts[1] || '').trim(), nn: n }); }
+    const n = _normNome(x.nome); if (!n) return;
+    if (!map.has(n)) { const parts = (x.nome || '').split('\n'); map.set(n, { nome: parts[0], entidade: (parts[1] || '').trim(), nn: n }); }
   });
   _cavaleiroCache = [...map.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).slice(0, 80);
   if (!_cavaleiroCache.length) { list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum cavaleiro encontrado.</div>'; return; }

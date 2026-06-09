@@ -15,9 +15,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+// service_role é injetado automaticamente nas Edge Functions do Supabase.
+// As ferramentas leem `resultados` (cujo SELECT direto é revogado na 050) — por
+// isso usam service_role. É seguro: a função inteira é gateada por is_premium().
+const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? SUPABASE_ANON;
 const ANTHROPIC_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON);
+const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",

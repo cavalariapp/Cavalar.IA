@@ -1322,47 +1322,26 @@ function getFilters() {
 // Respeita filtros fonte/ano/mes.
 const GLOBAL_SEARCH_LIMIT = 500;
 async function buscaGlobal({ cavaleiro, cavalo, fonte, ano, mes }) {
-  let q = sb
-    .from('resultados')
-    .select(`
-      id, colocacao, cavaleiro_nome, cavalo_nome,
-      penalidade, tempo, pontos, penalidade_2, tempo_2, prova_id,
-      provas!inner (
-        id, nome, numero, descricao, categorias, tipo_prova, torneio_id,
-        torneios!inner ( id, nome, fonte, data_inicio )
-      )
-    `, { count: 'estimated' })
-    .limit(GLOBAL_SEARCH_LIMIT);
-
-  if (cavaleiro) q = q.ilike('cavaleiro_nome', `%${cavaleiro}%`);
-  if (cavalo)    q = q.ilike('cavalo_nome',    `%${cavalo}%`);
-
-  // Filtros transitivos via referenced table
-  if (fonte) q = q.eq('provas.torneios.fonte', fonte);
-  if (ano) {
-    const ini = `${ano}-01-01`, fim = `${ano}-12-31`;
-    q = q.gte('provas.torneios.data_inicio', ini).lte('provas.torneios.data_inicio', fim);
-  }
-  if (mes) {
-    // PostgREST não suporta extract; vamos filtrar mes client-side
-  }
-
-  const { data, error } = await q;
+  // PREMIUM: compilado por nome via RPC protegida (servidor checa is_premium()).
+  const { data, error } = await sb.rpc('buscar_resultados', {
+    p_cavaleiro: cavaleiro || null,
+    p_cavalo:    cavalo || null,
+    p_fonte:     fonte || null,
+    p_ano:       ano ? parseInt(ano) : null,
+    p_mes:       mes ? parseInt(mes) : null,
+  });
   if (error) throw error;
-  let resultados = data || [];
-
-  // Filtro mês aplicado client-side
-  if (mes) {
-    resultados = resultados.filter(r => {
-      const d = r.provas?.torneios?.data_inicio;
-      return d && parseInt(d.substring(5, 7)) === parseInt(mes);
-    });
-  }
-  // Filtros transitivos do PostgREST aplicam mas só ao registro referenciado —
-  // garantir também client-side (caso registros sem torneios? defesa em profundidade)
-  if (fonte) resultados = resultados.filter(r => r.provas?.torneios?.fonte === fonte);
-
-  return resultados;
+  // remonta o formato aninhado que a renderização espera
+  return (data || []).map(r => ({
+    colocacao: r.colocacao, cavaleiro_nome: r.cavaleiro_nome, cavalo_nome: r.cavalo_nome,
+    penalidade: r.penalidade, tempo: r.tempo, pontos: r.pontos,
+    penalidade_2: r.penalidade_2, tempo_2: r.tempo_2, prova_id: r.prova_id,
+    provas: {
+      id: r.prova_id, nome: r.prova_nome, numero: r.prova_numero, descricao: r.prova_descricao,
+      categorias: r.prova_categorias, tipo_prova: r.prova_tipo, torneio_id: r.torneio_id,
+      torneios: { id: r.torneio_id, nome: r.torneio_nome, fonte: r.torneio_fonte, data_inicio: r.torneio_data }
+    }
+  }));
 }
 
 // ─── Renderização principal ──────────────────────────────────
