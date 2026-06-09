@@ -883,7 +883,7 @@ function highlight(text, term) {
 let _profileLinkMap = new Map();
 async function loadProfileLinkMap() {
   try {
-    const { data } = await sb.from('profiles')
+    const { data } = await sb.from('profiles_publicos')
       .select('id,cavaleiro_nome')
       .eq('cavaleiro_match_confirmado', true)
       .eq('visibilidade', 'publico');

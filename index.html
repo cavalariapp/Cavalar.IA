@@ -3618,7 +3618,7 @@ async function initFeedGlobal() {
   const profileIds = [...new Set((data || []).map(p => p.profile_id))];
   const [profilesRes, likesRes] = await Promise.all([
     profileIds.length
-      ? sb.from('profiles').select('id,nome_completo,avatar_url,cavaleiro_match_confirmado').in('id', profileIds)
+      ? sb.from('profiles_publicos').select('id,nome_completo,avatar_url,cavaleiro_match_confirmado').in('id', profileIds)
       : Promise.resolve({ data: [] }),
     _currentUser && postIds.length
       ? sb.from('post_likes').select('post_id').eq('profile_id', _currentUser.id).in('post_id', postIds)
@@ -4043,7 +4043,7 @@ function playHomeEpisodio(i) { const m = _homeEpisodios[i]; if (m) playMediaDire
 // Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
 async function loadProfileLinkMap() {
   try {
-    const { data } = await sb.from('profiles')
+    const { data } = await sb.from('profiles_publicos')
       .select('id,cavaleiro_nome,visibilidade')
       .eq('cavaleiro_match_confirmado', true)
       .eq('visibilidade', 'publico');
