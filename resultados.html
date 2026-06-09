@@ -794,6 +794,14 @@ let allTorneios   = [];  // [{ id, nome, fonte, ano }] (ano extraído do nome)
 let allProvas     = [];  // [{ id, nome, torneio_id }]
 let allResultados = [];  // [{ id, colocacao, cavaleiro_nome, cavalo_nome, tempo, penalidade, pontos, prova_id }]
 let allOrdens = {};      // { prova_id: [{ ordem, cavaleiro_nome, cavalo_nome, categoria, pontuacao }] }
+let _resPremium = false; // assinante? (compilar resultados por cavalo/cavaleiro é premium)
+
+// Paywall inline (esta página não compartilha o helper do index.html)
+function resPaywall(titulo, desc) {
+  return `<div class="state-msg"><div class="icon">🔒</div><h3>${escHtml(titulo)}</h3>
+    <p>${escHtml(desc)}</p>
+    <a href="index.html" style="display:inline-block;margin-top:12px;background:var(--accent,#e8632a);color:#fff;padding:11px 22px;border-radius:6px;font-weight:800;text-decoration:none;font-size:13px;text-transform:uppercase;letter-spacing:.05em">Assinar o Cavalar.IA</a></div>`;
+}
 // modo=ordens (vindo do ícone "Ordens de Entrada" da home): mesma página, foco na ordem.
 const _modoOrdens = new URLSearchParams(location.search).get('modo') === 'ordens';
 if (_modoOrdens) {
@@ -930,6 +938,8 @@ async function loadData() {
 
   // Carrega map de profiles vinculados em paralelo (não bloqueia)
   loadProfileLinkMap();
+  // Estado premium (compilar por cavalo/cavaleiro é só pra assinantes)
+  try { const { data } = await sb.rpc('is_premium'); _resPremium = !!data; } catch (_) { _resPremium = false; }
 
   try {
     const { data: torneios, error: errT } = await sb
@@ -1094,16 +1104,13 @@ async function loadTorneio(torneioId) {
     //    (CSN com +1000 resultados) perderiam as provas finais (as de prova_id
     //    mais alto). Buscamos em páginas de 1000 até esgotar.
     if (allProvas.length > 0) {
-      const provaIds = allProvas.map(p => p.id);
+      // Browse = FREE, mas via RPC (resultados_torneio) — o SELECT direto em
+      // `resultados` é revogado na 049. Mantém a paginação (PostgREST corta em 1000).
       const PAGE = 1000;
       allResultados = [];
       for (let offset = 0; ; offset += PAGE) {
         const { data: page, error: errR } = await sb
-          .from('resultados')
-          .select('*')
-          .in('prova_id', provaIds)
-          .order('prova_id', { ascending: true })
-          .order('id',       { ascending: true })
+          .rpc('resultados_torneio', { p_torneio_id: torneioId })
           .range(offset, offset + PAGE - 1);
         if (errR) throw errR;
         allResultados = allResultados.concat(page || []);
@@ -1576,6 +1583,15 @@ function buildStatsCard(todosResultados, cavaleiroQuery, cavaloQuery) {
 // ─── Renderização em modo busca global ──────────────────────
 async function renderGlobalSearch(cavaleiro, cavalo) {
   const container = $id('provas-container');
+  // Compilar resultados por cavalo/cavaleiro é PREMIUM.
+  if (!_resPremium) {
+    $id('torneio-nome').textContent = 'Busca por cavalo/cavaleiro';
+    $id('torneio-meta').innerHTML = '';
+    $id('results-summary').innerHTML = '';
+    container.innerHTML = resPaywall('Compilado de resultados é premium',
+      'Ver o histórico completo de um cavalo ou cavaleiro (todas as provas, colocações, estatísticas) é exclusivo para assinantes. Você pode navegar livremente o resultado de cada torneio.');
+    return;
+  }
   container.innerHTML = `<div class="state-msg"><div class="icon">🔎</div><h3>Buscando...</h3></div>`;
 
   const sumEl = $id('results-summary');
