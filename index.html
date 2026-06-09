@@ -6440,13 +6440,25 @@ function _toggleDocText(docId) {
 // Renderiza o conteúdo estruturado conforme o tipo
 function _renderDocStructured(d) {
   const s = d.conteudo_estruturado;
+  // Adendo é texto livre (sem schema) → mostra o texto extraído direto.
+  if (d.tipo === 'adendo') {
+    return d.texto_extraido
+      ? _renderTextoLivre(d.texto_extraido)
+      : `<div class="doc-pending">⏳ Conteúdo ainda sendo processado. Abra o PDF abaixo.</div>`;
+  }
   if (!s) {
-    return `<div class="doc-pending">⏳ Conteúdo ainda sendo estruturado pela IA. Tenta o PDF abaixo.</div>`;
+    // Fallback: se o texto já foi extraído mas ainda não estruturado, mostra o texto cru.
+    return d.texto_extraido
+      ? _renderTextoLivre(d.texto_extraido)
+      : `<div class="doc-pending">⏳ Conteúdo ainda sendo estruturado pela IA. Tenta o PDF abaixo.</div>`;
   }
   if (d.tipo === 'horarios') return _renderHorarios(s);
   if (d.tipo === 'programa') return _renderPrograma(s);
   if (d.tipo === 'adendo')   return _renderAdendo(s);
   return _renderOutros(s);
+}
+function _renderTextoLivre(t) {
+  return `<div class="doc-texto" style="white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--fg);padding:6px 2px;max-height:60vh;overflow:auto">${escHtml(t)}</div>`;
 }
 
 // Renderização Quadro de Horários (timetable visual)

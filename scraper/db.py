@@ -326,12 +326,16 @@ class SupabaseWriter:
         return {"inseridos": inseridos, "atualizados": atualizados}
 
     def docs_para_estruturar(self, limit=15):
-        """Docs que faltam estruturar: programa/horarios SEM conteudo_estruturado.
-        [{id, tipo, url_pdf}] — alvo do passo de estruturação (PDF→Claude)."""
+        """Docs que faltam processar:
+          - programa/horarios SEM conteudo_estruturado (precisam do schema da IA);
+          - adendo SEM texto_extraido (adendo é texto livre — só extrai o texto).
+        [{id, tipo, url_pdf}] — alvo do passo de estruturação (PDF→texto→Claude)."""
         self._require()
         return self._get(
-            "/rest/v1/torneio_documentos?select=id,tipo,url_pdf&conteudo_estruturado=is.null"
-            f"&tipo=in.(programa,horarios)&url_pdf=not.is.null&order=id.desc&limit={limit}")
+            "/rest/v1/torneio_documentos?select=id,tipo,url_pdf&url_pdf=not.is.null"
+            "&or=(and(tipo.in.(programa,horarios),conteudo_estruturado.is.null),"
+            "and(tipo.eq.adendo,texto_extraido.is.null))"
+            f"&order=id.desc&limit={limit}")
 
     def set_documento_estruturado(self, doc_id, texto=None, estrut=None):
         """Grava texto_extraido / conteudo_estruturado (+ timestamps) de um doc."""
