@@ -4071,7 +4071,9 @@ async function updateAuthButton() {
     const user = session?.user || null;
     _currentUser = user;
     if (user) {
-      const { data: profile } = await sb.from('profiles').select('nome_completo,email,cavaleiro_nome,avatar_url,is_admin').eq('id', user.id).maybeSingle();
+      // PII (email etc) só pelo dono → RPC SECURITY DEFINER (a tabela profiles
+      // não expõe mais email/celular/idade/is_admin a authenticated/anon).
+      const { data: profile } = await sb.rpc('meu_perfil');
       _currentProfile = profile;
       _isAdmin = !!(profile && profile.is_admin);
       iniciarRealtime();   // assina mensagens/solicitações em tempo real

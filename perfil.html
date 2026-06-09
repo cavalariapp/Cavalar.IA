@@ -542,10 +542,14 @@ async function carregar() {
 
   _ehProprio = _meuId && (_meuId === _alvoId);
 
-  // Próprio perfil: lê profiles (inclui email/celular/idade só pra você).
-  // Outros: lê a view profiles_publicos (não traz dados sensíveis).
-  const fonteProfile = _ehProprio ? 'profiles' : 'profiles_publicos';
-  const { data: profile, error } = await sb.from(fonteProfile).select('*').eq('id', _alvoId).single();
+  // Próprio perfil: RPC SECURITY DEFINER traz tudo (inclui email/celular/idade).
+  // Outros: view profiles_publicos (não traz dados sensíveis).
+  let profile, error;
+  if (_ehProprio) {
+    ({ data: profile, error } = await sb.rpc('meu_perfil'));
+  } else {
+    ({ data: profile, error } = await sb.from('profiles_publicos').select('*').eq('id', _alvoId).single());
+  }
   if (error || !profile) {
     $('loading').style.display = 'none';
     $('content').style.display = 'block';
