@@ -363,17 +363,16 @@ async function confirmOtp() {
     $('err-3').textContent = error?.message || 'Código inválido';
     return;
   }
-  // Cria perfil base
-  const { error: errProf } = await sb.from('profiles').upsert({
-    id: data.user.id,
-    nome_completo: dados.nome,
-    idade: dados.idade,
-    email: dados.email,
-    celular: dados.celular,
-    estado: dados.estado,
-    pais: dados.pais,
-    tipos: dados.tipos,
-    visibilidade: 'publico',
+  // Cria perfil base via RPC SECURITY DEFINER (contorna os grants de coluna do
+  // hardening de PII; cria só o próprio perfil, id = auth.uid()).
+  const { error: errProf } = await sb.rpc('salvar_perfil_cadastro', {
+    p_nome: dados.nome,
+    p_idade: dados.idade,
+    p_email: dados.email,
+    p_celular: dados.celular,
+    p_estado: dados.estado,
+    p_pais: dados.pais,
+    p_tipos: dados.tipos,
   });
   if (errProf) { $('err-3').textContent = errProf.message; return; }
   // Próximo: reconhecer cavaleiro
