@@ -4769,7 +4769,9 @@ async function renderMedia(tipo) {
     const chip = (lbl, idx, on) => `<button class="pill${on ? ' active' : ''}" onclick="mediaPrograma('${tipo}',${idx})">${escHtml(lbl)}</button>`;
     subtabs = `<div class="pills" style="padding:8px 16px 4px">${chip('Todos', -1, !sel)}${programas.map((p, k) => chip(p, k, sel === p)).join('')}</div>`;
   }
-  const filtered = sel ? items.filter(m => (m.programa || '').trim() === sel) : items;
+  let filtered = sel ? items.filter(m => (m.programa || '').trim() === sel) : items.slice();
+  // aba "Todos": mistura os programas por DATA DE PUBLICAÇÃO (mais novo no topo)
+  if (!sel) filtered.sort((a, b) => String(b.data_pub || b.created_at || '').localeCompare(String(a.data_pub || a.created_at || '')));
   if (!filtered.length) {
     c.innerHTML = adminBar + subtabs + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} ${sel ? 'em "' + escHtml(sel) + '"' : 'disponível'} ainda.</div>`;
     return;
@@ -4792,8 +4794,8 @@ async function renderMedia(tipo) {
       })()}
       ${_isAdmin ? `
       <div class="media-admin-actions" style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
-        <button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
-        <button onclick="moveMedia('${tipo}',${m.id},1)" ${i === filtered.length - 1 ? 'disabled style="opacity:.4"' : ''}>↓</button>
+        ${sel ? `<button onclick="moveMedia('${tipo}',${m.id},-1)" ${i === 0 ? 'disabled style="opacity:.4"' : ''}>↑</button>
+        <button onclick="moveMedia('${tipo}',${m.id},1)" ${i === filtered.length - 1 ? 'disabled style="opacity:.4"' : ''}>↓</button>` : ''}
         <button onclick="openMediaEditor('${tipo}',${m.id})">Editar</button>
         <button class="danger" onclick="deleteMediaAdmin('${tipo}',${m.id})">Excluir</button>
       </div>` : ''}

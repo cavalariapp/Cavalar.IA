@@ -662,28 +662,35 @@ def processar_spotify_show(args, writer):
     if not (args.write and writer.configured):
         print("  (dry-run: nada gravado — use --write para persistir)")
         return 0
-    # dedup por url já existente em media
-    existentes, off = set(), 0
+    # mapa url→id já existente (dedup + backfill da data nos antigos ao re-rodar)
+    existentes, off = {}, 0
     while True:
-        ch = writer._get(f"/rest/v1/media?tipo=eq.podcast&select=url&limit=1000&offset={off}")
+        ch = writer._get(f"/rest/v1/media?tipo=eq.podcast&select=id,url&limit=1000&offset={off}")
         for x in ch:
-            existentes.add(x.get("url"))
+            if x.get("url"):
+                existentes[x["url"]] = x["id"]
         if len(ch) < 1000:
             break
         off += 1000
     mx = writer._get("/rest/v1/media?tipo=eq.podcast&select=ordem&order=ordem.desc&limit=1")
     base = (mx[0]["ordem"] + 1) if mx else 0
-    rows = []
+    rows, atualizados = [], 0
     for i, e in enumerate(eps):
         u = (e.get("external_urls") or {}).get("spotify")
-        if not u or u in existentes:
+        if not u:
+            continue
+        dp = sp.release_to_date(e.get("release_date"))
+        if u in existentes:                      # já existe → só completa a data
+            if dp:
+                writer._patch(f"/rest/v1/media?id=eq.{existentes[u]}", {"data_pub": dp})
+                atualizados += 1
             continue
         rows.append({"tipo": "podcast", "url": u, "titulo": e.get("name"),
-                     "programa": programa, "cor": cor, "imagem": logo, "ordem": base + i})
+                     "programa": programa, "cor": cor, "imagem": logo,
+                     "data_pub": dp, "ordem": base + i})
     if rows:
         writer._post("/rest/v1/media", rows)
-    print(f"  ✓ {len(rows)} episódios novos inseridos em '{programa}' "
-          f"({len(eps) - len(rows)} já existiam).")
+    print(f"  ✓ {len(rows)} episódios novos inseridos, {atualizados} datas atualizadas em '{programa}'.")
     return 0
 
 

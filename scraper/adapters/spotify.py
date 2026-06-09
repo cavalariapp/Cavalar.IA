@@ -53,6 +53,16 @@ def episodes(sid, tok, market="BR"):
     return out
 
 
+def release_to_date(s):
+    """release_date do Spotify ('2024', '2024-05' ou '2024-05-01') → data ISO
+    completa (preenche mês/dia com 01)."""
+    s = (s or "").strip()
+    m = re.match(r"^(\d{4})(?:-(\d{2}))?(?:-(\d{2}))?$", s)
+    if not m:
+        return None
+    return f"{m.group(1)}-{m.group(2) or '01'}-{m.group(3) or '01'}"
+
+
 def cor_dominante(img_url):
     """Cor média (hex) da capa — pro balão sair na cor da marca. None se falhar."""
     try:
