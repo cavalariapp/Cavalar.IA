@@ -5591,6 +5591,13 @@ function _alturaProva(p) {
   return m ? (parseInt(m[1]) + parseInt(m[2]) / 100) : null;
 }
 function _sexoLabel(s) { return s === 'M' ? 'Garanhão' : s === 'F' ? 'Matriz' : '—'; }
+// Colocação uniforme ('1' SHB / '1º' demais → '1º'); preserva 'NC','EL' etc
+function _colocFmt(c) {
+  const s = (c == null ? '' : c).toString().trim();
+  if (!s) return '—';
+  const m = s.match(/\d+/);
+  return m ? parseInt(m[0], 10) + 'º' : s;
+}
 
 function initCavalo() {
   _cavaloVoltarBusca(false);
@@ -5714,7 +5721,7 @@ async function abrirPerfilCavalo(i) {
         const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
         const rider = (r.cavaleiro_nome || '').split('\n')[0];
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)">
-          <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(colo || '—')}</div>
+          <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(_colocFmt(colo))}</div>
           <div style="flex:1;min-width:0">
             <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}</div>
             <div style="font-size:10.5px;color:var(--muted)">${rider ? `<span onclick="_riderDoCavalo(${i})" style="color:var(--accent);cursor:pointer">${escHtml(rider)}</span> · ` : ''}${alt ? fmtAlt(alt) + ' · ' : ''}${escHtml((dt(r) || '').toString().slice(0, 10).split('-').reverse().join('/'))}</div>
@@ -5833,7 +5840,7 @@ async function abrirPerfilCavaleiro(i) {
       ${recentes.map((r, i) => {
         const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
         return `<div style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border)">
-          <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(colo || '—')}</div>
+          <div style="min-width:34px;text-align:center;font-weight:900;font-size:13px;color:${parseInt(colo) === 1 ? 'var(--accent)' : 'var(--fg)'}">${escHtml(_colocFmt(colo))}</div>
           <div style="flex:1;min-width:0">
             <div onclick="_cavaloDoRider(${i})" style="font-size:12.5px;font-weight:600;color:var(--accent);cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.cavalo_nome || '').split('\n')[0] || '—')}</div>
             <div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((r.provas && r.provas.torneios && r.provas.torneios.nome) || '—')}${alt ? ' · ' + alt.toFixed(2).replace('.', ',') + 'm' : ''}</div>

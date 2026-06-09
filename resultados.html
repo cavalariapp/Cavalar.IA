@@ -908,6 +908,20 @@ function posClass(pos) {
   return 'col-pos';
 }
 
+// As fontes gravam a colocação em formatos diferentes ('1' na SHB, '1º' nas demais,
+// às vezes '1°'). Uniformizamos na EXIBIÇÃO p/ não parecer inconsistente entre torneios.
+function colocNum(c) {
+  const m = String(c == null ? '' : c).match(/\d+/);
+  return m ? parseInt(m[0], 10) : null;
+}
+function colocDisplay(c) {
+  const s = String(c == null ? '' : c).trim();
+  if (!s) return '—';
+  const n = colocNum(s);
+  if (n === null) return s;   // "NC", "EL", "DESC", etc → mantém o texto
+  return n + 'º';             // 1 / 1° / 1º → sempre "1º"
+}
+
 // ─── Carregar lista de torneios ──────────────────────────────
 async function loadData() {
   $id('skeleton').style.display  = 'block';
@@ -1471,11 +1485,11 @@ function calcularEstatisticas(resultados) {
     return /^0([\s\n(,]|$)/.test(p);
   }).length;
 
-  // Vitória: classificação "1º"
-  const vitorias = resultados.filter(r => (r.colocacao || '').trim() === '1º').length;
+  // Vitória: 1º colocado (independe do formato gravado: '1' ou '1º')
+  const vitorias = resultados.filter(r => colocNum(r.colocacao) === 1).length;
 
   // Top 6: 1º a 6º
-  const top6 = resultados.filter(r => /^[1-6]º$/.test((r.colocacao || '').trim())).length;
+  const top6 = resultados.filter(r => { const n = colocNum(r.colocacao); return n >= 1 && n <= 6; }).length;
 
   const pct = (n) => totalEntradas > 0 ? Math.round((n / totalEntradas) * 100) : 0;
   return {
@@ -1674,10 +1688,23 @@ function nomeEspecialDaProva(prova) {
   return null;
 }
 
-// Tipo de prova em formato visual amigável (já em pt-BR)
+// Tipo de prova em formato visual amigável (já em pt-BR).
+// O banco tem valores canônicos ("Duas Fases", "Cronometro"…) MISTURADOS com texto
+// cru das federações ("CRONÔMETRO COM UM DESEMPATE", "A - Art. 220.2.1.2"…).
+// Normalizamos pra um rótulo limpo; o que não casar e for muito técnico, escondemos.
 function tipoProvaLabel(t) {
-  if (!t || t === 'Outro') return null;
-  return t; // "Duas Fases", "Cronometro", "Desempate", "Tempo Ideal", "Duas Voltas"
+  if (!t) return null;
+  const s = t.trim().toLowerCase();
+  if (!s || s === 'outro') return null;
+  if (/duas?\s*fases/.test(s))                 return 'Duas Fases';
+  if (/duas?\s*voltas/.test(s))                return 'Duas Voltas';
+  if (/desempate/.test(s))                     return 'Com Desempate';
+  if (/cron[oô]metro/.test(s))                 return 'Cronômetro';
+  if (/tempo\s*ideal/.test(s))                 return 'Tempo Ideal';
+  if (/tempo\s*(oculto|concedido)/.test(s))    return 'Tempo Concedido';
+  // Strings técnicas de regulamento ("A - Art. ...") ou muito longas: esconde
+  if (/\bart\b|\d{3}\.\d/.test(s) || t.length > 28) return null;
+  return t;
 }
 
 // Bloco colapsável da ORDEM DE ENTRADA de uma prova (só aparece se houver dados).
@@ -1854,7 +1881,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
     }).join('');
     return `
       <tr>
-        <td><span class="${posClass(r.colocacao)}">${escHtml(r.colocacao)}</span></td>
+        <td><span class="${posClass(r.colocacao)}">${escHtml(colocDisplay(r.colocacao))}</span></td>
         <td class="col-rider">${(() => { const n = nomeCavaleiro(r.cavaleiro_nome); return linkifyCavaleiro(n, highlight(n, cavaleiro)); })()}</td>
         <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return highlight(c.nome, cavalo) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
         ${cells}
@@ -1862,8 +1889,9 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
   }).join('');
 
   const headerCells = cols.map(c => `<th${c.hideSm ? ' class="col-hide-sm"' : ''}>${escHtml(c.label)}</th>`).join('');
-  const tipoLabel = prova.tipo_prova && prova.tipo_prova !== 'Outro'
-    ? `<div style="padding:6px 12px;background:var(--surface2);font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Tipo: ${escHtml(prova.tipo_prova)}</div>`
+  const tipoTxt = tipoProvaLabel(prova.tipo_prova);
+  const tipoLabel = tipoTxt
+    ? `<div style="padding:6px 12px;background:var(--surface2);font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)">Tipo: ${escHtml(tipoTxt)}</div>`
     : '';
 
   return `
