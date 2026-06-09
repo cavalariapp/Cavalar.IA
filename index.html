@@ -4711,7 +4711,7 @@ function _evtBuildRow(e) {
 // Favoritar/desfavoritar torneio (estrela). Guarda em torneios_favoritos e
 // garante o push ativo — passa a receber aviso de programa/adendo/horário/ordem.
 async function toggleFavorito(torneioId, btn) {
-  if (!_currentUser) { alert('Entre na sua conta para favoritar e receber avisos.'); return; }
+  if (!_isPremium) { abrirAssinatura(); return; }   // favoritar + alertas = premium
   const id = Number(torneioId);
   const jaTinha = _favoritos.has(id);
   try {
