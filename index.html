@@ -4842,7 +4842,7 @@ async function renderMedia(tipo) {
   c.innerHTML = adminBar + subtabs + filtered.map((m, i) => `
     <div class="media-item">
       <div class="media-cat">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
-      <div class="media-title">${escHtml(m.titulo || '')}</div>
+      <div class="media-title">${escHtml(m.titulo || '')}${m.premium ? ' <span style="font-size:9px;font-weight:800;letter-spacing:.04em;color:var(--accent);border:1px solid var(--accent);border-radius:10px;padding:1px 6px;vertical-align:middle;white-space:nowrap">🔒 PREMIUM</span>' : ''}</div>
       ${m.legenda ? `<div class="media-legenda">${escHtml(m.legenda)}</div>` : ''}
       ${(() => {
         const bf = brandFor(m);
@@ -4945,6 +4945,7 @@ function playMedia(tipo, id) {
 // toca um item de mídia (objeto completo) — usado também pela home, sem cache
 function playMediaDirect(m) {
   if (!m) return;
+  if (m.premium && !_isPremium) { abrirAssinatura(); return; }   // mídia premium = só assinantes
   const mp = document.getElementById('mini-player');
   const body = document.getElementById('mini-player-body');
   document.getElementById('mini-player-title').textContent = m.titulo || '';
@@ -5026,6 +5027,10 @@ function _ensureMediaEditor() {
       </div>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Legenda (opcional)</label>
       <textarea id="me-legenda" rows="3" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;font-family:inherit"></textarea>
+      <label style="display:flex;align-items:center;gap:8px;margin:12px 0 4px;font-size:13px;cursor:pointer">
+        <input id="me-premium" type="checkbox" style="width:18px;height:18px;cursor:pointer"/>
+        <span>🔒 Premium <span style="color:var(--muted);font-size:11px">(só assinantes ouvem/assistem)</span></span>
+      </label>
       <div id="me-msg" style="font-size:12px;color:#ff8080;margin-top:10px;min-height:16px"></div>
       <div style="display:flex;gap:8px;margin-top:6px">
         <button id="me-save" onclick="saveMediaEditor()" style="background:var(--accent);color:#08111c;border:none;border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer;flex:1">Salvar</button>
@@ -5078,6 +5083,7 @@ function openMediaEditor(tipo, id) {
   const progs = STATE._mediaProgramas[tipo] || [...new Set((STATE.mediaCache[tipo] || []).map(x => (x.programa || '').trim()).filter(Boolean))];
   document.getElementById('me-programa-list').innerHTML = (progs || []).map(p => `<option value="${escHtml(p)}">`).join('');
   document.getElementById('me-legenda').value = m ? (m.legenda || '') : '';
+  document.getElementById('me-premium').checked = !!(m && m.premium);
   document.getElementById('me-preview').innerHTML = m ? mediaEmbed(m.url) : '';
   document.getElementById('me-msg').textContent = '';
   document.getElementById('media-editor-overlay').style.display = 'flex';
@@ -5101,7 +5107,7 @@ async function saveMediaEditor() {
   const id = document.getElementById('me-id').value;
   let imagem = document.getElementById('me-imagem').value.trim() || null;
   if (!imagem) imagem = await _autoLogo(url);   // garante a capa da fonte mesmo sem digitar
-  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null };
+  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null, premium: document.getElementById('me-premium').checked };
   btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
   try {
     let error;
