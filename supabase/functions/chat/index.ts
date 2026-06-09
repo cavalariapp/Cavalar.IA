@@ -746,6 +746,21 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response(JSON.stringify({ erro: "use POST" }), { status: 405, headers: { ...CORS, "Content-Type": "application/json" } });
 
   try {
+    // ─── TRAVA PREMIUM (servidor) ─────────────────────────────────
+    // O chatbot é exclusivo para assinantes. Valida is_premium() com o JWT do
+    // usuário (admin também passa, via is_premium). Sem isso, qualquer um com a
+    // anon key chamaria a função direto.
+    const authHeader = req.headers.get("Authorization") || "";
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+    const { data: prem } = await userClient.rpc("is_premium");
+    if (!prem) {
+      return new Response(JSON.stringify({ erro: "premium_required" }),
+        { status: 403, headers: { ...CORS, "Content-Type": "application/json" } });
+    }
+
     const { messages = [] } = await req.json();
     if (!messages.length) return new Response(JSON.stringify({ erro: "messages é obrigatório" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
 

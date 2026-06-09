@@ -6373,6 +6373,15 @@ let _cbWorking = false;
 function openChatbot() {
   document.getElementById('cb-panel-bg').classList.add('open');
   document.body.style.overflow = 'hidden';
+  const inputWrap = document.querySelector('.cb-input-wrap');
+  if (!_isPremium) {   // chatbot é premium
+    document.getElementById('cb-msgs').innerHTML = paywallHTML('IA Cavalar',
+      'O assistente que responde sobre rankings, estatísticas, eventos e adendos com base em todos os dados do app é exclusivo para assinantes.');
+    document.getElementById('cb-suggest').style.display = 'none';
+    if (inputWrap) inputWrap.style.display = 'none';
+    return;
+  }
+  if (inputWrap) inputWrap.style.display = '';
   if (_cbMessages.length === 0) {
     _cbAppend('assistant', 'Oi! Sou a IA do Cavalar. Posso responder sobre rankings, estatísticas de cavaleiros e cavalos, próximos eventos, adendos publicados — tudo baseado nos dados do app. O que você quer saber?');
     document.getElementById('cb-suggest').style.display = 'flex';
@@ -6431,12 +6440,15 @@ async function cbSend() {
   const thinking = _cbAppend('thinking', 'Pensando…');
 
   try {
+    // Envia o JWT do usuário (não a anon key) pra edge validar is_premium() no servidor
+    const { data: { session } } = await sb.auth.getSession();
+    const token = session?.access_token || SUPABASE_KEY;
     // Supabase Edge Function (mesmo SUPABASE_URL definido lá no início do script)
     const res = await fetch(`${SUPABASE_URL}/functions/v1/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Authorization': `Bearer ${token}`,
         'apikey': SUPABASE_KEY,
       },
       body: JSON.stringify({ messages: _cbMessages }),
@@ -6453,12 +6465,9 @@ async function cbSend() {
     const data = await res.json();
     _cbAppend('assistant', data.resposta || '(sem resposta)');
 
-    // Atualiza histórico com o que o backend devolveu
-    // (inclui tool_uses e tool_results — preserva contexto pra próximas perguntas)
-    if (data.messages) {
-      // Mantém só o histórico do usuário + assistant (sem tools intermediárias visíveis)
-      _cbMessages.push({ role: 'assistant', content: data.resposta || '' });
-    }
+    // SEMPRE registra a resposta no histórico (alternando user↔assistant).
+    // Sem isto, _cbMessages só teria perguntas e o modelo re-responderia todas.
+    _cbMessages.push({ role: 'assistant', content: data.resposta || '' });
   } catch (e) {
     thinking.remove();
     _cbAppend('assistant', `Falha de conexão: ${e.message}`);
