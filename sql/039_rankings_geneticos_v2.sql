@@ -9,6 +9,9 @@
 --   pct140       : % dos filhos +8 anos que saltam >=1,40 = (+8 E >=1,40) / f8
 -- Idade limitada a <=30 em tudo (exclui fundadores homônimos dos anos 70).
 
+-- o tipo de retorno mudou (novas colunas) → precisa dropar antes de recriar
+drop function if exists public.rankings_geneticos(text, int);
+
 create or replace function public.rankings_geneticos(papel text, ano int default null)
 returns table (
   reprodutor   text,
