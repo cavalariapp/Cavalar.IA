@@ -2396,6 +2396,13 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     </div>
   </div>
 
+  <!-- PARCEIROS & OFERTAS (patrocinadores — visível a todos) -->
+  <div class="sec-hdr" id="patro-hdr" style="display:none">
+    <span class="sec-title">Parceiros &amp; Ofertas</span>
+    <button class="sec-link" id="patro-add-btn" style="display:none" onclick="openPatrocinadorEditor()">+ ADICIONAR</button>
+  </div>
+  <div id="home-patrocinadores" style="padding:0 16px 6px"></div>
+
   <!-- ÚLTIMOS EPISÓDIOS (3 mais recentes, dinâmico) -->
   <div class="sec-hdr"><span class="sec-title">Últimos Episódios</span><button class="sec-link" onclick="nav('videoaulas')">VER TODOS →</button></div>
   <div id="home-episodios" style="padding:0 16px 6px"></div>
@@ -4031,7 +4038,7 @@ function initCategories() {
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
 async function renderHomeContent() {
-  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios()]);
+  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios(), renderPatrocinadores()]);
 }
 
 // ─── HOME: 3 últimos episódios de podcast (dinâmico) ─────────────────
@@ -4059,6 +4066,88 @@ async function renderHomeEpisodios() {
   }).join('');
 }
 function playHomeEpisodio(i) { const m = _homeEpisodios[i]; if (m) playMediaDirect(m); }
+
+// ─── PATROCINADORES (parceiros & ofertas — visível a todos, gerido pelo admin) ─
+let _patrocinadores = [];
+async function renderPatrocinadores() {
+  const c = document.getElementById('home-patrocinadores');
+  const hdr = document.getElementById('patro-hdr');
+  const addBtn = document.getElementById('patro-add-btn');
+  if (!c) return;
+  try {
+    const { data } = await sb.from('patrocinadores').select('*').eq('ativo', true).eq('posicao', 'home').order('ordem', { ascending: true });
+    _patrocinadores = data || [];
+  } catch (_) { _patrocinadores = []; }
+  if (addBtn) addBtn.style.display = _isAdmin ? '' : 'none';
+  if (!_patrocinadores.length && !_isAdmin) { if (hdr) hdr.style.display = 'none'; c.innerHTML = ''; return; }
+  if (hdr) hdr.style.display = 'flex';
+  if (!_patrocinadores.length) { c.innerHTML = '<div style="color:var(--muted);font-size:12.5px;padding:6px 2px">Nenhum patrocinador ainda — toque em <b>+ Adicionar</b>.</div>'; return; }
+  const TL = { leilao: 'Leilão', criador: 'Criador', produto: 'Produto' };
+  c.innerHTML = `<div style="display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch">${_patrocinadores.map((p, i) => `
+    <div style="flex:0 0 78%;max-width:300px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);position:relative">
+      <div onclick="abrirPatrocinador(${i})" style="cursor:pointer">
+        ${p.imagem_url
+          ? `<div style="height:118px;background:#0a0f1a;background-image:url('${escHtml(p.imagem_url)}');background-size:cover;background-position:center"></div>`
+          : `<div style="height:118px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;font-weight:700">${escHtml(p.nome)}</div>`}
+        <div style="padding:10px 12px">
+          ${TL[p.tipo] ? `<div style="font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)">${TL[p.tipo]}</div>` : ''}
+          <div style="font-weight:800;font-size:14px;margin-top:2px">${escHtml(p.nome)}</div>
+          ${p.descricao ? `<div style="font-size:11.5px;color:var(--muted);margin-top:2px">${escHtml(p.descricao)}</div>` : ''}
+        </div>
+      </div>
+      ${_isAdmin ? `<div style="position:absolute;top:6px;right:6px;display:flex;gap:4px">
+        <button onclick="openPatrocinadorEditor('${p.id}')" style="background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">✎</button>
+        <button onclick="deletePatrocinador('${p.id}')" style="background:rgba(0,0,0,.6);color:#ff8080;border:none;border-radius:6px;padding:3px 8px;font-size:12px;cursor:pointer">🗑</button>
+      </div>` : ''}
+    </div>`).join('')}</div>`;
+}
+function abrirPatrocinador(i) { const p = _patrocinadores[i]; if (p && p.link) window.open(p.link, '_blank', 'noopener'); }
+
+function openPatrocinadorEditor(id) {
+  const p = id ? _patrocinadores.find(x => x.id === id) : null;
+  const esc = v => (v == null ? '' : String(v).replace(/"/g, '&quot;'));
+  const inp = 'width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px;margin-top:8px';
+  let ov = document.getElementById('patro-editor');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'patro-editor'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center';
+  const opt = (v, l) => `<option value="${v}" ${p && p.tipo === v ? 'selected' : ''}>${l}</option>`;
+  ov.innerHTML = `<div style="background:var(--surface);width:100%;max-width:460px;border-radius:16px 16px 0 0;padding:18px;max-height:88vh;overflow:auto">
+    <h3 style="margin:0 0 6px;font-size:16px">${p ? 'Editar' : 'Novo'} patrocinador</h3>
+    <input id="pe-nome" placeholder="Nome" value="${esc(p && p.nome)}" style="${inp}">
+    <select id="pe-tipo" style="${inp}">${opt('', 'Tipo…')}${opt('leilao', 'Leilão')}${opt('criador', 'Criador')}${opt('produto', 'Produto')}</select>
+    <input id="pe-desc" placeholder="Oferta/descrição (ex.: 20% OFF até domingo)" value="${esc(p && p.descricao)}" style="${inp}">
+    <input id="pe-img" placeholder="URL da imagem/banner" value="${esc(p && p.imagem_url)}" style="${inp}">
+    <input id="pe-link" placeholder="Link de destino (https://…)" value="${esc(p && p.link)}" style="${inp}">
+    <input id="pe-ordem" type="number" placeholder="Ordem" value="${p ? (p.ordem ?? 0) : 0}" style="${inp}">
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer"><input id="pe-ativo" type="checkbox" ${!p || p.ativo ? 'checked' : ''} style="width:18px;height:18px"> Ativo</label>
+    <div id="pe-msg" style="color:#ff8080;font-size:12px;margin-top:8px;min-height:14px"></div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button onclick="savePatrocinador('${p ? p.id : ''}')" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:800;cursor:pointer">Salvar</button>
+      <button onclick="document.getElementById('patro-editor').remove()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--border);border-radius:8px;padding:11px 16px;cursor:pointer">Cancelar</button>
+    </div>
+  </div>`;
+}
+async function savePatrocinador(id) {
+  const g = i => { const e = document.getElementById(i); return e ? e.value.trim() : ''; };
+  const rec = {
+    nome: g('pe-nome'), tipo: g('pe-tipo') || null, descricao: g('pe-desc') || null,
+    imagem_url: g('pe-img') || null, link: g('pe-link') || null,
+    ordem: parseInt(document.getElementById('pe-ordem').value) || 0,
+    ativo: document.getElementById('pe-ativo').checked, posicao: 'home',
+  };
+  if (!rec.nome) { document.getElementById('pe-msg').textContent = 'Nome é obrigatório.'; return; }
+  let error;
+  if (id) ({ error } = await sb.from('patrocinadores').update(rec).eq('id', id));
+  else ({ error } = await sb.from('patrocinadores').insert(rec));
+  if (error) { document.getElementById('pe-msg').textContent = error.message; return; }
+  const ov = document.getElementById('patro-editor'); if (ov) ov.remove();
+  renderPatrocinadores();
+}
+async function deletePatrocinador(id) {
+  if (!confirm('Remover este patrocinador?')) return;
+  await sb.from('patrocinadores').delete().eq('id', id);
+  renderPatrocinadores();
+}
 
 // Carrega usuários confirmados como cavaleiros → mapa pra linkificar nomes
 async function loadProfileLinkMap() {
@@ -5654,7 +5743,6 @@ function renderAssinatura() {
     'Rankings genéticos, progênie e cruzamentos',
     'Alertas e favoritos no calendário',
     'Assistente de IA (chatbot)',
-    'Navegação sem anúncios',
   ];
   const planoCard = (titulo, preco, sub, plano, destaque) => `
     <div style="border:1px solid ${destaque ? 'var(--accent)' : 'var(--border)'};border-radius:14px;padding:18px;background:var(--surface);margin-bottom:14px;position:relative">
@@ -6067,6 +6155,7 @@ async function init() {
   renderMedia(STATE.mediaTab);
   carregarEstatisticas();
   renderHomeEpisodios();
+  renderPatrocinadores();
   initAuth();
   initSearch();
   initCategories();
