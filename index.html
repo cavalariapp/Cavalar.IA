@@ -4158,8 +4158,9 @@ function openPatrocinadorEditor(id) {
     <h3 style="margin:0 0 6px;font-size:16px">${p ? 'Editar' : 'Novo'} banner</h3>
     <label style="font-size:11px;color:var(--muted)">Rótulo interno (só você vê)</label>
     <input id="pe-nome" placeholder="ex.: Leilão Haras X — junho" value="${esc(p && p.nome)}" style="${inp}">
-    <label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">URL da imagem (banner pronto, alta definição)</label>
-    <input id="pe-img" placeholder="https://…/banner.jpg" value="${esc(p && p.imagem_url)}" style="${inp}">
+    <label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Imagem do banner (alta definição)</label>
+    <input id="pe-file" type="file" accept="image/*" onchange="uploadBannerImagem(this)" style="${inp}font-size:12px">
+    <input id="pe-img" placeholder="…ou cole uma URL de imagem" value="${esc(p && p.imagem_url)}" style="${inp}">
     <div id="pe-prev" style="margin-top:8px;line-height:0">${p && p.imagem_url ? `<img src="${esc(p.imagem_url)}" style="width:100%;border-radius:8px">` : ''}</div>
     <label style="font-size:11px;color:var(--muted);margin-top:8px;display:block">Link de redirecionamento</label>
     <input id="pe-link" placeholder="https://…" value="${esc(p && p.link)}" style="${inp}">
@@ -4177,6 +4178,23 @@ function openPatrocinadorEditor(id) {
   </div>`;
   const img = document.getElementById('pe-img');
   img.addEventListener('input', () => { document.getElementById('pe-prev').innerHTML = img.value.trim() ? `<img src="${img.value.trim().replace(/"/g, '&quot;')}" style="width:100%;border-radius:8px">` : ''; });
+}
+
+async function uploadBannerImagem(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const msg = document.getElementById('pe-msg');
+  msg.style.color = 'var(--muted)'; msg.textContent = 'Enviando imagem…';
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `banner_${Date.now()}.${ext}`;
+    const { error } = await sb.storage.from('patrocinios').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
+    if (error) throw error;
+    const url = sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+    document.getElementById('pe-img').value = url;
+    document.getElementById('pe-prev').innerHTML = `<img src="${url.replace(/"/g, '&quot;')}" style="width:100%;border-radius:8px">`;
+    msg.textContent = '✓ Imagem enviada';
+  } catch (e) { msg.style.color = '#ff8080'; msg.textContent = 'Falha no upload: ' + (e.message || e); }
 }
 
 async function savePatrocinador(id) {
