@@ -52,12 +52,21 @@ as $$
     from ent e left join runs r on r.altura = e.altura and r.nome = e.nome
     group by e.altura, e.nome, e.ult
   )
-  select altura, nome,
-         case when corrente > 0 and corrente >= best_completed then corrente else best_completed end,
-         (corrente > 0 and corrente >= best_completed),
-         ult
-  from agg
-  where (case when corrente > 0 and corrente >= best_completed then corrente else best_completed end) > 0;
+  fin as (
+    select altura, nome,
+           case when corrente > 0 and corrente >= best_completed then corrente else best_completed end as comprimento,
+           (corrente > 0 and corrente >= best_completed) as ativo,
+           ult as ultima_data
+    from agg
+  ),
+  ranked as (
+    select altura, nome, comprimento, ativo, ultima_data,
+           row_number() over (partition by altura
+             order by comprimento desc, ativo desc, ultima_data desc nulls last) as rk
+    from fin where comprimento > 0
+  )
+  -- top 25 por altura (o front exibe top 10 + faz desempate); evita o teto de 1000
+  select altura, nome, comprimento, ativo, ultima_data from ranked where rk <= 25;
 $$;
 grant execute on function public.ranking_zeros(text) to anon, authenticated;
 
