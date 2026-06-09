@@ -5693,13 +5693,21 @@ async function abrirPerfilCavalo(i) {
   // prefixo p/ ilike: corta no 1º '(' (o nome guardado mantém "(IA)"/"(TE)") e
   // tira %,_ e vírgula; o casamento exato é feito client-side por _normNome.
   const pref = nome1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
-  // resultados + progênie (com altura máxima por filho, via RPC) em paralelo
+  // Compilado de resultados = PREMIUM (via RPC protegida no servidor). Free não
+  // recebe nada de resultados/estatísticas. Progênie (nomes) é free; a RPC só
+  // devolve altura máxima dos filhos se premium.
   const tasks = [
-    sb.from('resultados').select('colocacao,penalidade,tempo,cavaleiro_nome,cavalo_nome,provas(nome,descricao,categorias,data_prova,torneios(nome,data_inicio))').ilike('cavalo_nome', pref + '%').limit(800),
+    _isPremium ? sb.rpc('historico_cavalo', { p_nome: nome1 }) : Promise.resolve({ data: [] }),
   ];
   if (c.gen) tasks.push(sb.rpc('progenie', { papel: c.sexo === 'F' ? 'mae' : 'pai', rep: nome1 }));
   const [resQ, filQ] = await Promise.all(tasks);
-  const meus = (resQ.data || []).filter(r => _normNome(r.cavalo_nome) === nn);
+  // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
+  const meus = (resQ.data || []).map(r => ({
+    colocacao: r.colocacao, penalidade: r.penalidade, tempo: r.tempo,
+    cavaleiro_nome: r.cavaleiro_nome, cavalo_nome: r.cavalo_nome,
+    provas: { nome: r.prova_nome, descricao: r.prova_descricao, categorias: r.prova_categorias,
+              data_prova: r.data_prova, torneios: { nome: r.torneio_nome, data_inicio: r.torneio_data } }
+  }));
   const filhos = c.gen ? (filQ.data || []) : [];
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
@@ -5760,7 +5768,10 @@ async function abrirPerfilCavalo(i) {
           <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
         </div>`;
       }).join('')}
-    </div>` : (nprovas ? '' : '<div style="padding:24px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavalo.</div>')}
+    </div>` : (_isPremium
+        ? (nprovas ? '' : '<div style="padding:24px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavalo.</div>')
+        : paywallHTML('Resultados e estatísticas',
+            'Histórico completo de provas, vitórias, % de zero faltas e a altura máxima competida deste cavalo — exclusivo para assinantes.'))}
     <div style="height:20px"></div>`;
 }
 
@@ -5828,10 +5839,17 @@ async function abrirPerfilCavaleiro(i) {
   const nome1 = (c.nome || '').split('\n')[0];
   const nn = c.nn || _normNome(nome1);
   const pref = nome1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
-  const { data } = await sb.from('resultados')
-    .select('colocacao,penalidade,tempo,cavaleiro_nome,cavalo_nome,provas(nome,descricao,categorias,data_prova,torneios(nome,data_inicio))')
-    .ilike('cavaleiro_nome', pref + '%').limit(1200);
-  const meus = (data || []).filter(r => _normNome(r.cavaleiro_nome) === nn);
+  // Compilado de resultados do cavaleiro = PREMIUM (RPC protegida). Free vê só o nome.
+  let meus = [];
+  if (_isPremium) {
+    const { data } = await sb.rpc('historico_cavaleiro', { p_nome: nome1 });
+    meus = (data || []).map(r => ({
+      colocacao: r.colocacao, penalidade: r.penalidade, tempo: r.tempo,
+      cavaleiro_nome: r.cavaleiro_nome, cavalo_nome: r.cavalo_nome,
+      provas: { nome: r.prova_nome, descricao: r.prova_descricao, categorias: r.prova_categorias,
+                data_prova: r.data_prova, torneios: { nome: r.torneio_nome, data_inicio: r.torneio_data } }
+    }));
+  }
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
   const cavalos = new Set(meus.map(r => _normNome(r.cavalo_nome)).filter(Boolean)).size;
@@ -5879,7 +5897,10 @@ async function abrirPerfilCavaleiro(i) {
           <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
         </div>`;
       }).join('')}
-    </div>` : '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavaleiro.</div>'}
+    </div>` : (_isPremium
+        ? '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavaleiro.</div>'
+        : paywallHTML('Resultados e estatísticas',
+            'Histórico completo de provas, vitórias, pódios, % de zero faltas e melhor altura deste cavaleiro — exclusivo para assinantes.'))}
     <div style="height:20px"></div>`;
 }
 
