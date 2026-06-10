@@ -239,6 +239,39 @@ def inspecionar_prova(src, prova_id, args):
     return 0
 
 
+def backfill_calendario(args, writer):
+    """--backfill: scrapeia o CALENDÁRIO de TODOS os meses de um ANO (--year) via
+    navegador, gravando torneios (idempotente por fonte+id_nativo). Rode 1x por ano
+    de 2013 até hoje p/ popular o histórico. Depois rode --completar p/ os resultados."""
+    import argparse as _ap
+    import datetime as _dt2
+    ano = args.year or _dt2.date.today().year
+    hoje = _dt2.date.today()
+    fontes = [SRC.get(args.source)] if args.source else SRC.ativos()
+    total = 0
+    for source in fontes:
+        if source.get("plataforma") != "macronetwork" or not source.get("calendario_url"):
+            continue
+        for mes in range(1, 13):
+            if ano == hoje.year and mes > hoje.month:
+                break
+            a2 = _ap.Namespace(**vars(args)); a2.year = ano; a2.month = mes
+            try:
+                evs, modo = coletar(source, a2)
+                if args.write:
+                    rows = [evento_to_torneio_row(e, source["codigo"]) for e in evs if e["id_nativo"]]
+                    g = writer.upsert_torneios(rows)
+                    print(f"  {source['codigo']} {ano}-{mes:02d}: {len(evs)} eventos → {len(g)} gravados")
+                else:
+                    print(f"  {source['codigo']} {ano}-{mes:02d}: {len(evs)} eventos (dry-run)")
+                total += len(evs)
+            except Exception as e:
+                print(f"  ⚠ {source['codigo']} {ano}-{mes:02d}: {e.__class__.__name__}: {e}", file=sys.stderr)
+    print(f"=== BACKFILL CALENDÁRIO {ano} === {total} eventos "
+          f"({'GRAVADO' if args.write else 'DRY-RUN'}).")
+    return 0
+
+
 def reconciliar_calendario(src, args, writer):
     """--reconcile: casa eventos do calendário AO VIVO (que TRAZEM o id_nativo)
     com os torneios do banco SEM id_nativo (mesma fonte) e backfilla a chave.
@@ -303,11 +336,13 @@ def completar(args, writer):
     import datetime as _dt2
     hoje = _dt2.date.today().isoformat()
     MAX = int(os.environ.get("CAVALARIA_MAX", "40"))
+    # piso de data configurável (default 2024) — p/ backfill histórico use 2013-01-01
+    desde = os.environ.get("CAVALARIA_DESDE", "2024-01-01")
     alvos = []
     for src in [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"]:
         rows = writer._get(
             f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
-            f"&data_inicio=gte.2024-01-01&data_inicio=lte.{hoje}"
+            f"&data_inicio=gte.{desde}&data_inicio=lte.{hoje}"
             f"&select=id,id_nativo,nome,data_inicio,data_fim,provas(id)"
             f"&order=data_inicio.desc")
         for t in rows:
@@ -812,6 +847,11 @@ def main(argv=None):
                          "de 2024→hoje em lote: detalhe (provas+dia+docs) + resultados. "
                          "Lote de CAVALARIA_MAX (default 40); re-rode p/ continuar. "
                          "--write grava.")
+    ap.add_argument("--backfill", action="store_true",
+                    help="BACKFILL do CALENDÁRIO: scrapeia os 12 meses de um ANO "
+                         "(--year) via navegador, gravando torneios. Rode 1x por ano "
+                         "(ex.: 2013..hoje) p/ popular o histórico. Combine c/ "
+                         "--source FPH --write. Depois use --completar (CAVALARIA_DESDE).")
     ap.add_argument("--proximos", action="store_true",
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
@@ -915,6 +955,14 @@ def main(argv=None):
                 continue
             reconciliar_calendario(src, args, writer)
         return 0
+
+    # Backfill do calendário: 12 meses de um ano (histórico).
+    if args.backfill:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --backfill --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.", file=sys.stderr)
+            return 3
+        return backfill_calendario(args, writer)
 
     # Completar torneios incompletos (detalhe + resultados) em lote.
     if args.completar:

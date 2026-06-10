@@ -41,7 +41,15 @@ on:
         type: boolean
         default: false
       completar:
-        description: "Completa torneios incompletos 2024→hoje: detalhe (provas+dia+docs) + resultados (lote de 40). Grava se write=true."
+        description: "Completa torneios incompletos: detalhe (provas+dia+docs) + resultados (lote 40). Piso = completar_desde (default 2024). Grava se write=true."
+        type: boolean
+        default: false
+      completar_desde:
+        description: "Piso de data p/ --completar (ex.: 2013-01-01 p/ backfill). Vazio = 2024-01-01."
+        type: string
+        default: ""
+      backfill:
+        description: "Backfill do CALENDÁRIO de um ANO inteiro (12 meses). Use com source=FPH + year=YYYY. Rode 1x por ano (2013..hoje). Grava se write=true."
         type: boolean
         default: false
       proximos:
@@ -121,6 +129,8 @@ jobs:
           IN_DUMP: ${{ inputs.dump }}
           IN_RECONCILE: ${{ inputs.reconcile }}
           IN_COMPLETAR: ${{ inputs.completar }}
+          IN_DESDE: ${{ inputs.completar_desde }}
+          IN_BACKFILL: ${{ inputs.backfill }}
           IN_PROXIMOS: ${{ inputs.proximos }}
           IN_ESTRUTURAR: ${{ inputs.estruturar }}
           IN_NOTICIAS: ${{ inputs.noticias }}
@@ -152,12 +162,20 @@ jobs:
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
-          elif [ "${IN_COMPLETAR:-false}" = "true" ]; then
-            # completa torneios incompletos 2024->hoje (detalhe+provas+dia+docs+resultados),
-            # em lote (CAVALARIA_MAX, default 40). Re-rode pra continuar as próximas levas.
-            ARGS="--completar"
+          elif [ "${IN_BACKFILL:-false}" = "true" ]; then
+            # backfill do CALENDÁRIO de um ANO inteiro (12 meses) — popular histórico.
+            ARGS="--backfill --source ${IN_SOURCE:-FPH}"
+            [ -n "${IN_YEAR:-}" ] && ARGS="$ARGS --year ${IN_YEAR}"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_COMPLETAR:-false}" = "true" ]; then
+            # completa torneios incompletos (detalhe+provas+dia+docs+resultados) em lote
+            # (CAVALARIA_MAX, default 40). Piso de data = completar_desde (default 2024).
+            [ -n "${IN_DESDE:-}" ] && export CAVALARIA_DESDE="${IN_DESDE}"
+            ARGS="--completar"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS  (desde=${CAVALARIA_DESDE:-2024-01-01})"
             python -m scraper.main $ARGS
           elif [ "${IN_PROXIMOS:-false}" = "true" ]; then
             # frescor dos próximos torneios (docs + ordem + resultados) sob demanda.
