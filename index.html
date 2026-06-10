@@ -184,6 +184,7 @@ body.tem-notif .btn-hamburger::after {
 .ham-menu-item:hover { background: var(--surface2); }
 .ham-menu-item:last-child { border-bottom: none; }
 .ham-menu-item.danger { color: #ff6b6b; }
+.cav-tab.on { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; }
 .banner-zone { width: 100%; margin: 8px 0; line-height: 0; }
 .banner-zone .banner-slide { display: block; }
 .banner-zone img { width: 100%; display: block; }
@@ -5858,7 +5859,7 @@ STATE.genSort = STATE.genSort || 'total';
 const _GEN_ANOS = [['Todos', null], ['2026', 2026], ['2025', 2025], ['2024', 2024]];
 const _GEN_SORTS = [['Filhos', 'total'], ['Competindo', 'comp'], ['% +4a', 'pct_comp'], ['≥1,40m', 'm140'], ['% +8a', 'pct140']];
 let _genRows = [];
-function abrirReprodutor(i) { const r = _genRows[i]; if (r && r.reprodutor) abrirCavaloPorNome(r.reprodutor); }
+function abrirReprodutor(i) { const r = _genRows[i]; if (r && r.reprodutor) { _cavaloFrom = 'genetica'; abrirCavaloPorNome(r.reprodutor); } }
 
 function _genChips() {
   const anos = document.getElementById('gen-anos');
@@ -5989,6 +5990,8 @@ async function renderGenetica() {
 // ─── CAVALO (busca + perfil) ─────────────────────────────────────────
 let _cavaloCache = [];
 let _cavaloTimer = null;
+let _cavaloFrom = null;   // tela de origem (ex.: 'genetica') p/ o botão Voltar
+let _filhosShown = 60;    // paginação da lista de filhos ("carregar mais")
 
 // normalização espelhando a do banco (norm_nome): 1ª linha, sem acento, sem
 // parênteses, só alfanumérico, MAIÚSCULAS.
@@ -6101,6 +6104,7 @@ function initCavalo() {
 }
 
 async function buscarCavalos(termo) {
+  _cavaloFrom = null;   // veio pela busca → Voltar volta pra busca (não pro ranking)
   const list = document.getElementById('cavalo-list');
   const t = (termo || '').trim().replace(/[%_(),]/g, ' ').replace(/\s+/g, ' ').trim();
   if (t.length < 2) { _cavaloCache = []; list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Digite ao menos 2 letras.</div>'; return; }
@@ -6127,6 +6131,10 @@ async function buscarCavalos(termo) {
     </div>`).join('');
 }
 
+function _cavaloVoltar() {
+  if (_cavaloFrom) { const f = _cavaloFrom; _cavaloFrom = null; nav(f); return; }
+  _cavaloVoltarBusca(true);
+}
 function _cavaloVoltarBusca(focus) {
   document.getElementById('cavalo-perfil').style.display = 'none';
   document.getElementById('cavalo-list').style.display = '';
@@ -6180,45 +6188,17 @@ async function abrirPerfilCavalo(i) {
   const dt = r => (r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio))) || '';
   const recentes = [...meus].sort((a, b) => String(dt(b)).localeCompare(String(dt(a)))).slice(0, 40);
   _cavaloPD = { item: c, filhos, recentes };
+  _filhosShown = 60;
   const stat = (n, l) => `<div style="flex:1;min-width:70px;text-align:center;padding:10px 4px;background:var(--surface2);border-radius:10px"><div style="font-size:18px;font-weight:900">${n}</div><div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px">${l}</div></div>`;
   const fmtAlt = a => a ? (+a).toFixed(2).replace('.', ',') + 'm' : '';
-  wrap.innerHTML = `
-    <div style="padding:12px 16px 0">
-      <button onclick="_cavaloVoltarBusca(true)" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:4px">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Voltar
-      </button>
-      <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
-      <div style="font-size:12px;color:var(--muted)">${_sexoLabel(c.sexo)}${c.nascimento ? ' · ' + String(c.nascimento).slice(0, 4) : ''}${melhor ? ' · máx. ' + fmtAlt(melhor) : ''}${c.registro ? ' · Reg. ' + escHtml(c.registro) : ''}</div>
-    </div>
-    ${c.gen ? `
-    <div style="padding:14px 16px 0">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Genética</div>
-      <div style="display:flex;gap:10px">
-        <div onclick="_abrirPaiMae('pai')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pai</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.pai ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.pai || '—')}</div></div>
-        <div onclick="_abrirPaiMae('mae')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Mãe</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.mae ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.mae || '—')}</div></div>
-      </div>
-    </div>` : ''}
-    ${nprovas ? `
-    <div style="padding:14px 16px 0">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Estatísticas</div>
+  const secTitle = t => `<div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">${t}</div>`;
+  // ── PERFORMANCE: estatísticas + lista de resultados ──
+  const estatHTML = nprovas ? `<div style="padding:14px 16px 0">${secTitle('Estatísticas')}
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${stat(nprovas, 'Provas')}${stat(torneios, 'Torneios')}${stat(vit, 'Vitórias')}
-        ${stat(nprovas ? Math.round(100 * zeros / nprovas) + '%' : '—', 'Zero faltas')}
-        ${stat(melhor ? fmtAlt(melhor) : '—', 'Melhor altura')}
-      </div>
-    </div>` : ''}
-    ${filhos.length ? _progenieStats(filhos) + _progenieChart(filhos) : ''}
-    ${filhos.length ? `
-    <div style="padding:16px 16px 0">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Filhos (${filhos.length})</div>
-      ${filhos.slice(0, 80).map((f, i) => `<div onclick="_abrirFilho(${i})" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer">
-        <span style="flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((f.nome || '').split('\n')[0])} <small style="color:var(--muted);font-weight:400">${_sexoLabel(f.sexo)}${f.nascimento ? ' · ' + String(f.nascimento).slice(0, 4) : ''}</small></span>
-        ${f.max_alt ? `<span style="font-size:11px;font-weight:800;color:var(--accent);flex-shrink:0">${fmtAlt(f.max_alt)}</span>` : ''}
-      </div>`).join('')}
-    </div>` : ''}
-    ${recentes.length ? `
-    <div style="padding:16px 16px 0">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Resultados (${nprovas})</div>
+        ${stat(Math.round(100 * zeros / nprovas) + '%', 'Zero faltas')}${stat(melhor ? fmtAlt(melhor) : '—', 'Melhor altura')}
+      </div></div>` : '';
+  const resultadosHTML = recentes.length ? `<div style="padding:16px 16px 0">${secTitle('Resultados (' + nprovas + ')')}
       ${recentes.map((r, i) => {
         const alt = _alturaProva(r.provas); const colo = (r.colocacao || '').toString().trim();
         const rider = (r.cavaleiro_nome || '').split('\n')[0];
@@ -6230,13 +6210,73 @@ async function abrirPerfilCavalo(i) {
           </div>
           <div style="font-size:11px;color:var(--muted);text-align:right">${r.penalidade != null ? escHtml(r.penalidade) : ''}${r.tempo ? '<br>' + escHtml(r.tempo) : ''}</div>
         </div>`;
-      }).join('')}
-    </div>` : (_isPremium
-        ? (nprovas ? '' : '<div style="padding:24px 16px;text-align:center;color:var(--muted);font-size:13px">Sem resultados registrados pra este cavalo.</div>')
-        : paywallHTML('Resultados e estatísticas',
-            'Histórico completo de provas, vitórias, % de zero faltas e a altura máxima competida deste cavalo — exclusivo para assinantes.'))}
+      }).join('')}</div>` : '';
+  const perfBlock = estatHTML + resultadosHTML;
+  // ── GENÉTICA: pais + estatísticas da progênie + gráfico + lista de filhos ──
+  const genCab = c.gen ? `<div style="padding:14px 16px 0">${secTitle('Genealogia')}
+      <div style="display:flex;gap:10px">
+        <div onclick="_abrirPaiMae('pai')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Pai</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.pai ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.pai || '—')}</div></div>
+        <div onclick="_abrirPaiMae('mae')" style="flex:1;background:var(--surface2);border-radius:10px;padding:10px;cursor:pointer"><div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Mãe</div><div style="font-weight:700;font-size:13px;margin-top:2px;color:${c.mae ? 'var(--accent)' : 'var(--fg)'}">${escHtml(c.mae || '—')}</div></div>
+      </div></div>` : '';
+  const filhosHTML = filhos.length ? `<div style="padding:16px 16px 0">${secTitle('Filhos (' + filhos.length + ')')}<div id="cav-filhos"></div></div>` : '';
+  const genBlock = genCab + (filhos.length ? _progenieStats(filhos) + _progenieChart(filhos) : '') + filhosHTML;
+
+  const hasPerf = nprovas > 0;
+  const hasGen = !!(filhos.length || genCab);
+  const tabBtn = 'flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:9px;border-radius:8px;font-weight:800;font-size:12.5px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em';
+  let body;
+  if (hasPerf && hasGen) {   // 2 abas
+    body = `<div style="display:flex;gap:8px;padding:14px 16px 0">
+        <button id="cav-tabbtn-perf" class="cav-tab on" style="${tabBtn}" onclick="_cavaloTab('perf')">Performance</button>
+        <button id="cav-tabbtn-gen" class="cav-tab" style="${tabBtn}" onclick="_cavaloTab('gen')">Genética</button>
+      </div>
+      <div id="cav-tab-perf">${perfBlock}</div>
+      <div id="cav-tab-gen" style="display:none">${genBlock}</div>`;
+  } else {
+    body = perfBlock + genBlock;
+  }
+  let rodape = '';
+  if (!hasPerf && !hasGen) {
+    rodape = _isPremium
+      ? '<div style="padding:24px 16px;text-align:center;color:var(--muted);font-size:13px">Sem dados registrados pra este cavalo.</div>'
+      : paywallHTML('Desempenho e estatísticas', 'Resultados, vitórias, % de zero faltas e altura máxima — exclusivo para assinantes.');
+  } else if (!hasPerf && !_isPremium) {
+    rodape = paywallHTML('Desempenho no esporte', 'Veja resultados, estatísticas e altura máxima competida deste cavalo — exclusivo para assinantes.');
+  }
+
+  wrap.innerHTML = `
+    <div style="padding:12px 16px 0">
+      <button onclick="_cavaloVoltar()" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;cursor:pointer;padding:6px 0;display:flex;align-items:center;gap:4px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Voltar
+      </button>
+      <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
+      <div style="font-size:12px;color:var(--muted)">${_sexoLabel(c.sexo)}${c.nascimento ? ' · ' + String(c.nascimento).slice(0, 4) : ''}${melhor ? ' · máx. ' + fmtAlt(melhor) : ''}${c.registro ? ' · Reg. ' + escHtml(c.registro) : ''}</div>
+    </div>
+    ${body}${rodape}
     <div style="height:20px"></div>`;
+  if (filhos.length) _renderFilhos();
 }
+
+function _cavaloTab(t) {
+  const p = document.getElementById('cav-tab-perf'), g = document.getElementById('cav-tab-gen');
+  const bp = document.getElementById('cav-tabbtn-perf'), bg = document.getElementById('cav-tabbtn-gen');
+  if (!p || !g) return;
+  p.style.display = t === 'perf' ? '' : 'none';
+  g.style.display = t === 'gen' ? '' : 'none';
+  bp.classList.toggle('on', t === 'perf'); bg.classList.toggle('on', t === 'gen');
+}
+function _renderFilhos() {
+  const el = document.getElementById('cav-filhos'); if (!el) return;
+  const fs = _cavaloPD.filhos || [];
+  const fmtA = a => a ? (+a).toFixed(2).replace('.', ',') + 'm' : '';
+  el.innerHTML = fs.slice(0, _filhosShown).map((f, i) => `<div onclick="_abrirFilho(${i})" style="display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer">
+      <span style="flex:1;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml((f.nome || '').split('\n')[0])} <small style="color:var(--muted);font-weight:400">${_sexoLabel(f.sexo)}${f.nascimento ? ' · ' + String(f.nascimento).slice(0, 4) : ''}</small></span>
+      ${f.max_alt ? `<span style="font-size:11px;font-weight:800;color:var(--accent);flex-shrink:0">${fmtA(f.max_alt)}</span>` : ''}
+    </div>`).join('') + (fs.length > _filhosShown
+      ? `<button onclick="_maisFilhos()" style="width:100%;margin-top:10px;background:var(--surface2);border:1px solid var(--border);color:var(--accent);border-radius:8px;padding:11px;font-weight:800;cursor:pointer">Carregar mais (${fs.length - _filhosShown} restantes)</button>`
+      : '');
+}
+function _maisFilhos() { _filhosShown += 100; _renderFilhos(); }
 
 // ─── CAVALEIRO (busca + perfil) ──────────────────────────────────────
 let _cavaleiroCache = [];
