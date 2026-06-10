@@ -5887,6 +5887,29 @@ function _genBar(pct, label, hi) {
   </div>`;
 }
 
+// Estatísticas genealógicas do reprodutor (a partir da progênie) + barras.
+function _progenieStats(filhos) {
+  if (!_isPremium || (filhos || []).length < 2) return '';
+  const yr = new Date().getFullYear();
+  const idade = f => f.nascimento ? (yr - parseInt(String(f.nascimento).slice(0, 4))) : null;
+  let f4 = 0, comp4 = 0, f8 = 0, alto8 = 0, comp = 0, m140 = 0;
+  filhos.forEach(f => {
+    const a = idade(f), alt = +f.max_alt || 0;
+    if (f.competiu) comp++;
+    if (alt >= 1.40) m140++;
+    if (a != null && a >= 5 && a <= 30) { f4++; if (f.competiu) comp4++; }
+    if (a != null && a >= 9 && a <= 30) { f8++; if (alt >= 1.40) alto8++; }
+  });
+  const pctC = f4 ? Math.round(100 * comp4 / f4) : 0;
+  const pct140 = f8 ? Math.round(100 * alto8 / f8) : 0;
+  return `<div style="padding:16px 16px 0">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Estatísticas da progênie</div>
+    <div style="font-size:11.5px;color:var(--muted);line-height:1.6">${filhos.length} filhos · +4 anos <b style="color:var(--fg)">${f4}</b> · competindo <b style="color:var(--fg)">${comp}</b> · ≥1,40m <b style="color:var(--fg)">${m140}</b></div>
+    ${_genBar(pctC, 'Competem (dos +4 anos)', false)}
+    ${_genBar(pct140, 'Saltam ≥1,40m (dos +8 anos)', false)}
+  </div>`;
+}
+
 // Gráfico de barras: distribuição dos filhos por altura máxima competida.
 function _progenieChart(filhos) {
   const withAlt = (filhos || []).filter(f => f.max_alt);
@@ -5941,7 +5964,7 @@ async function renderGenetica() {
     <div style="border-top:1px solid var(--border);padding:11px 14px">
       <div style="display:flex;align-items:baseline;gap:8px">
         <span style="color:var(--muted);font-weight:800;min-width:20px;font-size:13px">${i + 1}</span>
-        <span style="font-weight:800;font-size:15px;flex:1;min-width:0">${escHtml(r.reprodutor || '')}</span>
+        <span onclick="abrirCavaloPorNome(this.dataset.rep)" data-rep="${escHtml(r.reprodutor || '')}" style="font-weight:800;font-size:15px;flex:1;min-width:0;color:var(--accent);cursor:pointer">${escHtml(r.reprodutor || '')} ›</span>
         <span style="font-size:11px;color:var(--muted);white-space:nowrap">${em(STATE.genSort === 'total', r.total_filhos + ' filhos')}</span>
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5">
@@ -6119,11 +6142,19 @@ async function abrirPerfilCavalo(i) {
   // Compilado de resultados = PREMIUM (via RPC protegida no servidor). Free não
   // recebe nada de resultados/estatísticas. Progênie (nomes) é free; a RPC só
   // devolve altura máxima dos filhos se premium.
-  const tasks = [
+  // Progênie SEMPRE pelo nome (reprodutor pode não ser um animal "registrado" na
+  // busca — ex.: garanhão importado). Tenta o papel pelo sexo; se desconhecido,
+  // tenta pai e depois mãe. Resultados (compilado) = PREMIUM via RPC protegida.
+  const papel = c.sexo === 'F' ? 'mae' : (c.sexo === 'M' ? 'pai' : null);
+  const [resQ, filQ] = await Promise.all([
     _isPremium ? sb.rpc('historico_cavalo', { p_nome: nome1 }) : Promise.resolve({ data: [] }),
-  ];
-  if (c.gen) tasks.push(sb.rpc('progenie', { papel: c.sexo === 'F' ? 'mae' : 'pai', rep: nome1 }));
-  const [resQ, filQ] = await Promise.all(tasks);
+    sb.rpc('progenie', { papel: papel || 'pai', rep: nome1 }),
+  ]);
+  let filhos = filQ.data || [];
+  if (!filhos.length && !papel) {   // sexo desconhecido e não achou como pai → tenta mãe
+    const { data } = await sb.rpc('progenie', { papel: 'mae', rep: nome1 });
+    filhos = data || [];
+  }
   // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
   const meus = (resQ.data || []).map(r => ({
     colocacao: r.colocacao, penalidade: r.penalidade, tempo: r.tempo,
@@ -6131,7 +6162,6 @@ async function abrirPerfilCavalo(i) {
     provas: { nome: r.prova_nome, descricao: r.prova_descricao, categorias: r.prova_categorias,
               data_prova: r.data_prova, torneios: { nome: r.torneio_nome, data_inicio: r.torneio_data } }
   }));
-  const filhos = c.gen ? (filQ.data || []) : [];
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
   const vit = meus.filter(r => parseInt(r.colocacao) === 1).length;
@@ -6168,7 +6198,7 @@ async function abrirPerfilCavalo(i) {
         ${stat(melhor ? fmtAlt(melhor) : '—', 'Melhor altura')}
       </div>
     </div>` : ''}
-    ${filhos.length ? _progenieChart(filhos) : ''}
+    ${filhos.length ? _progenieStats(filhos) + _progenieChart(filhos) : ''}
     ${filhos.length ? `
     <div style="padding:16px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Filhos (${filhos.length})</div>
