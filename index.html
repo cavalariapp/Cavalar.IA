@@ -6065,8 +6065,36 @@ function renderAssinatura() {
       ${planoCard('Anual', 'R$ 299', 'R$ 24,92/mês · economize 17%', 'anual', true)}
       ${planoCard('Mensal', 'R$ 29,90', 'por mês', 'mensal', false)}
       ${!_currentUser ? `<div style="text-align:center;color:var(--muted);font-size:11.5px;margin-top:2px">Você vai entrar/criar conta antes de pagar.</div>` : ''}
+      <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+        <div style="font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Tem um cupom?</div>
+        <div style="display:flex;gap:8px">
+          <input id="cupom-input" placeholder="Código do cupom" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;color:var(--fg);font-size:13px;text-transform:uppercase">
+          <button onclick="resgatarCupom()" style="background:var(--surface2);color:var(--fg);border:1px solid var(--accent);border-radius:8px;padding:11px 16px;font-weight:800;cursor:pointer">Resgatar</button>
+        </div>
+        <div id="cupom-msg" style="font-size:12px;margin-top:8px;min-height:14px"></div>
+      </div>
       <div style="height:24px"></div>
     </div>`;
+}
+
+async function resgatarCupom() {
+  const inp = document.getElementById('cupom-input');
+  const msg = document.getElementById('cupom-msg');
+  const cod = (inp.value || '').trim();
+  if (!cod) { msg.style.color = '#ff8080'; msg.textContent = 'Digite o código.'; return; }
+  if (!_currentUser) { sessionStorage.setItem('cav_pos_login', JSON.stringify({ cupom: cod })); window.location.href = 'cadastro.html'; return; }
+  msg.style.color = 'var(--muted)'; msg.textContent = 'Resgatando…';
+  try {
+    const { data, error } = await sb.rpc('resgatar_cupom', { p_codigo: cod });
+    if (error) { msg.style.color = '#ff8080'; msg.textContent = error.message; return; }
+    if (data && data.ok) {
+      msg.style.color = '#4ade80'; msg.textContent = `✓ Premium liberado por ${data.dias} dias!`;
+      _isPremium = true;
+      setTimeout(() => { renderAssinatura(); }, 1500);
+    } else {
+      msg.style.color = '#ff8080'; msg.textContent = (data && data.erro) || 'Não foi possível resgatar.';
+    }
+  } catch (e) { msg.style.color = '#ff8080'; msg.textContent = 'Falha: ' + e.message; }
 }
 
 async function assinarPlano(plano, metodo) {
@@ -6538,6 +6566,8 @@ async function init() {
     // retoma o pagamento do plano que a pessoa escolheu antes de criar a conta
     if (_intent && _intent.plano && typeof assinarPlano === 'function') {
       setTimeout(() => assinarPlano(_intent.plano, _intent.metodo), 400);
+    } else if (_intent && _intent.cupom) {   // retoma o resgate de cupom
+      setTimeout(() => { const i = document.getElementById('cupom-input'); if (i) { i.value = _intent.cupom; resgatarCupom(); } }, 500);
     }
   }
   else if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
