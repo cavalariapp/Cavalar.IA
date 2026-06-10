@@ -157,6 +157,18 @@ class SupabaseWriter:
         self._require()
         self._patch(f"/rest/v1/torneios?id=eq.{torneio_id}", {"id_nativo": id_nativo})
 
+    def update_torneio_datas(self, torneio_id, data_inicio, data_fim):
+        """Alarga a janela data_inicio/data_fim de um torneio (backfill por prova:
+        descobrimos as datas reais do evento conforme varremos as provas)."""
+        self._require()
+        patch = {}
+        if data_inicio:
+            patch["data_inicio"] = data_inicio
+        if data_fim:
+            patch["data_fim"] = data_fim
+        if patch:
+            self._patch(f"/rest/v1/torneios?id=eq.{torneio_id}", patch)
+
     def find_prova_id(self, id_origem, fonte=None):
         """Resolve provas.id pelo id_origem (o ID=N de Resultados.aspx?ID=N) — é
         o FK que resultados/ordem_entrada usam. None se a prova ainda não foi

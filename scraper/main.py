@@ -571,6 +571,174 @@ def processar_shb(args, writer):
     return 0
 
 
+def _norm_evento(nome):
+    """Normaliza nome de evento p/ chave de dedup: maiúsculas, sem acento, espaços
+    colapsados, sem pontuação de borda. (Edições diferentes do mesmo evento ficam
+    no MESMO grupo dentro de um ano — ver _evento_key.)"""
+    import unicodedata
+    if not nome:
+        return ""
+    s = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^A-Za-z0-9]+", " ", s).upper().strip()
+    return re.sub(r"\s+", " ", s)
+
+
+def _evento_key(evento, data_iso):
+    """Chave estável do torneio no backfill: (evento normalizado + ANO). Provas do
+    mesmo evento (mesmo nome, mesmo ano) caem no MESMO torneio; edições de anos
+    diferentes ficam separadas. id_nativo sintético = 'FPHW-{ano}-{hash8}' (não
+    colide com os id_nativo numéricos do calendário)."""
+    import hashlib
+    ano = (data_iso or "")[:4] or "0000"
+    base = _norm_evento(evento)
+    h = hashlib.md5(base.encode()).hexdigest()[:8]
+    return f"FPHW-{ano}-{h}", base, ano
+
+
+def _prova_row_de_header(h, torneio_id):
+    """Monta a linha de `provas` (via prova_to_row) a partir do cabeçalho
+    auto-contido (parse_resultado_pagina). Reconstrói o campo `categorias` no
+    formato que _categorias_e_descricao espera ('{altura}m - COD - COD'): assim a
+    DESCRIÇÃO preserva a altura (o front extrai '1,30m') e os CÓDIGOS viram chips."""
+    alt = h.get("altura_m")
+    alt_str = (f"{alt:.2f}".replace(".", ",") + "m") if alt is not None else None
+    cods = [c for c in (h.get("categorias") or "").split("/") if c]
+    partes = ([alt_str] if alt_str else []) + cods
+    categorias_field = " - ".join(partes) or None
+    nome = h.get("prova_nome") or alt_str or "Prova"
+    return prova_to_row({
+        "id_origem": h["_id"],
+        "nome": nome,
+        "numero": h.get("numero"),
+        "categorias": categorias_field,
+        "tipo_prova": h.get("tipo_prova"),
+        "data_prova": h.get("data"),
+    }, torneio_id)
+
+
+def _gravar_prova_walk(writer, cache, h, resultados, args):
+    """Grava UMA prova do backfill: resolve/insere o torneio (dedup por evento+ano,
+    cache em memória), faz upsert da prova (id_origem real) e dos resultados
+    (mapa canônico). `cache` = {evento_key: {'tid','ini','fim'}}. Retorna nº de
+    resultados gravados. Dry-run (sem --write) só conta."""
+    from scraper.db import resultado_to_row
+    ekey, base, ano = _evento_key(h.get("evento"), h.get("data"))
+    data = h.get("data")
+    if not (args.write and writer.configured):
+        return len(resultados)
+    ent = cache.get(ekey)
+    if ent is None:
+        trow = {"nome": h.get("evento") or base.title(), "fonte": "FPH",
+                "data_inicio": data, "data_fim": data,
+                "id_nativo": ekey, "organizador": "FPH"}
+        rep = writer.upsert_torneios([trow])
+        tid = (rep[0]["id"] if rep else None) or writer.find_torneio_id("FPH", ekey)
+        ent = {"tid": tid, "ini": data, "fim": data}
+        cache[ekey] = ent
+    else:
+        tid = ent["tid"]
+        # alarga a janela de datas do torneio se esta prova é mais cedo/tarde
+        novo_ini = min(x for x in (ent["ini"], data) if x) if data else ent["ini"]
+        novo_fim = max(x for x in (ent["fim"], data) if x) if data else ent["fim"]
+        if (novo_ini, novo_fim) != (ent["ini"], ent["fim"]):
+            writer.update_torneio_datas(tid, novo_ini, novo_fim)
+            ent["ini"], ent["fim"] = novo_ini, novo_fim
+    if not tid:
+        return 0
+    writer.upsert_provas(tid, [_prova_row_de_header(h, tid)])
+    pid = writer.find_prova_id(h["_id"], fonte="FPH")
+    if not pid or not resultados:
+        return 0
+    rs = writer.upsert_resultados(pid, [resultado_to_row(r, pid) for r in resultados])
+    return rs.get("inseridos", 0)
+
+
+def walk_resultados(args, writer):
+    """--fph-walk: BACKFILL HISTÓRICO da FPH varrendo Resultados.aspx?ID=N (a página
+    é auto-contida: evento+data+prova+ALTURA+categorias+resultados). NÃO depende do
+    calendário/ListaProvas. Dedup de torneio por evento+ano; prova por id_origem (N).
+
+    Janela (env, p/ rodar em blocos retomáveis — upserts idempotentes):
+      CAVALARIA_WALK_ID_MIN / _MAX   range de IDs a varrer (default 1..14200)
+      CAVALARIA_WALK_DESDE / _ATE    só grava provas com data em [desde, ate)
+                                     (default 2013-01-01 .. 2024-01-01 — o recente
+                                     já é coberto pelo calendário/--completar)
+    Duas passadas: (1) requests p/ Tipo A ('tabela', ~70%, já mesclado pelo site) e
+    catálogo; (2) Playwright em lote p/ Tipo B ('balao', categorias via postback) →
+    mescla num ranking único por barema (regra de negócio do cliente)."""
+    import os
+    from scraper import fetch
+    from scraper.adapters import macronetwork as M
+    src = SRC.get("FPH")
+    id_min = int(os.environ.get("CAVALARIA_WALK_ID_MIN", "1"))
+    id_max = int(os.environ.get("CAVALARIA_WALK_ID_MAX", "14200"))
+    desde = os.environ.get("CAVALARIA_WALK_DESDE", "2013-01-01")
+    ate = os.environ.get("CAVALARIA_WALK_ATE", "2024-01-01")
+    print(f"=== FPH WALK (backfill) IDs {id_min}..{id_max} | datas [{desde}, {ate}) "
+          f"| {'GRAVA' if args.write else 'DRY-RUN'} ===")
+
+    cache = {}                       # evento_key -> {tid, ini, fim}
+    balao = []                       # [(id, header)] p/ a 2ª passada (Playwright)
+    n_tabela = n_vazio = n_fora = n_erro = tot_res = 0
+
+    for idv in range(id_min, id_max + 1):
+        try:
+            html = fetch.fetch_resultados(src, idv)
+        except Exception:
+            n_erro += 1
+            continue
+        h = M.parse_resultado_pagina(html)
+        if not h or not h.get("data"):
+            n_vazio += 1
+            continue
+        if not (desde <= h["data"] < ate):     # fora da janela de backfill
+            n_fora += 1
+            continue
+        h["_id"] = idv
+        tipo = M.detectar_tipo_resultado(html)
+        if tipo == "balao":
+            balao.append((idv, h))
+            continue
+        # 'tabela' (site já mesclou todas as categorias) ou 'vazio' (sem classif.)
+        res = M.parse_resultados(html) if tipo == "tabela" else []
+        if tipo == "tabela":
+            n_tabela += 1
+        else:
+            n_vazio += 1
+        tot_res += _gravar_prova_walk(writer, cache, h, res, args)
+        if (n_tabela + n_vazio) % 200 == 0 and (n_tabela + n_vazio) > 0:
+            print(f"  …ID {idv}: {n_tabela} tabela, {len(balao)} balão, "
+                  f"{n_fora} fora-janela, {tot_res} resultados")
+
+    print(f"\n— Passada 1 (requests): {n_tabela} Tipo A, {len(balao)} Tipo B (balão), "
+          f"{n_vazio} vazias, {n_fora} fora-janela, {n_erro} erros HTTP.")
+
+    # ── Passada 2: Tipo B via Playwright (um navegador p/ todas), merge por barema
+    if balao:
+        print(f"\n— Passada 2 (Playwright): mesclando categorias de {len(balao)} provas…")
+        hdr_por_id = {idv: h for idv, h in balao}
+        ids = [idv for idv, _ in balao]
+        try:
+            n_b = 0
+            for idv, cats_html in fetch.fetch_resultados_balao_lote(
+                    src, ids, headless=not args.headed):
+                h = hdr_por_id[idv]
+                listas = [M.parse_resultados(html) for _, html in cats_html]
+                merged = M.mesclar_resultados(listas, h.get("tipo_prova"))
+                tot_res += _gravar_prova_walk(writer, cache, h, merged, args)
+                n_b += 1
+                if n_b % 50 == 0:
+                    print(f"  …balão {n_b}/{len(ids)} (ID {idv}): {len(merged)} conjuntos")
+        except ImportError:
+            print("  ⚠ Playwright indisponível — Tipo B (balão) pulado. "
+                  f"{len(ids)} provas pendentes (rode no CI com navegador).",
+                  file=sys.stderr)
+
+    print(f"\n=== FPH WALK fim === {len(cache)} torneios, {tot_res} resultados "
+          f"({'GRAVADO' if args.write else 'DRY-RUN'}).")
+    return 0
+
+
 def processar_fgee(args, writer):
     """--fgee: resultado POR PROVA da FGEE via LiveHorse (PDF → Claude). Lista
     eventos (mais recentes primeiro) → por evento, cada PDF 'resultado-...pN' →
@@ -852,6 +1020,12 @@ def main(argv=None):
                          "(--year) via navegador, gravando torneios. Rode 1x por ano "
                          "(ex.: 2013..hoje) p/ popular o histórico. Combine c/ "
                          "--source FPH --write. Depois use --completar (CAVALARIA_DESDE).")
+    ap.add_argument("--fph-walk", action="store_true", dest="fph_walk",
+                    help="BACKFILL HISTÓRICO da FPH varrendo Resultados.aspx?ID=N "
+                         "(página auto-contida: evento+data+prova+ALTURA+resultados). "
+                         "Não usa calendário. Janela por env CAVALARIA_WALK_ID_MIN/_MAX "
+                         "e CAVALARIA_WALK_DESDE/_ATE. Tipo A via requests; Tipo B "
+                         "(categorias/balão) via navegador + merge por barema. --write grava.")
     ap.add_argument("--proximos", action="store_true",
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
@@ -972,6 +1146,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return completar(args, writer)
+
+    # Backfill histórico da FPH varrendo Resultados.aspx?ID=N (auto-contido).
+    if args.fph_walk:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --fph-walk --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return walk_resultados(args, writer)
 
     # Frescor dos próximos torneios (docs + ordem + resultados) — o que o cron roda.
     if args.proximos:

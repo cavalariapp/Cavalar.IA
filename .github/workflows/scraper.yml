@@ -52,6 +52,26 @@ on:
         description: "Backfill do CALENDÁRIO de um ANO inteiro (12 meses). Use com source=FPH + year=YYYY. Rode 1x por ano (2013..hoje). Grava se write=true."
         type: boolean
         default: false
+      fph_walk:
+        description: "BACKFILL HISTÓRICO FPH: varre Resultados.aspx?ID=N (auto-contido: evento+data+prova+ALTURA+resultados). Tipo A via requests; Tipo B (categorias) via navegador+merge. Use walk_* p/ janela. Grava se write=true."
+        type: boolean
+        default: false
+      walk_id_min:
+        description: "fph-walk: 1º ID a varrer (default 1). Rode em BLOCOS (ex.: 1, 3500, 7000, 10500) — ~6h/bloco."
+        type: string
+        default: ""
+      walk_id_max:
+        description: "fph-walk: último ID (default 14200). Bloco sugerido ~3500 IDs."
+        type: string
+        default: ""
+      walk_desde:
+        description: "fph-walk: piso de data (default 2013-01-01). Só grava provas a partir desta data."
+        type: string
+        default: ""
+      walk_ate:
+        description: "fph-walk: teto de data EXCLUSIVO (default 2024-01-01 — o recente já vem do calendário). Use 2026-07-01 p/ incluir tudo."
+        type: string
+        default: ""
       proximos:
         description: "Frescor dos próximos torneios [hoje-7..+60]: docs (programa/adendo/horário) + ordem de entrada + resultados. Grava se write=true."
         type: boolean
@@ -131,6 +151,11 @@ jobs:
           IN_COMPLETAR: ${{ inputs.completar }}
           IN_DESDE: ${{ inputs.completar_desde }}
           IN_BACKFILL: ${{ inputs.backfill }}
+          IN_FPH_WALK: ${{ inputs.fph_walk }}
+          IN_WALK_ID_MIN: ${{ inputs.walk_id_min }}
+          IN_WALK_ID_MAX: ${{ inputs.walk_id_max }}
+          IN_WALK_DESDE: ${{ inputs.walk_desde }}
+          IN_WALK_ATE: ${{ inputs.walk_ate }}
           IN_PROXIMOS: ${{ inputs.proximos }}
           IN_ESTRUTURAR: ${{ inputs.estruturar }}
           IN_NOTICIAS: ${{ inputs.noticias }}
@@ -168,6 +193,18 @@ jobs:
             [ -n "${IN_YEAR:-}" ] && ARGS="$ARGS --year ${IN_YEAR}"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
+            python -m scraper.main $ARGS
+          elif [ "${IN_FPH_WALK:-false}" = "true" ]; then
+            # BACKFILL HISTÓRICO: varre Resultados.aspx?ID=N (auto-contido). Janela
+            # por env (default IDs 1..14200, datas 2013-01-01..2024-01-01). Rode em
+            # BLOCOS de ~3500 IDs (cada bloco ~6h no Tipo B/navegador).
+            [ -n "${IN_WALK_ID_MIN:-}" ] && export CAVALARIA_WALK_ID_MIN="${IN_WALK_ID_MIN}"
+            [ -n "${IN_WALK_ID_MAX:-}" ] && export CAVALARIA_WALK_ID_MAX="${IN_WALK_ID_MAX}"
+            [ -n "${IN_WALK_DESDE:-}" ] && export CAVALARIA_WALK_DESDE="${IN_WALK_DESDE}"
+            [ -n "${IN_WALK_ATE:-}" ]   && export CAVALARIA_WALK_ATE="${IN_WALK_ATE}"
+            ARGS="--fph-walk"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS  (IDs ${CAVALARIA_WALK_ID_MIN:-1}..${CAVALARIA_WALK_ID_MAX:-14200}, datas [${CAVALARIA_WALK_DESDE:-2013-01-01}, ${CAVALARIA_WALK_ATE:-2024-01-01}))"
             python -m scraper.main $ARGS
           elif [ "${IN_COMPLETAR:-false}" = "true" ]; then
             # completa torneios incompletos (detalhe+provas+dia+docs+resultados) em lote

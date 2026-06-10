@@ -863,6 +863,209 @@ def parse_prova_tipo(html):
     return _clean(m.group(1)) if m else _clean(t)
 
 
+# ── BACKFILL: página de Resultados.aspx AUTO-CONTIDA (varredura por ID) ─
+# DESCOBERTA (2026-06, recon de IDs 100..14000+): a página Resultados.aspx?ID=N
+# RENDERIZA NO GET (requests, sem Playwright) e é AUTO-SUFICIENTE — traz no
+# cabeçalho TUDO p/ montar torneio+prova SEM passar pelo calendário/ListaProvas:
+#   • <h2 class="font-torneio">  → NOME DO EVENTO (torneio)
+#   • <span class="data-prova">  → rótulo de data do evento (sem ano)
+#   • <span class="dadosProva">  → a LINHA da prova, formato estável:
+#       "{NUM} - {ALTURA}m - {CATS} - {BAREMA} - {PISO} - [extra] - {HH}h{MM} - {DD/MM/AAAA}"
+#       ex.: "PR. 16 - 1,20m - AM/JC/M/MR - CRONÔMETRO TAB C - ... - 10h30 - 20/10/2013"
+#     → dá número, ALTURA (explícita!), categorias, barema, horário e DATA COMPLETA.
+#   • O sistema eletrônico da FPH começa ~mar/2013 (IDs<~100 vazios). O MESMO
+#     template moderno é usado p/ todos os anos → parse_resultados já parseia 2013.
+# DOIS modos de exibir a CLASSIFICAÇÃO (ver detectar_tipo_resultado):
+#   • 'tabela' (~70%): a tabela já vem no GET, TODAS as categorias num ranking
+#     ÚNICO (o site já mesclou). parse_resultados resolve direto.
+#   • 'balao'  (~25%): ddlCategoriasFiltro começa com "Selecione" e NENHUMA tabela
+#     vem no GET; cada categoria carrega via __doPostBack (UpdatePanel AJAX). Exige
+#     navegador (Playwright) p/ iterar as categorias; depois mesclamos (mesclar_resultados).
+#   • 'vazio'  (~5%): sem tabela e sem categorias reais (prova sem classificação).
+
+# (dia)/(mes)/(ano) completa no fim do dadosProva
+_DATA_FULL = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
+# primeira altura "X,YY m" (ex.: 1,20m / 0,40 m)
+_ALT_M = re.compile(r"(\d),(\d{2})\s*m\b", re.IGNORECASE)
+# número da prova: "PR. 16", "PR 3", "PROVA 01"
+_NUM_PROVA = re.compile(r"\b(?:PR\.?|PROVA)\s*(\d+)", re.IGNORECASE)
+
+
+def _altura_m_de(texto):
+    """Primeira altura 'X,YYm' do texto → float em metros (1,20m → 1.20). None se ausente."""
+    if not texto:
+        return None
+    m = _ALT_M.search(texto)
+    if not m:
+        return None
+    try:
+        return round(int(m.group(1)) + int(m.group(2)) / 100.0, 2)
+    except ValueError:
+        return None
+
+
+def parse_resultado_pagina(html):
+    """Cabeçalho AUTO-CONTIDO de uma página Resultados.aspx?ID=N (modo backfill).
+    Extrai o necessário p/ montar TORNEIO + PROVA sem o calendário. Campos:
+      evento        nome do torneio (h2.font-torneio)
+      data          ISO da prova (DD/MM/AAAA do fim do dadosProva)
+      numero        número da prova ('16', '01'…) ou None
+      prova_nome    a linha dadosProva inteira (rótulo da prova, como no ListaProvas)
+      altura_m      altura em metros (float, ex.: 1.20) — explícita na fonte
+      categorias    string de categorias da prova (ex.: 'AM/JC/M/MR') ou None
+      tipo_prova    barema (CRONÔMETRO…/TEMPO IDEAL…/DUAS FASES…) — guia do parser/merge
+      horario       'HHhMM' ou None
+    Devolve None se a página não é de resultado (sem h2.font-torneio nem dadosProva)."""
+    soup = _soup(html)
+    ev = soup.select_one("h2.font-torneio")
+    dp = soup.select_one("span.dadosProva")
+    evento = _clean(ev.get_text(" ")) if ev else None
+    dados = _clean(dp.get_text(" ")) if dp else None
+    if not evento and not dados:
+        return None
+
+    data_iso = numero = categorias = horario = None
+    altura = None
+    if dados:
+        md = _DATA_FULL.search(dados)
+        if md:
+            d, mo, y = (int(x) for x in md.groups())
+            try:
+                data_iso = _dt.date(y, mo, d).isoformat()
+            except ValueError:
+                data_iso = None
+        mn = _NUM_PROVA.search(dados)
+        numero = mn.group(1) if mn else None
+        altura = _altura_m_de(dados)
+        mh = re.search(r"\b(\d{1,2}h\d{2})\b", dados)
+        horario = mh.group(1) if mh else None
+        # categorias = segmento com várias siglas separadas por '/' (ex.: 'AM/JC/M/MR'),
+        # preferindo o que casa o padrão de códigos curtos. Pega o 1º que tiver '/'.
+        for seg in (s.strip() for s in dados.split(" - ")):
+            # códigos de categoria têm LETRA (AM/JC, AMT/JCT, CN5/HC); exige letra
+            # em cada peça p/ NÃO casar data (10/11/2013) nem números soltos.
+            if "/" in seg and re.fullmatch(
+                    r"[A-Z][A-Z0-9 ]{0,5}(?:\s*/\s*[A-Z][A-Z0-9 ]{0,5})+", seg):
+                categorias = re.sub(r"\s*/\s*", "/", seg)
+                break
+
+    return {
+        "evento": evento,
+        "data": data_iso,
+        "numero": numero,
+        "prova_nome": dados,
+        "altura_m": altura,
+        "categorias": categorias,
+        "tipo_prova": parse_prova_tipo(html),
+        "horario": horario,
+    }
+
+
+def detectar_tipo_resultado(html):
+    """Classifica a apresentação da CLASSIFICAÇÃO na página de resultado:
+      'tabela' → a tabela já veio no GET (linhas tr.table-row-styling/td.classfic-data);
+                 todas as categorias num ranking único (o site já mesclou).
+      'balao'  → ddlCategoriasFiltro começa com 'Selecione' e NÃO há linhas no GET;
+                 cada categoria carrega via postback (precisa Playwright + merge).
+      'vazio'  → sem tabela e sem categorias reais (prova sem classificação)."""
+    soup = _soup(html)
+    tem_linhas = soup.find("td", class_="classfic-data") is not None
+    if tem_linhas:
+        return "tabela"
+    cats = parse_categorias_balao(html)
+    return "balao" if cats else "vazio"
+
+
+def parse_categorias_balao(html):
+    """Categorias selecionáveis do ddlCategoriasFiltro (modo 'balao'). Devolve
+    [(value, label)] EXCLUINDO o placeholder ('Selecione'/'Todas Categorias',
+    value vazio). Vazio se não houver seletor real de categorias."""
+    soup = _soup(html)
+    sel = soup.find("select", id=re.compile(r"ddlCategoriasFiltro"))
+    if not sel:
+        return []
+    out = []
+    for opt in sel.find_all("option"):
+        val = (opt.get("value") or "").strip()
+        lab = _clean(opt.get_text())
+        if val and lab and lab.lower() not in ("selecione", "todas categorias"):
+            out.append((val, lab))
+    return out
+
+
+# ── MESCLAGEM de categorias (modo 'balao') num ranking ÚNICO ──────────
+# REGRA DE NEGÓCIO (definida pelo cliente): quando uma prova é dividida em
+# categorias (Jr/Sr/…), o resultado deve ser UM ranking único por DESEMPENHO,
+# ignorando a fronteira de categoria — todas correram o MESMO percurso/altura, os
+# tempos são comparáveis. A categoria de cada conjunto é PRESERVADA como atributo.
+# A chave de ordenação respeita o BAREMA (senão re-rankearíamos errado):
+#   • TEMPO IDEAL / FAIXA DE TEMPO / OCULTO → faltas ASC, depois APROXIMAÇÃO ASC
+#     (vence quem chega mais perto do tempo ideal; aproximação vem em `pontos`).
+#   • DUAS FASES / DESEMPATE / 2 PERCURSOS  → faltas finais ASC, depois TEMPO da
+#     última fase/volta (tempo_2 se houver; senão tempo) ASC.
+#   • CRONÔMETRO e demais                   → faltas ASC, depois TEMPO ASC.
+# Sem-faltas-numérica (Eliminado/Desistente/Forfait) vai p/ o FIM, preservando o
+# status; empates mantêm ordem estável de entrada.
+
+def _num_br(s):
+    """'54,10' / '1,20' / '0' → float; None se não-numérico (status/'-' etc.)."""
+    if s is None:
+        return None
+    m = re.search(r"\d+(?:,\d+)?", str(s))
+    return float(m.group().replace(",", ".")) if m else None
+
+
+def _faltas_num(penalidade):
+    """Faltas numéricas p/ ordenação. '0'/'4'/'0 (0+0)' → 0.0/4.0/0.0; status
+    (Eliminado/Desistente/…) → None (= vai p/ o fim)."""
+    if penalidade is None:
+        return None
+    return _num_br(penalidade)
+
+
+def mesclar_resultados(listas, tipo_prova=None):
+    """Mescla resultados de VÁRIAS categorias (modo 'balao') num ranking único.
+    `listas` = iterável de listas de dicts no formato de parse_resultados (cada uma
+    de uma categoria; cada dict deve trazer ao menos categoria/penalidade/tempo,
+    e pontos/tempo_2 quando aplicável). Reordena por desempenho (ciente do barema),
+    reescreve `colocacao` ('1º','2º',…) GLOBAL e preserva `categoria`. Conjuntos
+    sem faltas numéricas (eliminado/desistente) vão p/ o fim, sem colocação nova
+    (mantêm o status em penalidade). Estável."""
+    tp = (tipo_prova or "").upper()
+    por_aprox = ("TEMPO IDEAL" in tp or "TEMPO OCULTO" in tp or "FAIXA DE TEMPO" in tp)
+
+    itens = []
+    for lst in listas:
+        for r in (lst or []):
+            itens.append(dict(r))
+
+    def chave(r):
+        faltas = _faltas_num(r.get("penalidade"))
+        if por_aprox:
+            segundo = _num_br(r.get("pontos"))           # aproximação |t-ideal|
+        else:
+            segundo = _num_br(r.get("tempo_2") or r.get("tempo"))
+        return faltas, segundo
+
+    classificados, sem_nota = [], []
+    for i, r in enumerate(itens):
+        faltas, segundo = chave(r)
+        if faltas is None:                # status (eliminado/desistente) → fim
+            sem_nota.append((i, r))
+        else:
+            classificados.append((faltas, segundo if segundo is not None else float("inf"), i, r))
+    classificados.sort(key=lambda x: (x[0], x[1], x[2]))
+
+    out = []
+    for pos, (_, _, _, r) in enumerate(classificados, start=1):
+        r["colocacao"] = f"{pos}º"
+        out.append(r)
+    for _, r in sem_nota:                  # mantêm status, sem colocação numérica
+        r["colocacao"] = None
+        out.append(r)
+    return out
+
+
 # ── ORDEM DE ENTRADA (OrdemEntrada.aspx?ID=N) — Fase C ────────────────
 # DESCOBERTAS DA RECON AO VIVO (FPH 2026-06; PR03 do 3436 = id_origem 14009):
 #   • Também RENDERIZA NO GET SIMPLES (sem Playwright). ViewState vazio.

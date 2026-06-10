@@ -88,6 +88,87 @@ def fetch_ordem_entrada(source, prova_id):
     return http_get(source["ordem_url"].format(id=prova_id))
 
 
+# Seletor de categoria da página de resultado (modo 'balao'): trocar dispara
+# __doPostBack no UpdatePanel pnlResultados → a tabela da categoria renderiza.
+DDL_CATEGORIAS = "ctl00_ContentPlaceHolder1_ddlCategoriasFiltro"
+
+
+def fetch_resultado_categorias(source, prova_id, headless=True,
+                               settle_ms=1200, timeout_ms=15000):
+    """RESULTADO de prova em modo 'balao' (categorias via postback).
+
+    Abre Resultados.aspx?ID=N e, p/ CADA categoria do ddlCategoriasFiltro,
+    seleciona-a (dispara o postback do UpdatePanel) e captura a tabela renderizada.
+    Devolve lista de (categoria_label, html_da_pagina) — uma por categoria.
+
+    Atalhos (decididos pelo próprio HTML do GET, via detectar_tipo_resultado):
+      • modo 'tabela' (a classificação já veio no GET, todas as categorias num
+        ranking único): devolve [(None, html_inicial)] — NÃO navega categorias
+        (quem chama parseia direto com parse_resultados).
+      • modo 'vazio' (sem tabela e sem categorias reais): devolve [].
+    Import do Playwright é adiado (roda no CI 3.12; ausente no Python local)."""
+    from playwright.sync_api import sync_playwright
+    from .adapters import macronetwork as M
+
+    url = source["resultados_url"].format(id=prova_id)
+    out = []
+    with sync_playwright() as pw:
+        browser, ctx, page = _new_page(pw, headless)
+        try:
+            _safe(lambda: page.goto(url, wait_until="domcontentloaded"))
+            _safe(lambda: page.wait_for_timeout(settle_ms))
+            html0 = _safe(lambda: page.content()) or ""
+            tipo = M.detectar_tipo_resultado(html0)
+            if tipo == "tabela":
+                return [(None, html0)]
+            if tipo != "balao":
+                return []
+            for val, lab in M.parse_categorias_balao(html0):
+                _safe(lambda v=val: page.select_option(f"#{DDL_CATEGORIAS}", v))
+                # espera o postback do UpdatePanel assentar e a tabela aparecer
+                _safe(lambda: page.wait_for_load_state("networkidle", timeout=timeout_ms))
+                _safe(lambda: page.wait_for_selector("td.classfic-data", timeout=timeout_ms))
+                _safe(lambda: page.wait_for_timeout(settle_ms))
+                html = _safe(lambda: page.content())
+                if html:
+                    out.append((lab, html))
+        finally:
+            _safe(lambda: browser.close())
+    return out
+
+
+def fetch_resultados_balao_lote(source, prova_ids, headless=True,
+                                settle_ms=1000, timeout_ms=15000):
+    """Versão em LOTE de fetch_resultado_categorias: REUSA um único navegador p/
+    iterar VÁRIAS provas em modo 'balao' (essencial no backfill — abrir um browser
+    por prova seria proibitivo). GERA (prova_id, [(categoria_label, html), …]) na
+    ordem de `prova_ids`. Cada prova é isolada por _safe — uma falha não derruba o
+    lote. Provas sem categoria real rendem (prova_id, [])."""
+    from playwright.sync_api import sync_playwright
+    from .adapters import macronetwork as M
+
+    with sync_playwright() as pw:
+        browser, ctx, page = _new_page(pw, headless)
+        try:
+            for pid in prova_ids:
+                url = source["resultados_url"].format(id=pid)
+                cats_html = []
+                _safe(lambda u=url: page.goto(u, wait_until="domcontentloaded"))
+                _safe(lambda: page.wait_for_timeout(settle_ms))
+                html0 = _safe(lambda: page.content()) or ""
+                for val, lab in M.parse_categorias_balao(html0):
+                    _safe(lambda v=val: page.select_option(f"#{DDL_CATEGORIAS}", v))
+                    _safe(lambda: page.wait_for_load_state("networkidle", timeout=timeout_ms))
+                    _safe(lambda: page.wait_for_selector("td.classfic-data", timeout=timeout_ms))
+                    _safe(lambda: page.wait_for_timeout(settle_ms))
+                    h = _safe(lambda: page.content())
+                    if h:
+                        cats_html.append((lab, h))
+                yield pid, cats_html
+        finally:
+            _safe(lambda: browser.close())
+
+
 # ── caminho 2: Playwright (navegador) ────────────────────────────────
 def _new_page(pw, headless=True):
     browser = pw.chromium.launch(headless=headless)
