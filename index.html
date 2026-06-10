@@ -1162,10 +1162,30 @@ body.tem-notif .btn-hamburger::after {
   font-style: italic;
 }
 
+/* ─── DOCUMENTO TEXTO LIVRE (adendo) ─── */
+.doc-livre {
+  white-space: pre-wrap; font-size: 13.5px; line-height: 1.62; color: var(--fg);
+  padding: 14px 16px; margin: 2px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: 10px;
+  max-height: 62vh; overflow: auto;
+}
+
 /* ─── QUADRO DE HORÁRIOS ─── */
 .qh-wrap { padding: 12px 14px; max-height: 60vh; overflow-y: auto; background: var(--bg); }
 .qh-validade { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 10px; }
 .qh-dia { margin-bottom: 18px; }
+/* acordeão por dia */
+.qh-acc { margin-bottom: 10px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); }
+.qh-acc-sum {
+  display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none;
+  background: var(--accent); color: #fff; padding: 9px 12px;
+}
+.qh-acc-sum::-webkit-details-marker { display: none; }
+.qh-acc-day { flex: 1; display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.qh-acc-count { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .9; white-space: nowrap; }
+.qh-acc-chev { transition: transform .2s; flex-shrink: 0; }
+.qh-acc[open] .qh-acc-chev { transform: rotate(180deg); }
+.qh-acc .qh-provas { border-radius: 0; border: none; }
 .qh-dia-hdr {
   display: flex; align-items: baseline; gap: 10px;
   background: var(--accent);
@@ -6541,10 +6561,11 @@ function _renderDocStructured(d) {
   return _renderOutros(s);
 }
 function _renderTextoLivre(t) {
-  return `<div class="doc-texto" style="white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--fg);padding:6px 2px;max-height:60vh;overflow:auto">${escHtml(t)}</div>`;
+  const clean = String(t || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  return `<div class="doc-livre">${escHtml(clean)}</div>`;
 }
 
-// Renderização Quadro de Horários (timetable visual)
+// Renderização Quadro de Horários — ACORDEÃO por dia (estilo do app)
 function _renderHorarios(s) {
   if (!s.dias || !s.dias.length) {
     return `<div class="doc-pending">Quadro vazio ou não reconhecido.</div>`;
@@ -6552,12 +6573,16 @@ function _renderHorarios(s) {
   return `
     <div class="qh-wrap">
       ${s.validade ? `<div class="qh-validade">Versão de ${escHtml(s.validade)}</div>` : ''}
-      ${s.dias.map(dia => `
-        <div class="qh-dia">
-          <div class="qh-dia-hdr">
-            <div class="qh-dia-data">${escHtml(dia.data || '—')}</div>
-            <div class="qh-dia-semana">${escHtml(dia.dia_semana || '')}</div>
-          </div>
+      ${s.dias.map((dia, i) => `
+        <details class="qh-acc"${i === 0 ? ' open' : ''}>
+          <summary class="qh-acc-sum">
+            <div class="qh-acc-day">
+              <div class="qh-dia-data">${escHtml(dia.data || '—')}</div>
+              <div class="qh-dia-semana">${escHtml(dia.dia_semana || '')}</div>
+            </div>
+            <span class="qh-acc-count">${(dia.horarios || []).length} prova${(dia.horarios || []).length !== 1 ? 's' : ''}</span>
+            <svg class="qh-acc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
           <div class="qh-provas">
             ${(dia.horarios || []).map(h => `
               <div class="qh-row">
@@ -6572,7 +6597,7 @@ function _renderHorarios(s) {
               </div>
             `).join('')}
           </div>
-        </div>
+        </details>
       `).join('')}
     </div>
   `;
