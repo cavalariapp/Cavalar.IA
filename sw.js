@@ -8,6 +8,18 @@
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 
+// NETWORK-FIRST pro HTML: toda navegação busca a versão FRESCA do servidor
+// (cache:'reload' ignora o cache HTTP do navegador/iOS). Sem isto, o iOS servia
+// uma versão velha do app indefinidamente após um deploy.
+self.addEventListener('fetch', (e) => {
+  const req = e.request;
+  if (req.mode === 'navigate' || (req.method === 'GET' && req.destination === 'document')) {
+    e.respondWith(
+      fetch(req.url, { cache: 'reload' }).catch(() => fetch(req))
+    );
+  }
+});
+
 // Toque na notificação → foca uma aba aberta (ou abre uma) na tela certa.
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
