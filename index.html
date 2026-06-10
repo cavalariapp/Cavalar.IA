@@ -641,6 +641,7 @@ body.tem-notif .btn-hamburger::after {
   background: var(--surface);
   border: 1px solid var(--border);
 }
+.feat-slide { position: absolute; inset: 0; }
 .feat-bg {
   position: absolute;
   inset: 0;
@@ -2347,46 +2348,10 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     </div>
   </div>
 
-  <!-- FEATURE GRID -->
+  <!-- FEATURE GRID (carrosséis dinâmicos) -->
   <div class="sec-hdr"><span class="sec-title">Em Destaque</span></div>
-  <div class="feat-grid">
-    <div class="feat-card" onclick="location.href='resultados.html'">
-      <div class="feat-bg" style="background:linear-gradient(145deg,#0d1e35,#0a1420)"></div>
-      <div class="feat-overlay"></div>
-      <div class="feat-content">
-        <div class="feat-tag">Resultados</div>
-        <div class="feat-title">PÓDIOS<br><span class="ora">&amp; PROVAS</span></div>
-        <div class="feat-desc">Resultados dos torneios</div>
-      </div>
-    </div>
-    <div class="feat-card" onclick="abrirGenetica('pai')">
-      <div class="feat-bg" style="background:linear-gradient(145deg,#0e2818,#0e1a20)"></div>
-      <div class="feat-overlay"></div>
-      <div class="feat-content">
-        <div class="feat-tag">Genética</div>
-        <div class="feat-title">GARANHÕES<br><span class="ora">MATRIZES</span></div>
-        <div class="feat-desc">Rankings de reprodução</div>
-      </div>
-    </div>
-    <div class="feat-card" onclick="nav('videoaulas')">
-      <div class="feat-bg" style="background:linear-gradient(145deg,#0a1820,#141008)"></div>
-      <div class="feat-overlay"></div>
-      <div class="feat-content">
-        <div class="feat-tag">Programas</div>
-        <div class="feat-title">POD<br><span class="ora">CASTS</span></div>
-        <div class="feat-desc">Episódios e vídeos</div>
-      </div>
-    </div>
-    <div class="feat-card" onclick="nav('feed-global')">
-      <div class="feat-bg" style="background:linear-gradient(145deg,#1e0e08,#0e1a18)"></div>
-      <div class="feat-overlay"></div>
-      <div class="feat-content">
-        <div class="feat-tag">Comunidade</div>
-        <div class="feat-title">FEED DA<br><span class="ora">COMUNIDADE</span></div>
-        <div class="feat-desc">Histórias do hipismo</div>
-      </div>
-    </div>
-  </div>
+  <div class="feat-grid" id="feat-grid"></div>
+  <input id="feat-img-file" type="file" accept="image/*" style="display:none" onchange="uploadFeatImg(this)">
 
   <!-- BANNER DE PATROCÍNIO (carrossel, borda a borda) -->
   <div id="banner-home" class="banner-zone"></div>
@@ -4047,8 +4012,9 @@ function initCategories() {
 
 // ─── HOME: RENDER DYNAMIC CONTENT ────────────────────────────
 async function renderHomeContent() {
-  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios(), loadBanners()]);
+  await Promise.all([renderNews(), renderRankings(), renderEvents(), updateAuthButton(), renderHomeEpisodios(), loadBanners(), loadFeatImgs()]);
   renderBanners('home', 'banner-home');
+  renderFeatGrid();
 }
 
 // ─── HOME: 3 últimos episódios de podcast (dinâmico) ─────────────────
@@ -4108,6 +4074,94 @@ async function uploadCapa(input) {
     btn.textContent = '✓ Capa atualizada';
     setTimeout(() => { btn.textContent = prev; btn.disabled = false; }, 1800);
   } catch (e) { alert('Falha ao trocar a capa: ' + (e.message || e)); btn.textContent = prev; btn.disabled = false; }
+}
+
+// ─── DESTAQUES (feature cards) — carrossel auto-rotativo com imagem por slide ──
+const _HOME_CARDS = [
+  { id: 'resultados', slides: [
+    { key: 'res',   tag: 'Resultados', t1: 'PÓDIOS',   t2: '& PROVAS',   desc: 'Resultados dos torneios', go: "location.href='resultados.html'",            grad: 'linear-gradient(145deg,#0d1e35,#0a1420)' },
+    { key: 'ordem', tag: 'Calendário', t1: 'ORDEM DE', t2: 'ENTRADA',    desc: 'Quem compete e quando',    go: "location.href='resultados.html?modo=ordens'", grad: 'linear-gradient(145deg,#0a1828,#0d1420)' },
+  ]},
+  { id: 'genetica', slides: [
+    { key: 'garanhoes', tag: 'Genética', t1: '', t2: 'GARANHÕES', desc: 'Rankings de reprodução', go: "abrirGenetica('pai')", grad: 'linear-gradient(145deg,#0e2818,#0e1a20)' },
+    { key: 'matrizes',  tag: 'Genética', t1: '', t2: 'MATRIZES',  desc: 'Rankings de reprodução', go: "abrirGenetica('mae')", grad: 'linear-gradient(145deg,#1a2810,#0e1a18)' },
+  ]},
+  { id: 'programas', slides: [
+    { key: 'podcast',   tag: 'Programas', t1: 'POD',   t2: 'CASTS',  desc: 'Episódios de áudio',   go: "nav('videoaulas')", grad: 'linear-gradient(145deg,#0a1820,#141008)' },
+    { key: 'videocast', tag: 'Programas', t1: 'VIDEO', t2: 'CASTS',  desc: 'Episódios em vídeo',   go: "nav('videoaulas')", grad: 'linear-gradient(145deg,#101a24,#160e10)' },
+    { key: 'videoaula', tag: 'Programas', t1: 'VIDEO', t2: 'AULAS',  desc: 'Conteúdo educativo',   go: "nav('videoaulas')", grad: 'linear-gradient(145deg,#141020,#0e1620)' },
+  ]},
+  { id: 'feed', slides: [
+    { key: 'feed', tag: 'Comunidade', t1: 'FEED DA', t2: 'COMUNIDADE', desc: 'Histórias do hipismo', go: "nav('feed-global')", grad: 'linear-gradient(145deg,#1e0e08,#0e1a18)' },
+  ]},
+];
+let _featImgs = {};            // {slideKey: url}
+const _featIdx = {};           // {cardId: índice atual}
+const _featTimers = {};        // {cardId: interval}
+let _featUploadKey = null;
+
+async function loadFeatImgs() {
+  try { const { data } = await sb.from('site_settings').select('value').eq('key', 'home_cards').maybeSingle(); _featImgs = (data && data.value) || {}; }
+  catch (_) { _featImgs = {}; }
+}
+function renderFeatGrid() {
+  const grid = document.getElementById('feat-grid');
+  if (!grid) return;
+  Object.values(_featTimers).forEach(t => clearInterval(t));
+  grid.innerHTML = _HOME_CARDS.map(card => {
+    _featIdx[card.id] = 0;
+    const slides = card.slides.map((s, i) => {
+      const img = _featImgs[s.key];
+      const bg = img
+        ? `background-image:url('${String(img).replace(/'/g, "%27")}');background-size:cover;background-position:center`
+        : `background:${s.grad}`;
+      return `<div class="feat-slide" onclick="${s.go}" style="display:${i === 0 ? 'block' : 'none'};cursor:pointer">
+        <div class="feat-bg" style="${bg}"></div>
+        <div class="feat-overlay"></div>
+        <div class="feat-content">
+          <div class="feat-tag">${escHtml(s.tag)}</div>
+          <div class="feat-title">${s.t1 ? escHtml(s.t1) + '<br>' : ''}<span class="ora">${escHtml(s.t2)}</span></div>
+          <div class="feat-desc">${escHtml(s.desc)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    const cam = _isAdmin ? `<button onclick="event.stopPropagation();trocarFeatImg('${card.id}')" title="Trocar imagem deste slide" style="position:absolute;top:7px;right:7px;z-index:6;background:rgba(8,13,24,.82);border:1px solid var(--border);color:#fff;border-radius:7px;padding:4px 7px;font-size:12px;cursor:pointer">📷</button>` : '';
+    return `<div class="feat-card" id="featcard-${card.id}">${slides}${cam}</div>`;
+  }).join('');
+  // rotação a cada 3s nos cards com mais de 1 slide
+  _HOME_CARDS.forEach(card => {
+    if (card.slides.length < 2) return;
+    const el = document.getElementById('featcard-' + card.id);
+    if (!el) return;
+    const ss = el.querySelectorAll('.feat-slide');
+    _featTimers[card.id] = setInterval(() => {
+      ss[_featIdx[card.id]].style.display = 'none';
+      _featIdx[card.id] = (_featIdx[card.id] + 1) % ss.length;
+      ss[_featIdx[card.id]].style.display = 'block';
+    }, 3000);
+  });
+}
+function trocarFeatImg(cardId) {
+  const card = _HOME_CARDS.find(c => c.id === cardId);
+  if (!card) return;
+  _featUploadKey = card.slides[_featIdx[cardId] || 0].key;   // imagem do slide visível agora
+  document.getElementById('feat-img-file').click();
+}
+async function uploadFeatImg(input) {
+  const file = input.files && input.files[0];
+  if (!file || !_isAdmin || !_featUploadKey) return;
+  try {
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+    const path = `card_${_featUploadKey}_${Date.now()}.${ext}`;
+    const { error } = await sb.storage.from('patrocinios').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
+    if (error) throw error;
+    const url = sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+    _featImgs[_featUploadKey] = url;
+    const { error: e2 } = await sb.from('site_settings').upsert({ key: 'home_cards', value: _featImgs }, { onConflict: 'key' });
+    if (e2) throw e2;
+    renderFeatGrid();
+  } catch (e) { alert('Falha ao enviar imagem: ' + (e.message || e)); }
+  finally { _featUploadKey = null; input.value = ''; }
 }
 
 // ─── PATROCÍNIOS — banners (imagem pura, borda a borda) em carrossel ──────────
@@ -4301,6 +4355,9 @@ async function updateAuthButton() {
     }
     const _hcb = document.getElementById('hero-cover-btn');
     if (_hcb) _hcb.style.display = _isAdmin ? 'block' : 'none';
+    if (document.getElementById('feat-grid') && typeof renderFeatGrid === 'function') {
+      try { renderFeatGrid(); } catch (_) {}
+    }
 
     // Atualiza todos os botões "ENTRAR" do app (têm vários nos diversos screens)
     const entrarBtn = document.getElementById('btn-entrar-home');
@@ -6262,6 +6319,7 @@ async function init() {
   renderHomeEpisodios();
   loadBanners().then(() => renderBanners('home', 'banner-home'));
   loadHomeCover();
+  loadFeatImgs().then(renderFeatGrid);
   initAuth();
   initSearch();
   initCategories();
