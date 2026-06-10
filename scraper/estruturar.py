@@ -33,11 +33,19 @@ _PROMPTS = {
         "Campo ausente = string vazia. Responda APENAS o JSON, sem texto antes/depois."
     ),
     "horarios": (
-        "Você recebe o TEXTO de um QUADRO DE HORÁRIOS de concurso de hipismo. Extraia "
-        "em JSON válido:\n"
+        "Você recebe o TEXTO de um QUADRO DE HORÁRIOS de concurso de hipismo (salto). "
+        "Extraia em JSON válido, lendo SOMENTE o que está no texto:\n"
         '{"dias": [{"data": "DD/MM/AAAA", "dia_semana": "sexta-feira", '
-        '"horarios": [{"prova_numero": "01", "hora": "HH:MM", "pista": ""}]}]}\n'
-        "Responda APENAS o JSON, sem texto antes/depois."
+        '"horarios": [{"prova_numero": "01", "hora": "HH:MM", "prova_nome": "", '
+        '"altura": "1,20m", "categoria": "", "tabela": "", "pista": ""}]}]}\n'
+        "Significado dos campos:\n"
+        "- altura: altura da prova no formato '1,20m' (vazio se não houver).\n"
+        "- categoria: categorias/séries da prova (ex.: AM, SR, PJR, MIRINS, JOVENS, "
+        "PRE-MIRINS, JUVENIS); junte com ' / ' se houver mais de uma.\n"
+        "- tabela: característica/tipo da prova (ex.: Cronômetro, Cronômetro com "
+        "desempate, Duas Fases, Tempo Ideal, Dois Percursos).\n"
+        "- pista: nome da pista/arena onde a prova ocorre.\n"
+        "Campo ausente = string vazia. Responda APENAS o JSON, sem texto antes/depois."
     ),
 }
 
