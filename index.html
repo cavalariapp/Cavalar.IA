@@ -6164,6 +6164,8 @@ async function abrirPerfilCavalo(i) {
     const { data } = await sb.rpc('progenie', { papel: 'mae', rep: nome1 });
     filhos = data || [];
   }
+  const _DBG = `premium=${_isPremium} | papel=${papel} | filhos=${filhos.length} | progErro=${(filQ && filQ.error && (filQ.error.message || filQ.error.code)) || '-'} | histErro=${(resQ && resQ.error && (resQ.error.message || resQ.error.code)) || '-'} | nome="${nome1}"`;
+  console.log('[perfilCavalo]', _DBG);
   // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
   const meus = (resQ.data || []).map(r => ({
     colocacao: r.colocacao, penalidade: r.penalidade, tempo: r.tempo,
@@ -6189,6 +6191,7 @@ async function abrirPerfilCavalo(i) {
       </button>
       <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
       <div style="font-size:12px;color:var(--muted)">${_sexoLabel(c.sexo)}${c.nascimento ? ' · ' + String(c.nascimento).slice(0, 4) : ''}${melhor ? ' · máx. ' + fmtAlt(melhor) : ''}${c.registro ? ' · Reg. ' + escHtml(c.registro) : ''}</div>
+      <div style="margin-top:8px;padding:8px 10px;background:#1d4ed8;color:#fff;font-size:11px;border-radius:6px;word-break:break-all;line-height:1.4">🐞 ${escHtml(_DBG)}</div>
     </div>
     ${c.gen ? `
     <div style="padding:14px 16px 0">
