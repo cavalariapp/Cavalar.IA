@@ -6006,6 +6006,12 @@ function _alturaProva(p) {
   return m ? (parseInt(m[1]) + parseInt(m[2]) / 100) : null;
 }
 function _sexoLabel(s) { return s === 'M' ? 'Garanhão' : s === 'F' ? 'Matriz' : '—'; }
+// Altura máxima plausível por idade (espelha alt_max_para_idade do SQL).
+function _altMaxIdade(idade) {
+  if (idade == null || isNaN(idade)) return 1.70;
+  if (idade <= 3) return 1.10; if (idade === 4) return 1.20; if (idade === 5) return 1.30;
+  if (idade === 6) return 1.40; if (idade === 7) return 1.50; return 1.70;
+}
 
 // Cartão de paywall reutilizável: aparece no lugar de um recurso premium.
 // `titulo` = nome do recurso; `desc` = o que desbloqueia ao assinar.
@@ -6173,12 +6179,25 @@ async function abrirPerfilCavalo(i) {
     filhos = data || [];
   }
   // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
-  const meus = (resQ.data || []).map(r => ({
+  let meus = (resQ.data || []).map(r => ({
     colocacao: r.colocacao, penalidade: r.penalidade, tempo: r.tempo,
     cavaleiro_nome: r.cavaleiro_nome, cavalo_nome: r.cavalo_nome,
     provas: { nome: r.prova_nome, descricao: r.prova_descricao, categorias: r.prova_categorias,
               data_prova: r.data_prova, torneios: { nome: r.torneio_nome, data_inicio: r.torneio_data } }
   }));
+  // VERACIDADE: descarta resultados impossíveis para a idade do cavalo na prova
+  // (homônimo / erro de fonte — ex.: potro de 5 anos "saltando" 1,40m).
+  const _birthYr = c.nascimento ? parseInt(String(c.nascimento).slice(0, 4)) : null;
+  if (_birthYr) {
+    meus = meus.filter(r => {
+      const a = _alturaProva(r.provas);
+      if (!a) return true;
+      const ds = (r.provas && r.provas.data_prova) || (r.provas && r.provas.torneios && r.provas.torneios.data_inicio) || '';
+      const py = ds ? parseInt(String(ds).slice(0, 4)) : null;
+      if (!py) return true;
+      return a <= _altMaxIdade(py - _birthYr);
+    });
+  }
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
   const vit = meus.filter(r => parseInt(r.colocacao) === 1).length;
