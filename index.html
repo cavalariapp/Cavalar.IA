@@ -5873,6 +5873,51 @@ function initGenetica() { _genChips(); genPapel(STATE.genPapel); }
 // abre a tela Genética já na aba certa (Garanhões=pai / Matrizes=mae)
 function abrirGenetica(papel) { STATE.genPapel = papel || 'pai'; nav('genetica'); }
 
+// Barra de % (gráfico leve, tema do app). hi = destacada (quando é o sort atual).
+function _genBar(pct, label, hi) {
+  pct = Math.max(0, Math.min(100, Math.round(+pct || 0)));
+  const fill = hi ? 'var(--accent)' : 'linear-gradient(90deg,var(--accent),#ff8a4d)';
+  return `<div style="margin-top:6px">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:var(--muted);margin-bottom:3px">
+      <span>${label}</span><span style="font-weight:800;color:${hi ? 'var(--accent)' : 'var(--fg)'}">${pct}%</span>
+    </div>
+    <div style="height:6px;background:var(--surface2);border-radius:4px;overflow:hidden">
+      <div style="height:100%;width:${pct}%;background:${fill};border-radius:4px;transition:width .5s ease"></div>
+    </div>
+  </div>`;
+}
+
+// Gráfico de barras: distribuição dos filhos por altura máxima competida.
+function _progenieChart(filhos) {
+  const withAlt = (filhos || []).filter(f => f.max_alt);
+  if (withAlt.length < 2) return '';   // pouco dado → não mostra
+  const buckets = [
+    { label: '1,60m+', min: 1.60, hi: true },
+    { label: '1,50m',  min: 1.50, hi: true },
+    { label: '1,40m',  min: 1.40, hi: true },
+    { label: '1,30m',  min: 1.30, hi: false },
+    { label: '1,20m',  min: 1.20, hi: false },
+    { label: '1,10m',  min: 1.10, hi: false },
+    { label: '≤1,00m', min: 0,    hi: false },
+  ];
+  const counts = buckets.map(() => 0);
+  withAlt.forEach(f => { const a = +f.max_alt; for (let i = 0; i < buckets.length; i++) { if (a >= buckets[i].min) { counts[i]++; break; } } });
+  const max = Math.max(...counts, 1);
+  const rows = buckets.map((b, i) => counts[i] ? `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <span style="width:48px;font-size:10.5px;color:var(--muted);text-align:right;flex-shrink:0">${b.label}</span>
+      <div style="flex:1;height:14px;background:var(--surface2);border-radius:3px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(100 * counts[i] / max)}%;background:${b.hi ? 'var(--accent)' : '#3a5170'};border-radius:3px;min-width:3px;transition:width .5s ease"></div>
+      </div>
+      <span style="width:24px;font-size:11px;font-weight:800;flex-shrink:0">${counts[i]}</span>
+    </div>` : '').join('');
+  return `<div style="padding:16px 16px 0">
+    <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Filhos por altura máxima</div>
+    ${rows}
+    <div style="font-size:9.5px;color:var(--muted);margin-top:4px">${withAlt.length} de ${filhos.length} filhos com resultados · laranja = ≥1,40m</div>
+  </div>`;
+}
+
 async function renderGenetica() {
   const c = document.getElementById('gen-list');
   if (!c) return;
@@ -5899,10 +5944,12 @@ async function renderGenetica() {
         <span style="font-weight:800;font-size:15px;flex:1;min-width:0">${escHtml(r.reprodutor || '')}</span>
         <span style="font-size:11px;color:var(--muted);white-space:nowrap">${em(STATE.genSort === 'total', r.total_filhos + ' filhos')}</span>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.75">
-        +4 anos: <b style="color:var(--fg)">${r.f4}</b> · competindo: ${em(STATE.genSort === 'comp', r.comp)} · ${em(STATE.genSort === 'pct_comp', r.pct_comp + '%')} competem<br>
-        +8 anos: <b style="color:var(--fg)">${r.f8}</b> · ≥1,40m: ${em(STATE.genSort === 'm140', r.m140)} · ${em(STATE.genSort === 'pct140', r.pct140 + '%')} saltam ≥1,40
+      <div style="font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5">
+        +4 anos <b style="color:var(--fg)">${r.f4}</b> · competindo ${em(STATE.genSort === 'comp', r.comp)}
+        &nbsp;·&nbsp; +8 anos <b style="color:var(--fg)">${r.f8}</b> · ≥1,40m ${em(STATE.genSort === 'm140', r.m140)}
       </div>
+      ${_genBar(r.pct_comp, 'Competem (dos +4 anos)', STATE.genSort === 'pct_comp')}
+      ${_genBar(r.pct140, 'Saltam ≥1,40m (dos +8 anos)', STATE.genSort === 'pct140')}
     </div>`).join('') +
     `<div style="padding:14px;color:var(--muted);font-size:10.5px;line-height:1.6">As <b>%</b> são dentro da faixa de idade: "% competem" = filhos +4 anos que competem ÷ total de filhos +4 anos; "% saltam ≥1,40" = filhos +8 anos que saltam ≥1,40 ÷ total de filhos +8 anos. Idade atual; só cavalos registrados na ABCCH.</div>`;
 }
@@ -6121,6 +6168,7 @@ async function abrirPerfilCavalo(i) {
         ${stat(melhor ? fmtAlt(melhor) : '—', 'Melhor altura')}
       </div>
     </div>` : ''}
+    ${filhos.length ? _progenieChart(filhos) : ''}
     ${filhos.length ? `
     <div style="padding:16px 16px 0">
       <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Filhos (${filhos.length})</div>
