@@ -3188,7 +3188,18 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
 const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios'];
 
+function _fecharOverlays() {
+  document.body.style.overflow = '';            // destrava o scroll
+  try { closeHamMenu(); } catch (_) {}
+  try { closeChatbot(); } catch (_) {}
+  try { closeMediaEditor(); } catch (_) {}
+  try { closeTorModal(); } catch (_) {}
+  const pe = document.getElementById('patro-editor'); if (pe) pe.remove();
+}
 function nav(id) {
+  // Limpeza defensiva: fecha overlays/menus abertos que poderiam travar a tela
+  // (scroll preso por overflow:hidden, modal fixo por cima dos botões, etc.).
+  try { _fecharOverlays(); } catch (_) {}
   SCREENS.forEach(s => {
     const el = document.getElementById('scr-' + s);
     if (el) el.classList.remove('active');
@@ -4063,17 +4074,46 @@ async function renderHomeEpisodios() {
 }
 function playHomeEpisodio(i) { const m = _homeEpisodios[i]; if (m) playMediaDirect(m); }
 
+// ─── IMAGENS: redimensiona no upload (arquivos menores = carregam rápido) ─────
+function _resizeImage(file, maxW = 1600, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/') || file.type === 'image/gif') { resolve(file); return; }
+    const u = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(u);
+      if (img.width <= maxW) { resolve(file); return; }   // já pequena
+      const c = document.createElement('canvas');
+      c.width = maxW; c.height = Math.round(img.height * (maxW / img.width));
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(b => resolve(b || file), 'image/jpeg', quality);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); resolve(file); };
+    img.src = u;
+  });
+}
+function _blobExt(b) { const t = (b && b.type) || ''; if (t.includes('png')) return 'png'; if (t.includes('webp')) return 'webp'; return 'jpg'; }
+// Upload genérico (já redimensionado) pro bucket patrocinios → URL pública.
+async function _uploadImg(file, prefix, maxW) {
+  const out = await _resizeImage(file, maxW);
+  const path = `${prefix}_${Date.now()}.${_blobExt(out)}`;
+  const { error } = await sb.storage.from('patrocinios').upload(path, out, { upsert: false, contentType: out.type || 'image/jpeg' });
+  if (error) throw error;
+  return sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+}
+
 // ─── CAPA DA HOME (imagem de fundo do hero, configurável pelo admin) ──────────
+function _applyCover(url) {
+  const bg = document.querySelector('#scr-home .hero-bg');
+  if (url && bg) { bg.style.backgroundImage = `url('${url}')`; bg.style.backgroundSize = 'cover'; bg.style.backgroundPosition = 'center top'; }
+}
 async function loadHomeCover() {
+  // Aplica na hora o que estiver em cache (some o "demorou pra aparecer"); depois confirma no servidor.
+  try { const c = localStorage.getItem('cav_home_cover'); if (c) _applyCover(c); } catch (_) {}
   try {
     const { data } = await sb.from('site_settings').select('value').eq('key', 'home_cover').maybeSingle();
     const url = data && data.value && data.value.url;
-    const bg = document.querySelector('#scr-home .hero-bg');
-    if (url && bg) {
-      bg.style.backgroundImage = `url('${url}')`;
-      bg.style.backgroundSize = 'cover';
-      bg.style.backgroundPosition = 'center top';
-    }
+    if (url) { _applyCover(url); try { localStorage.setItem('cav_home_cover', url); } catch (_) {} }
   } catch (_) {}
 }
 async function uploadCapa(input) {
@@ -4082,15 +4122,11 @@ async function uploadCapa(input) {
   const btn = document.getElementById('hero-cover-btn');
   const prev = btn.textContent; btn.textContent = 'Enviando…'; btn.disabled = true;
   try {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `capa_home_${Date.now()}.${ext}`;
-    const { error } = await sb.storage.from('patrocinios').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
-    if (error) throw error;
-    const url = sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+    const url = await _uploadImg(file, 'capa_home', 1600);
     const { error: e2 } = await sb.from('site_settings').upsert({ key: 'home_cover', value: { url } }, { onConflict: 'key' });
     if (e2) throw e2;
-    const bg = document.querySelector('#scr-home .hero-bg');
-    if (bg) { bg.style.backgroundImage = `url('${url}')`; bg.style.backgroundSize = 'cover'; bg.style.backgroundPosition = 'center top'; }
+    _applyCover(url);
+    try { localStorage.setItem('cav_home_cover', url); } catch (_) {}
     btn.textContent = '✓ Capa atualizada';
     setTimeout(() => { btn.textContent = prev; btn.disabled = false; }, 1800);
   } catch (e) { alert('Falha ao trocar a capa: ' + (e.message || e)); btn.textContent = prev; btn.disabled = false; }
@@ -4121,8 +4157,10 @@ const _featTimers = {};        // {cardId: interval}
 let _featUploadKey = null;
 
 async function loadFeatImgs() {
-  try { const { data } = await sb.from('site_settings').select('value').eq('key', 'home_cards').maybeSingle(); _featImgs = (data && data.value) || {}; }
-  catch (_) { _featImgs = {}; }
+  try {
+    const { data } = await sb.from('site_settings').select('value').eq('key', 'home_cards').maybeSingle();
+    if (data && data.value) { _featImgs = data.value; try { localStorage.setItem('cav_home_cards', JSON.stringify(_featImgs)); } catch (_) {} }
+  } catch (_) {}
 }
 function renderFeatGrid() {
   const grid = document.getElementById('feat-grid');
@@ -4171,14 +4209,11 @@ async function uploadFeatImg(input) {
   const file = input.files && input.files[0];
   if (!file || !_isAdmin || !_featUploadKey) return;
   try {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `card_${_featUploadKey}_${Date.now()}.${ext}`;
-    const { error } = await sb.storage.from('patrocinios').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
-    if (error) throw error;
-    const url = sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+    const url = await _uploadImg(file, `card_${_featUploadKey}`, 900);
     _featImgs[_featUploadKey] = url;
     const { error: e2 } = await sb.from('site_settings').upsert({ key: 'home_cards', value: _featImgs }, { onConflict: 'key' });
     if (e2) throw e2;
+    try { localStorage.setItem('cav_home_cards', JSON.stringify(_featImgs)); } catch (_) {}
     renderFeatGrid();
   } catch (e) { alert('Falha ao enviar imagem: ' + (e.message || e)); }
   finally { _featUploadKey = null; input.value = ''; }
@@ -4282,11 +4317,7 @@ async function uploadBannerImagem(input) {
   const msg = document.getElementById('pe-msg');
   msg.style.color = 'var(--muted)'; msg.textContent = 'Enviando imagem…';
   try {
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-    const path = `banner_${Date.now()}.${ext}`;
-    const { error } = await sb.storage.from('patrocinios').upload(path, file, { upsert: false, contentType: file.type || 'image/jpeg' });
-    if (error) throw error;
-    const url = sb.storage.from('patrocinios').getPublicUrl(path).data.publicUrl;
+    const url = await _uploadImg(file, 'banner', 1600);
     document.getElementById('pe-img').value = url;
     document.getElementById('pe-prev').innerHTML = `<img src="${url.replace(/"/g, '&quot;')}" style="width:100%;border-radius:8px">`;
     msg.textContent = '✓ Imagem enviada';
@@ -6338,6 +6369,9 @@ async function init() {
   carregarEstatisticas();
   renderHomeEpisodios();
   loadBanners().then(() => renderBanners('home', 'banner-home'));
+  // imagens da home: aplica o cache na hora (sem espera), depois atualiza do servidor
+  try { _featImgs = JSON.parse(localStorage.getItem('cav_home_cards') || '{}') || {}; } catch (_) { _featImgs = {}; }
+  renderFeatGrid();
   loadHomeCover();
   loadFeatImgs().then(renderFeatGrid);
   initAuth();
