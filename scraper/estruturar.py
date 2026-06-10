@@ -47,6 +47,25 @@ _PROMPTS = {
         "- pista: nome da pista/arena onde a prova ocorre.\n"
         "Campo ausente = string vazia. Responda APENAS o JSON, sem texto antes/depois."
     ),
+    "adendo": (
+        "Você recebe o TEXTO de um ADENDO de concurso de hipismo (salto). Adendo = "
+        "alterações/correções ao programa ou horários já publicados. Estruture em "
+        "JSON válido, lendo SOMENTE o que está no texto:\n"
+        '{"numero_adendo": "", "data_publicacao": "DD/MM/AAAA", "resumo": "", '
+        '"mudancas": [{"tipo": "", "prova_afetada": "", "descricao": "", '
+        '"antes": "", "depois": ""}]}\n'
+        "Significado dos campos:\n"
+        "- resumo: 1 frase curta do que o adendo altera no geral.\n"
+        "- mudancas: uma entrada por alteração descrita no texto.\n"
+        "- tipo: classifique cada mudança em um destes (minúsculas, com _): "
+        "alteracao_horario, inclusao_prova, cancelamento, alteracao_premiacao, "
+        "alteracao_categoria, alteracao_altura, alteracao_pista, outro.\n"
+        "- prova_afetada: prova(s) envolvida(s), ex.: 'PR 05' ou nome da prova.\n"
+        "- descricao: o que mudou, em texto claro e curto.\n"
+        "- antes/depois: só quando o texto disser o valor anterior e o novo "
+        "(ex.: antes '14:00', depois '15:30'); senão deixe vazio.\n"
+        "Campo ausente = string vazia. Responda APENAS o JSON, sem texto antes/depois."
+    ),
 }
 
 

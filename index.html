@@ -6543,8 +6543,9 @@ function _toggleDocText(docId) {
 // Renderiza o conteúdo estruturado conforme o tipo
 function _renderDocStructured(d) {
   const s = d.conteudo_estruturado;
-  // Adendo é texto livre (sem schema) → mostra o texto extraído direto.
+  // Adendo: usa o estruturado pela IA; enquanto não processa, mostra o texto.
   if (d.tipo === 'adendo') {
+    if (s) return _renderAdendo(s);
     return d.texto_extraido
       ? _renderTextoLivre(d.texto_extraido)
       : `<div class="doc-pending">⏳ Conteúdo ainda sendo processado. Abra o PDF abaixo.</div>`;
