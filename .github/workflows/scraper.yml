@@ -32,10 +32,6 @@ on:
         description: "Fase B: parseia provas+docs DESTE ID (navegador). Grava se write=true. Vazio = ignora."
         type: string
         default: ""
-      dump:
-        description: "Com detail_id: captura o HTML CRU (pra gerar fixture) em vez de parsear/gravar."
-        type: boolean
-        default: false
       reconcile:
         description: "Reconcilia id_nativo (calendário ao vivo ⟷ torneios legados; TODAS as fontes ativas; mês atual). Grava se write=true."
         type: boolean
@@ -64,26 +60,10 @@ on:
         description: "fph-walk: último ID (default 14200). Bloco sugerido ~3500 IDs."
         type: string
         default: ""
-      walk_desde:
-        description: "fph-walk: piso de data (default 2013-01-01). Só grava provas a partir desta data."
-        type: string
-        default: ""
-      walk_ate:
-        description: "fph-walk: teto de data EXCLUSIVO (default 2024-01-01 — o recente já vem do calendário). Use 2026-07-01 p/ incluir tudo."
-        type: string
-        default: ""
       recurar:
-        description: "RE-CURA resultados existentes: relê cada prova e REALINHA metadata (altura/nome) + resultados (sana dessincronia por renumeração de id_origem no MacroNetwork). Use recurar_desde/_ate p/ janela. Grava se write=true."
+        description: "RE-CURA resultados existentes: relê cada prova e REALINHA metadata (altura/nome) + resultados (sana dessincronia por renumeração de id_origem). Janela default 2024→hoje (CAVALARIA_RECURAR_DESDE/_ATE p/ ajustar). Grava se write=true."
         type: boolean
         default: false
-      recurar_desde:
-        description: "recurar: piso de data dos torneios (default 2024-01-01)."
-        type: string
-        default: ""
-      recurar_ate:
-        description: "recurar: teto de data dos torneios (default amanhã)."
-        type: string
-        default: ""
       proximos:
         description: "Frescor dos próximos torneios [hoje-7..+60]: docs (programa/adendo/horário) + ordem de entrada + resultados. Grava se write=true."
         type: boolean
@@ -108,14 +88,6 @@ on:
         description: "ABCCH: espelha o studbook genealógico (pai/mãe, ~46k animais) na tabela genealogia. Grava se write=true."
         type: boolean
         default: false
-      spotify_show:
-        description: "Spotify: URL de um SHOW pra importar TODOS os episódios pra media (podcast). Grava se write=true."
-        type: string
-        default: ""
-      spotify_programa:
-        description: "Spotify: nome do programa/aba (default: nome do show)."
-        type: string
-        default: ""
   schedule:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
@@ -158,27 +130,20 @@ jobs:
           IN_YEAR: ${{ inputs.year }}
           IN_MONTH: ${{ inputs.month }}
           IN_DETAIL: ${{ inputs.detail_id }}
-          IN_DUMP: ${{ inputs.dump }}
           IN_RECONCILE: ${{ inputs.reconcile }}
           IN_COMPLETAR: ${{ inputs.completar }}
           IN_DESDE: ${{ inputs.completar_desde }}
           IN_BACKFILL: ${{ inputs.backfill }}
           IN_FPH_WALK: ${{ inputs.fph_walk }}
           IN_RECURAR: ${{ inputs.recurar }}
-          IN_RECURAR_DESDE: ${{ inputs.recurar_desde }}
-          IN_RECURAR_ATE: ${{ inputs.recurar_ate }}
           IN_WALK_ID_MIN: ${{ inputs.walk_id_min }}
           IN_WALK_ID_MAX: ${{ inputs.walk_id_max }}
-          IN_WALK_DESDE: ${{ inputs.walk_desde }}
-          IN_WALK_ATE: ${{ inputs.walk_ate }}
           IN_PROXIMOS: ${{ inputs.proximos }}
           IN_ESTRUTURAR: ${{ inputs.estruturar }}
           IN_NOTICIAS: ${{ inputs.noticias }}
           IN_SHB: ${{ inputs.shb }}
           IN_FGEE: ${{ inputs.fgee }}
           IN_ABCCH: ${{ inputs.abcch }}
-          IN_SPOTIFY_SHOW: ${{ inputs.spotify_show }}
-          IN_SPOTIFY_PROGRAMA: ${{ inputs.spotify_programa }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "schedule" ]; then
@@ -268,11 +233,6 @@ jobs:
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
-          elif [ -n "${IN_SPOTIFY_SHOW:-}" ]; then
-            ARGS=(--spotify-show "${IN_SPOTIFY_SHOW}")
-            [ -n "${IN_SPOTIFY_PROGRAMA:-}" ] && ARGS+=(--programa "${IN_SPOTIFY_PROGRAMA}")
-            [ "${IN_WRITE:-false}" = "true" ] && ARGS+=(--write)
-            python -m scraper.main "${ARGS[@]}"
           elif [ -n "${IN_DETAIL:-}" ]; then
             if [ "${IN_DUMP:-false}" = "true" ]; then
               # captura o HTML CRU do detalhe (gera fixture). Não grava.
