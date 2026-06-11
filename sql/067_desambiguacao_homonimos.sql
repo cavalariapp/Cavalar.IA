@@ -31,7 +31,11 @@ with res as (
 ),
 res2 as (
   select filho_norm, ano_prova, alt,
+         -- make_date robusto: só monta se mês 1-12 e dia 1-31 (um match estranho
+         -- não pode derrubar o refresh inteiro); senão nasc_res = null (cai no nome)
          case when nm is not null
+               and nm[2]::int between 1 and 12
+               and nm[1]::int between 1 and 31
               then make_date(nm[3]::int, nm[2]::int, nm[1]::int) end as nasc_res
   from res
 )
@@ -86,7 +90,9 @@ begin
     left join public.torneios t on t.id = p.torneio_id
     where norm_nome(split_part(r.cavalo_nome, E'\n', 1)) = norm_nome(split_part(p_nome, E'\n', 1))
   )
-  select case when nm is not null then make_date(nm[3]::int, nm[2]::int, nm[1]::int) end as nasc_res,
+  select case when nm is not null
+                and nm[2]::int between 1 and 12 and nm[1]::int between 1 and 31
+              then make_date(nm[3]::int, nm[2]::int, nm[1]::int) end as nasc_res,
          count(*) as n_linhas,
          max(alt) as alt_max,
          string_agg(distinct torneio, ' | ' order by torneio) filter (where alt >= 1.30) as exemplos
