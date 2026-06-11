@@ -6732,7 +6732,12 @@ async function _loadTorneioDetail(evtId) {
          <div class="tor-empty">${torneioId ? 'Nenhum documento publicado ainda. Verifica diariamente.' : 'Evento do calendário CBH — documentos serão publicados pela federação responsável.'}</div>`
       : docBlock('Programa', porTipo.programa) +
         docBlock('Adendos', porTipo.adendo) +
-        docBlock('Quadro de Horários', porTipo.horarios) +
+        // Quadro de Horários: o doc DEDICADO tem prioridade (reflete correções/
+        // alterações de última hora). Sem ele, DERIVA o quadro do próprio programa
+        // (que já traz horário+data por prova) — pedido do cliente.
+        (porTipo.horarios.length
+          ? docBlock('Quadro de Horários', porTipo.horarios)
+          : _blocoHorariosDerivado(porTipo.programa)) +
         docBlock('Outros', porTipo.outros)
     }
   `;
@@ -6774,6 +6779,63 @@ function _renderDocStructured(d) {
 function _renderTextoLivre(t) {
   const clean = String(t || '').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
   return `<div class="doc-livre">${escHtml(clean)}</div>`;
+}
+
+// ── Quadro de Horários DERIVADO do programa ──────────────────────────
+// Quando o evento tem PROGRAMA mas não tem doc 'horarios' separado, o quadro de
+// horários já existe DENTRO do programa estruturado (cada prova tem data+horario).
+// Montamos o mesmo {dias:[...]} que _renderHorarios espera e exibimos como "Quadro
+// de Horários (do programa)". Assim o usuário sempre vê os horários; e quando a
+// federação publica um quadro separado (geralmente por ALTERAÇÃO), aquele tem
+// prioridade automática (ver abrirTorneioModal).
+function _parseDataBr(s) {
+  const m = String(s || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+}
+function _cmpDataBr(a, b) {
+  const da = _parseDataBr(a), db = _parseDataBr(b);
+  if (!da && !db) return 0; if (!da) return 1; if (!db) return -1; return da - db;
+}
+function _diaSemanaBr(s) {
+  const d = _parseDataBr(s);
+  return d ? ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()] : '';
+}
+function _blocoHorariosDerivado(programaDocs) {
+  const provas = [];
+  for (const d of (programaDocs || [])) {
+    const s = d.conteudo_estruturado;
+    if (s && Array.isArray(s.provas)) {
+      for (const p of s.provas) if (p && (p.horario || p.hora)) provas.push(p);
+    }
+  }
+  if (!provas.length) return '';                 // programa sem horários → nada a derivar
+  const porData = {};
+  for (const p of provas) {
+    const data = p.data || '—';
+    (porData[data] = porData[data] || []).push({
+      prova_numero: p.numero, hora: p.horario || p.hora, prova_nome: p.nome,
+      altura: p.altura, categoria: p.categoria, tabela: p.tabela,
+    });
+  }
+  const dias = Object.keys(porData).sort(_cmpDataBr).map(data => ({
+    data, dia_semana: _diaSemanaBr(data),
+    horarios: porData[data].sort((a, b) => String(a.hora || '').localeCompare(String(b.hora || ''))),
+  }));
+  return `
+    <div class="tor-section-title">Quadro de Horários</div>
+    <div class="tor-doc-card">
+      <div class="tor-doc-hdr" onclick="_toggleDocText('deriv-horarios')">
+        <div class="tor-doc-icon">🕐</div>
+        <div class="tor-doc-body">
+          <div class="tor-doc-title">Quadro de Horários <span class="tor-doc-new" style="background:var(--muted)">do programa</span></div>
+          <div class="tor-doc-date">Extraído do programa publicado</div>
+        </div>
+        <div class="tor-doc-toggle">▾</div>
+      </div>
+      <div class="tor-doc-text" id="doctext-deriv-horarios" style="display:none">
+        ${_renderHorarios({ dias })}
+      </div>
+    </div>`;
 }
 
 // Renderização Quadro de Horários — ACORDEÃO por dia (estilo do app)

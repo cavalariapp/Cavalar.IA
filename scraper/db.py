@@ -157,6 +157,19 @@ class SupabaseWriter:
         self._require()
         self._patch(f"/rest/v1/torneios?id=eq.{torneio_id}", {"id_nativo": id_nativo})
 
+    def refresh_genetica(self):
+        """Recompila a materialized view dos rankings/alturas (rpc refresh_genetica).
+        Chamado ao FIM dos fluxos que gravam resultados (backfill/próximos) p/ que o
+        dado novo já entre na genética sem passo manual. Tolerante a falha."""
+        if not self.configured:
+            return False
+        try:
+            r = requests.post(f"{self.url}/rest/v1/rpc/refresh_genetica",
+                              headers=self._headers("return=minimal"), data="{}", timeout=180)
+            return r.ok
+        except Exception:
+            return False
+
     def update_torneio_datas(self, torneio_id, data_inicio, data_fim):
         """Alarga a janela data_inicio/data_fim de um torneio (backfill por prova:
         descobrimos as datas reais do evento conforme varremos as provas)."""

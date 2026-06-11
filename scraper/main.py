@@ -734,6 +734,11 @@ def walk_resultados(args, writer):
                   f"{len(ids)} provas pendentes (rode no CI com navegador).",
                   file=sys.stderr)
 
+    # auto-refresh da genética: o que entrou já vale nos rankings/alturas (sem passo manual)
+    if args.write and writer.configured and tot_res:
+        ok = writer.refresh_genetica()
+        print(f"  refresh_genetica: {'ok' if ok else 'falhou (rode --refresh-genetica)'}")
+
     print(f"\n=== FPH WALK fim === {len(cache)} torneios, {tot_res} resultados "
           f"({'GRAVADO' if args.write else 'DRY-RUN'}).")
     return 0
