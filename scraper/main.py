@@ -97,17 +97,27 @@ def _curar_resultados_torneio(src, torneio_id, writer):
     from scraper import fetch, db as _db
     provas = writer._get(
         f"/rest/v1/provas?torneio_id=eq.{torneio_id}&id_origem=not.is.null&select=id,id_origem")
-    n = ins = ap = 0
+    n = ins = ap = meta = 0
     for p in provas:
         try:
-            R = mn.parse_resultados(fetch.fetch_resultados(src, p["id_origem"]))
+            html = fetch.fetch_resultados(src, p["id_origem"])
+            R = mn.parse_resultados(html)
             if not R:
                 continue
+            # ANTI-DESSINCRONIA: o MacroNetwork renumera Resultados.aspx?ID → a
+            # metadata da prova (altura/nome, lida via ListaProvas) podia ficar de um
+            # retrato e os resultados de outro. Realinhamos a prova ao MESMO retrato
+            # (cabeçalho auto-contido da página de resultados) antes de gravar.
+            hdr = mn.parse_resultado_pagina(html)
+            if hdr:
+                hdr["_id"] = p["id_origem"]
+                writer.atualizar_prova_meta(p["id"], _prova_row_de_header(hdr, torneio_id))
+                meta += 1
             rs = writer.upsert_resultados(p["id"], [_db.resultado_to_row(r, p["id"]) for r in R])
             ins += rs["inseridos"]; ap += rs["apagados"]; n += 1
         except Exception:
             pass
-    return {"provas": n, "inseridos": ins, "apagados": ap}
+    return {"provas": n, "inseridos": ins, "apagados": ap, "meta_alinhada": meta}
 
 
 def _inserir_aviso(writer, torneio_id, tipo, titulo):
@@ -365,6 +375,53 @@ def completar(args, writer):
             print(f"  ⚠ erro: {e.__class__.__name__}: {e}", file=sys.stderr)
     print(f"\n=== COMPLETAR === processados {min(len(alvos), MAX)}/{len(alvos)} "
           f"({'COMPLETO' if len(alvos) <= MAX else 'PARCIAL — re-rode p/ continuar'})")
+    return 0
+
+
+def recurar_resultados(args, writer):
+    """--recurar: RE-CURA resultados JÁ existentes p/ sanar a DESSINCRONIA causada
+    pela renumeração de id_origem no MacroNetwork (metadata da prova de um retrato,
+    resultados de outro → ex.: 0,90m colado em rótulo '1,55M'). Pra CADA prova com
+    id_origem, relê a página de resultados e REALINHA metadata (altura/nome/data) +
+    resultados ao MESMO retrato — SEM ListaProvas (não cria prova nova/duplicada).
+    Por fonte (--source) ou todas MacroNetwork. Janela por env CAVALARIA_RECURAR_DESDE/
+    _ATE (default 2024-01-01..amanhã); lote CAVALARIA_MAX torneios (re-rode p/ seguir;
+    use a janela de datas p/ avançar por períodos). --write grava + refresca a genética."""
+    import os
+    import datetime as _d
+    MAX = int(os.environ.get("CAVALARIA_MAX", "60"))
+    desde = os.environ.get("CAVALARIA_RECURAR_DESDE", "2024-01-01")
+    ate = os.environ.get("CAVALARIA_RECURAR_ATE",
+                         (_d.date.today() + _d.timedelta(days=1)).isoformat())
+    fontes = ([SRC.get(args.source)] if args.source
+              else [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"])
+    fontes = [f for f in fontes if f and f.get("resultados_url")]
+    print(f"=== RECURAR (anti-dessincronia) janela [{desde}, {ate}] | lote {MAX} | "
+          f"{'GRAVA' if args.write else 'DRY-RUN'} ===")
+    tot_t = tot_meta = tot_ins = 0
+    for src in fontes:
+        rows = writer._get(
+            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
+            f"&data_inicio=gte.{desde}&data_inicio=lte.{ate}"
+            f"&select=id,nome,data_inicio&order=data_inicio.desc&limit={MAX}")
+        print(f"\n{src['codigo']}: {len(rows)} torneios na janela")
+        if not (args.write and writer.configured):
+            continue
+        for t in rows:
+            try:
+                r = _curar_resultados_torneio(src, t["id"], writer)
+            except Exception as e:
+                print(f"  ⚠ {t.get('nome','')[:40]}: {e.__class__.__name__}", file=sys.stderr)
+                continue
+            tot_t += 1; tot_meta += r.get("meta_alinhada", 0); tot_ins += r.get("inseridos", 0)
+            if r.get("provas"):
+                print(f"  ✓ {(t.get('nome') or '')[:46]}: {r['provas']} provas, "
+                      f"{r.get('meta_alinhada', 0)} meta-alinhadas, {r['inseridos']} result.")
+    if args.write and writer.configured and tot_ins:
+        ok = writer.refresh_genetica()
+        print(f"\n  refresh_genetica: {'ok' if ok else 'falhou (rode --refresh-genetica)'}")
+    print(f"\n=== RECURAR fim === {tot_t} torneios, {tot_meta} provas realinhadas, "
+          f"{tot_ins} resultados ({'GRAVADO' if args.write else 'DRY-RUN'}).")
     return 0
 
 
@@ -1031,6 +1088,12 @@ def main(argv=None):
                          "Não usa calendário. Janela por env CAVALARIA_WALK_ID_MIN/_MAX "
                          "e CAVALARIA_WALK_DESDE/_ATE. Tipo A via requests; Tipo B "
                          "(categorias/balão) via navegador + merge por barema. --write grava.")
+    ap.add_argument("--recurar", action="store_true",
+                    help="RE-CURA resultados existentes p/ sanar dessincronia por "
+                         "renumeração de id_origem (MacroNetwork): relê a página de "
+                         "cada prova e realinha metadata (altura/nome) + resultados. "
+                         "Janela env CAVALARIA_RECURAR_DESDE/_ATE; lote CAVALARIA_MAX. "
+                         "--write grava + refresca a genética.")
     ap.add_argument("--proximos", action="store_true",
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
@@ -1160,6 +1223,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return walk_resultados(args, writer)
+
+    # Re-cura resultados existentes (sana dessincronia por renumeração de id_origem).
+    if args.recurar:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --recurar --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return recurar_resultados(args, writer)
 
     # Frescor dos próximos torneios (docs + ordem + resultados) — o que o cron roda.
     if args.proximos:

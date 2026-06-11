@@ -157,6 +157,20 @@ class SupabaseWriter:
         self._require()
         self._patch(f"/rest/v1/torneios?id=eq.{torneio_id}", {"id_nativo": id_nativo})
 
+    def atualizar_prova_meta(self, prova_id, prova_row):
+        """Alinha a METADATA da prova (nome/altura/descrição/data/tipo) ao retrato
+        ATUAL da página de resultados. CRÍTICO: o MacroNetwork RENUMERA o
+        Resultados.aspx?ID ao longo do tempo → a metadata (lida via ListaProvas num
+        momento) podia ficar de uma prova e os resultados (lidos via Resultados.aspx
+        depois) de OUTRA (ex.: resultados de 0,90m colados num rótulo '1,55M'). Ao
+        gravar resultados, realinhamos a prova ao MESMO retrato. Só sobrescreve
+        colunas não-nulas (não apaga dado existente). Idempotente."""
+        self._require()
+        patch = {k: prova_row[k] for k in self._PROVA_PATCH
+                 if k in prova_row and prova_row[k] is not None}
+        if patch:
+            self._patch(f"/rest/v1/provas?id=eq.{prova_id}", patch)
+
     def refresh_genetica(self):
         """Recompila a materialized view dos rankings/alturas (rpc refresh_genetica).
         Chamado ao FIM dos fluxos que gravam resultados (backfill/próximos) p/ que o

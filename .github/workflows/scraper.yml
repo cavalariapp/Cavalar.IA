@@ -72,6 +72,18 @@ on:
         description: "fph-walk: teto de data EXCLUSIVO (default 2024-01-01 — o recente já vem do calendário). Use 2026-07-01 p/ incluir tudo."
         type: string
         default: ""
+      recurar:
+        description: "RE-CURA resultados existentes: relê cada prova e REALINHA metadata (altura/nome) + resultados (sana dessincronia por renumeração de id_origem no MacroNetwork). Use recurar_desde/_ate p/ janela. Grava se write=true."
+        type: boolean
+        default: false
+      recurar_desde:
+        description: "recurar: piso de data dos torneios (default 2024-01-01)."
+        type: string
+        default: ""
+      recurar_ate:
+        description: "recurar: teto de data dos torneios (default amanhã)."
+        type: string
+        default: ""
       proximos:
         description: "Frescor dos próximos torneios [hoje-7..+60]: docs (programa/adendo/horário) + ordem de entrada + resultados. Grava se write=true."
         type: boolean
@@ -152,6 +164,9 @@ jobs:
           IN_DESDE: ${{ inputs.completar_desde }}
           IN_BACKFILL: ${{ inputs.backfill }}
           IN_FPH_WALK: ${{ inputs.fph_walk }}
+          IN_RECURAR: ${{ inputs.recurar }}
+          IN_RECURAR_DESDE: ${{ inputs.recurar_desde }}
+          IN_RECURAR_ATE: ${{ inputs.recurar_ate }}
           IN_WALK_ID_MIN: ${{ inputs.walk_id_min }}
           IN_WALK_ID_MAX: ${{ inputs.walk_id_max }}
           IN_WALK_DESDE: ${{ inputs.walk_desde }}
@@ -205,6 +220,17 @@ jobs:
             ARGS="--fph-walk"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS  (IDs ${CAVALARIA_WALK_ID_MIN:-1}..${CAVALARIA_WALK_ID_MAX:-14200}, datas [${CAVALARIA_WALK_DESDE:-2013-01-01}, ${CAVALARIA_WALK_ATE:-2024-01-01}))"
+            python -m scraper.main $ARGS
+          elif [ "${IN_RECURAR:-false}" = "true" ]; then
+            # re-cura resultados existentes: realinha metadata (altura) + resultados
+            # ao retrato atual da página (sana renumeração de id_origem). Lote por
+            # CAVALARIA_MAX; janela por CAVALARIA_RECURAR_DESDE/_ATE.
+            [ -n "${IN_RECURAR_DESDE:-}" ] && export CAVALARIA_RECURAR_DESDE="${IN_RECURAR_DESDE}"
+            [ -n "${IN_RECURAR_ATE:-}" ]   && export CAVALARIA_RECURAR_ATE="${IN_RECURAR_ATE}"
+            ARGS="--recurar"
+            [ -n "${IN_SOURCE:-}" ] && ARGS="$ARGS --source ${IN_SOURCE}"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
             python -m scraper.main $ARGS
           elif [ "${IN_COMPLETAR:-false}" = "true" ]; then
             # completa torneios incompletos (detalhe+provas+dia+docs+resultados) em lote
