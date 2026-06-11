@@ -483,12 +483,12 @@ def atualizar_proximos(args, writer):
 def processar_noticias(args, writer):
     """--noticias: coleta multi-fonte RSS → dedup (url + fingerprint) → reescreve
     com Claude (memória das recentes) → imagem Unsplash → grava. Lote
-    CAVALARIA_NEWS (default 25). Sem ANTHROPIC_API_KEY: insere cru (RSS)."""
+    CAVALARIA_NEWS (default 60). Sem ANTHROPIC_API_KEY: insere cru (RSS)."""
     import os
     from scraper import news as N
     key = os.environ.get("ANTHROPIC_API_KEY")
     unsplash = os.environ.get("UNSPLASH_ACCESS_KEY")
-    MAX = int(os.environ.get("CAVALARIA_NEWS", "25"))
+    MAX = int(os.environ.get("CAVALARIA_NEWS", "60"))
 
     itens = N.coletar()
     print(f"NOTÍCIAS: {len(itens)} itens em {len(N.FEEDS)} fontes | IA={'on' if key else 'off (cru)'}")

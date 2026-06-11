@@ -94,7 +94,11 @@ def fetch_artigo(link, limite=6000):
 
 _PROMPT = (
     "Você é um redator especialista em hipismo (foco: Salto; também Adestramento, "
-    "CCE, Volteio) do portal Cavalar.IA. Público técnico — não explique termos "
+    "CCE, Volteio) do portal Cavalar.IA. ESCOPO AMPLO e válido: resultados de "
+    "competição, ranking, cavaleiros/amazonas, E TAMBÉM criação/genética/studbook "
+    "(KWPN, Zangersheide, Holsteiner, BH/BWP), leilões, garanhões/matrizes, "
+    "reprodução e mercado do cavalo de esporte. Só marque 'Erro' se NÃO for sobre "
+    "esporte equestre nem criação de cavalos de salto. Público técnico — não explique termos "
     "(jump-off, oxer, fault). NUNCA invente dados (tempo, colocação, linhagem): se "
     "não está no texto, omita. NUNCA altere nomes próprios de cavalos/cavaleiros/"
     "haras/provas — reproduza exatamente como na fonte. Destaque resultado "
@@ -129,10 +133,14 @@ def reescrever(item, artigo, memoria, key):
         d = json.loads(m.group(0)) if m else None
     except Exception:
         return None
-    if not d or (d.get("titulo") or "").strip().lower() == "erro" or not d.get("conteudo"):
+    titulo = (d.get("titulo") or "").strip()
+    conteudo = (d.get("conteudo") or "").strip()
+    # rejeita o marcador de inválido (e variações "Erro."/"ERRO -"/…) e itens sem
+    # corpo real (< 120 chars) — evita "notícia Erro" vazando pro app.
+    if not d or not titulo or titulo.lower().startswith("erro") or len(conteudo) < 120:
         return None
     fp = d.get("fingerprint")
-    return {"titulo": d["titulo"], "resumo": d.get("resumo", ""), "conteudo": d["conteudo"],
+    return {"titulo": titulo, "resumo": d.get("resumo", ""), "conteudo": conteudo,
             "fingerprint": (fp if fp and str(fp).lower() != "null" else None)}
 
 

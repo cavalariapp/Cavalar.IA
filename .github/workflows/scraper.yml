@@ -92,8 +92,13 @@ on:
     # ~06:00 e ~18:00 BRT (UTC-3). GitHub agenda em UTC e pode atrasar.
     - cron: "0 9,21 * * *"
 
+# Grupo de concorrência SEPARADO por gatilho: o cron diário (schedule) NÃO pode
+# ficar travado atrás de um backfill manual de horas (workflow_dispatch). Assim o
+# reconcile/proximos/noticias do dia sempre roda, mesmo com o backfill em curso.
+# (Gravações são idempotentes e tocam linhas diferentes — recente x histórico.)
+# Dois disparos manuais ainda dividem o mesmo grupo (enfileiram, sem se atropelar).
 concurrency:
-  group: scraper
+  group: scraper-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
