@@ -6225,6 +6225,15 @@ async function abrirPerfilCavalo(i) {
       if (!py) return true;
       return a <= _altMaxIdade(py - _birthYr);
     });
+    // VERACIDADE 2 (anti-homônimo, espelha sql/067): a 2ª linha de cavalo_nome
+    // carrega o NASCIMENTO do cavalo daquela linha. Mantém só os resultados cujo
+    // ANO de nascimento bate com o do cavalo aberto — separa homônimos (ex.: a
+    // Arabella de escola da Arabella que salta 1,55m). Linha sem nascimento → mantém.
+    meus = meus.filter(r => {
+      const ln2 = String(r.cavalo_nome || '').split('\n')[1] || '';
+      const m = ln2.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      return !m || parseInt(m[3]) === _birthYr;
+    });
   }
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
