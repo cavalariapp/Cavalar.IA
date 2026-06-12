@@ -1099,8 +1099,12 @@ def parse_ordem_entrada(html, base_url=None):
     tbl = soup.find("table")
     if not tbl:
         return []
-    out = []
+    out, seen = [], set()
     for r in tbl.find_all("tr"):
+        # alguns templates renderizam CADA conjunto 2x (uma linha desktop + uma
+        # mobile) → pula a duplicata só-mobile p/ não duplicar o competidor.
+        if "is-mobile" in " ".join(r.get("class") or []):
+            continue
         oc = r.select_one("td.ordem-font-classific")
         if oc is None:               # só as linhas de ordem têm essa td
             continue
@@ -1135,11 +1139,21 @@ def parse_ordem_entrada(html, base_url=None):
         tds = r.find_all("td")
         pont_el = tds[-1].find("strong") if tds else None
 
+        cav_nome = _clean(cav_el.get_text() if cav_el else None)
+        cavalo_nome = _clean(cavalo_el.get_text() if cavalo_el else None)
+        # DEDUP defensivo: um conjunto (cavaleiro+cavalo) entra UMA vez por prova
+        # (corre 1x). Pega duplicatas mobile/desktop que escaparam do filtro acima.
+        if cav_nome and cavalo_nome:
+            chave = (cav_nome.upper(), cavalo_nome.upper())
+            if chave in seen:
+                continue
+            seen.add(chave)
+
         out.append({
             "ordem": ordem,
-            "cavaleiro_nome": _clean(cav_el.get_text() if cav_el else None),
+            "cavaleiro_nome": cav_nome,
             "id_cavaleiro_fonte": (idc_el.get("value") if idc_el else None) or None,
-            "cavalo_nome": _clean(cavalo_el.get_text() if cavalo_el else None),
+            "cavalo_nome": cavalo_nome,
             "cavalo_genealogia": gen,
             "categoria": _clean(cat_el.get_text() if cat_el else None),
             "pontuacao": _clean(pont_el.get_text() if pont_el else None),

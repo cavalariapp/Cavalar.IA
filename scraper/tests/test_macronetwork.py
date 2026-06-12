@@ -215,3 +215,29 @@ if __name__ == "__main__":
         except Exception:
             print(f"  XX  {fn.__name__}"); traceback.print_exc()
     print(f"\n{ok}/{len(fns)} passaram")
+
+
+# ── ORDEM DE ENTRADA: dedup de concorrentes duplicados (mobile/desktop) ──
+def test_ordem_dedup_competidores():
+    html = """<table>
+    <tr class="is-desktop"><td class="ordem-font-classific align_center"><b>1 °</b></td>
+      <td class="colunaCavaleiro"><strong>JOAO SILVA</strong></td>
+      <td class="colunaCavalo"><div><strong>RELAMPAGO</strong> 01/01/2015</div></td>
+      <td class="align_center"><b>JCA</b></td><td><strong>10</strong></td></tr>
+    <tr class="is-mobile"><td class="ordem-font-classific align_center"><b>1 °</b></td>
+      <td class="colunaCavaleiro"><strong>JOAO SILVA</strong></td>
+      <td class="colunaCavalo"><div><strong>RELAMPAGO</strong></div></td>
+      <td class="align_center"><b>JCA</b></td><td><strong>10</strong></td></tr>
+    <tr><td class="ordem-font-classific align_center"><b>2 °</b></td>
+      <td class="colunaCavaleiro"><strong>MARIA LIMA</strong></td>
+      <td class="colunaCavalo"><div><strong>TROVAO</strong></div></td>
+      <td class="align_center"><b>JCA</b></td><td><strong>8</strong></td></tr>
+    <tr><td class="ordem-font-classific align_center"><b>2 °</b></td>
+      <td class="colunaCavaleiro"><strong>MARIA LIMA</strong></td>
+      <td class="colunaCavalo"><div><strong>TROVAO</strong></div></td>
+      <td class="align_center"><b>JCA</b></td><td><strong>8</strong></td></tr>
+    </table>"""
+    r = parse_ordem_entrada(html)
+    assert len(r) == 2                                  # 4 linhas (2 duplicadas) → 2
+    assert [x["cavaleiro_nome"] for x in r] == ["JOAO SILVA", "MARIA LIMA"]
+    assert [x["cavalo_nome"] for x in r] == ["RELAMPAGO", "TROVAO"]

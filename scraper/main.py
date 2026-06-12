@@ -447,6 +447,44 @@ def _curar_ordem_torneio(src, torneio_id, writer):
     return {"provas": n, "inseridos": ins, "novas": novas}
 
 
+def atualizar_frescor(args, writer):
+    """--frescor: refresh LEVE e FREQUENTE (só requests, SEM Playwright/detalhe) de
+    ORDEM DE ENTRADA + RESULTADOS dos torneios ACONTECENDO AGORA (data_inicio em
+    [hoje-5, hoje+2]). Feito p/ rodar de hora em hora no dia de prova: ordens
+    publicadas tarde se preenchem sozinhas, e resultados PARCIAIS (ex.: 11 de 31)
+    convergem pro final a cada passada. Re-alinha a metadata da prova de quebra
+    (anti-dessincronia). Barato → pode rodar com alta frequência."""
+    import datetime as _d
+    hoje = _d.date.today()
+    ini = (hoje - _d.timedelta(days=5)).isoformat()
+    fim = (hoje + _d.timedelta(days=2)).isoformat()
+    n_t = n_ord = n_res = 0
+    for src in [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"]:
+        rows = writer._get(
+            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
+            f"&data_inicio=gte.{ini}&data_inicio=lte.{fim}"
+            f"&select=id,nome&order=data_inicio.desc")
+        for t in rows:
+            if not (args.write and writer.configured):
+                print(f"  (dry) {src['codigo']} {(t.get('nome') or '')[:44]}")
+                continue
+            try:
+                rr = _curar_resultados_torneio(src, t["id"], writer)
+                oo = _curar_ordem_torneio(src, t["id"], writer)
+            except Exception as e:
+                print(f"  ⚠ {(t.get('nome') or '')[:36]}: {e.__class__.__name__}", file=sys.stderr)
+                continue
+            n_t += 1; n_res += rr.get("inseridos", 0); n_ord += oo.get("inseridos", 0)
+            if rr.get("provas") or oo.get("provas"):
+                print(f"  ✓ {(t.get('nome') or '')[:42]}: {rr.get('inseridos', 0)} result., "
+                      f"{oo.get('inseridos', 0)} ordem")
+    if args.write and writer.configured and n_res:
+        writer.refresh_genetica()
+    print(f"=== FRESCOR === {n_t} torneios, {n_res} resultados, {n_ord} ordens "
+          f"({'GRAVADO' if args.write else 'DRY-RUN'}).")
+    return 0
+
+
 def atualizar_proximos(args, writer):
     """--proximos: mantém FRESCO o que importa pros próximos torneios. Seleciona
     torneios MacroNetwork COM id_nativo na janela [hoje-7, hoje+60] e, pra cada:
@@ -1105,6 +1143,11 @@ def main(argv=None):
                          "cada prova e realinha metadata (altura/nome) + resultados. "
                          "Janela env CAVALARIA_RECURAR_DESDE/_ATE; lote CAVALARIA_MAX. "
                          "--write grava + refresca a genética.")
+    ap.add_argument("--frescor", action="store_true",
+                    help="Refresh LEVE e FREQUENTE (só requests) de ORDEM + RESULTADOS "
+                         "dos torneios acontecendo agora (data em [hoje-5,+2]). Pra "
+                         "rodar de hora em hora: ordem zerada se preenche e resultado "
+                         "parcial vira final. --write grava.")
     ap.add_argument("--proximos", action="store_true",
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
@@ -1243,6 +1286,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return recurar_resultados(args, writer)
+
+    # Refresh leve e frequente (ordem + resultados dos torneios de hoje).
+    if args.frescor:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --frescor --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return atualizar_frescor(args, writer)
 
     # Frescor dos próximos torneios (docs + ordem + resultados) — o que o cron roda.
     if args.proximos:
