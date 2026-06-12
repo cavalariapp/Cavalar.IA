@@ -945,10 +945,24 @@ async function loadProfileLinkMap() {
     });
   } catch (e) { console.warn('[profileLinkMap]', e); }
 }
+// selo de "tem página no Cavalar.IA" (assinante verificado) — pode visitar/seguir
+function _zrUserBadge() {
+  return `<span title="Tem página no Cavalar.IA — visite e siga" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:900;margin-left:3px;vertical-align:middle">✓</span>`;
+}
+// Cavaleiro clicável: com página de usuário (confirmado) → vai pra página dele + selo;
+// senão → abre o perfil de estatísticas do cavaleiro (na home, via deep-link).
 function linkifyCavaleiro(nome, htmlSafeName) {
   const id = _profileLinkMap.get((nome || '').toLowerCase().trim());
-  if (!id) return htmlSafeName;
-  return `<a href="perfil.html?u=${id}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${htmlSafeName}</a>`;
+  if (id) {
+    return `<a href="perfil.html?u=${id}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${htmlSafeName}${_zrUserBadge()}</a>`;
+  }
+  if (!nome) return htmlSafeName;
+  return `<a href="index.html?cavaleiro=${encodeURIComponent(nome)}" style="color:var(--fg);text-decoration:none;border-bottom:1px dotted var(--muted)" onclick="event.stopPropagation()">${htmlSafeName}</a>`;
+}
+// Cavalo clicável → abre o perfil de estatísticas/genética do cavalo (na home).
+function linkifyCavalo(nome, htmlSafeName) {
+  if (!nome) return htmlSafeName;
+  return `<a href="index.html?cavalo=${encodeURIComponent(nome)}" style="color:var(--fg);text-decoration:none;border-bottom:1px dotted var(--muted)" onclick="event.stopPropagation()">${htmlSafeName}</a>`;
 }
 
 // Classe de cor para a colocação
@@ -1789,11 +1803,15 @@ function buildOrdemBlock(provaId, aberto) {
       ? `<div style="margin-top:8px;color:var(--muted);font-size:12px">🏁 Ordem de entrada ainda não publicada (sai na véspera/manhã).</div>`
       : '';
   }
-  const linhas = ord.map(o => `<tr>
+  const linhas = ord.map(o => {
+    const cav = nomeCavaleiro(o.cavaleiro_nome);
+    const cvl = parseCavalo(o.cavalo_nome).nome;
+    return `<tr>
       <td style="text-align:center;color:var(--accent,#e8632a);font-weight:600">${o.ordem ?? '—'}ª</td>
-      <td>${escHtml(o.cavaleiro_nome || '—')}</td>
-      <td>${escHtml(o.cavalo_nome || '—')}</td>
-      <td style="color:var(--muted)">${escHtml(o.categoria || '')}</td></tr>`).join('');
+      <td>${cav ? linkifyCavaleiro(cav, escHtml(cav)) : '—'}</td>
+      <td>${cvl ? linkifyCavalo(cvl, escHtml(cvl)) : '—'}</td>
+      <td style="color:var(--muted)">${escHtml(o.categoria || '')}</td></tr>`;
+  }).join('');
   return `
     <details class="ordem-block" ${aberto ? 'open' : ''} style="margin-top:10px;border-top:1px solid var(--border,#26262e);padding-top:8px">
       <summary style="cursor:pointer;color:var(--accent,#e8632a);font-weight:600;font-size:12px;list-style:none">
@@ -1955,7 +1973,7 @@ function buildResultsTable(prova, resultados, cavaleiro, cavalo) {
       <tr>
         <td><span class="${posClass(r.colocacao)}">${escHtml(colocDisplay(r.colocacao))}</span></td>
         <td class="col-rider">${(() => { const n = nomeCavaleiro(r.cavaleiro_nome); return linkifyCavaleiro(n, highlight(n, cavaleiro)); })()}</td>
-        <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return highlight(c.nome, cavalo) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
+        <td class="col-horse">${(() => { const c = parseCavalo(r.cavalo_nome); return linkifyCavalo(c.nome, highlight(c.nome, cavalo)) + (c.genealogia ? `<small>${escHtml(c.genealogia)}</small>` : ''); })()}</td>
         ${cells}
       </tr>`;
   }).join('');

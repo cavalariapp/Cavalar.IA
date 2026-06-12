@@ -4379,12 +4379,29 @@ async function loadProfileLinkMap() {
 }
 
 // Envolve nome em <a> se houver profile vinculado
-function linkifyName(nome) {
+// escapa um texto pra entrar como ARGUMENTO de onclick="fn('...')" (string JS dentro
+// de atributo HTML com aspas duplas) — trata aspas, barra e < > de nomes (ex.: d'Amour)
+function _onclickArg(s) {
+  return String(s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+// selo de "tem página no Cavalar.IA" (assinante verificado) — pode visitar/seguir
+function _userBadge() {
+  return `<span title="Tem página no Cavalar.IA — visite e siga" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:var(--accent);color:#fff;font-size:9px;font-weight:900;margin-left:3px;vertical-align:middle">✓</span>`;
+}
+// linkifyName: torna o nome CLICÁVEL. Cavaleiro com página de usuário (confirmado) →
+// vai pra página dele (perfil.html) + selo; senão → abre o perfil de estatísticas
+// (cavalo/cavaleiro) na própria home. `tipo` ('cavalo'|'cavaleiro') default = _zrEntity.
+function linkifyName(nome, tipo) {
   if (!nome) return '';
   const safe = escHtml(nome);
-  const id = _profileLinkMap.get(nome.toLowerCase().trim());
-  if (!id) return safe;
-  return `<a href="perfil.html?u=${id}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${safe}</a>`;
+  const ent = tipo || (typeof _zrEntity !== 'undefined' ? _zrEntity : 'cavaleiro');
+  const uid = (ent === 'cavaleiro') ? _profileLinkMap.get(nome.toLowerCase().trim()) : null;
+  if (uid) {
+    return `<a href="perfil.html?u=${uid}" style="color:var(--accent);text-decoration:none;font-weight:700" onclick="event.stopPropagation()">${safe}${_userBadge()}</a>`;
+  }
+  const fn = ent === 'cavalo' ? 'abrirCavaloPorNome' : 'abrirCavaleiroPorNome';
+  return `<a href="javascript:void(0)" onclick="event.stopPropagation();${fn}('${_onclickArg(nome)}')" style="color:var(--fg);text-decoration:none;border-bottom:1px dotted var(--muted)">${safe}</a>`;
 }
 
 // Substitui botão ENTRAR pelo nome do usuário se logado + atualiza hamburger
@@ -6671,6 +6688,10 @@ async function init() {
     }
   }
   else if (_params.has('msg') || _params.get('go') === 'mensagens') nav('mensagens');
+  // deep-link de PERFIL vindo de outra página (ex.: resultados.html?…): abre o
+  // perfil do cavalo/cavaleiro pelo nome. As funções tratam nav + carregamento.
+  else if (_params.get('cavalo')) { try { abrirCavaloPorNome(_params.get('cavalo')); } catch (_) { nav('home'); } }
+  else if (_params.get('cavaleiro')) { try { abrirCavaleiroPorNome(_params.get('cavaleiro')); } catch (_) { nav('home'); } }
   else if (_currentUser) nav('home');
 
   if (!document.getElementById('shake-style')) {
