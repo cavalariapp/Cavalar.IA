@@ -120,8 +120,8 @@ begin
          t.f8, coalesce(a.m140, 0),
          round(100.0 * coalesce(a.alto8, 0) / nullif(t.f8, 0), 1)
   from tot t
-  join agg a on a.rep_key = t.rep_key
-  where coalesce(a.comp, 0) > 0 or coalesce(a.m140, 0) > 0
+  left join agg a on a.rep_key = t.rep_key           -- LEFT: reprodutor sem prole competindo aparece
+  where t.total >= 2 or coalesce(a.comp, 0) > 0       -- piso: evita cauda longa de 1 filho
   order by t.total desc;
 end;
 $$;
