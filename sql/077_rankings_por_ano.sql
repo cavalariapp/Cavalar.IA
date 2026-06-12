@@ -2,16 +2,13 @@
 -- PROBLEMA 1 (relato): ao filtrar o ranking por ANO, total_filhos/f4/f8 NÃO mudavam
 --   (Cornet aparecia com 392 filhos em 2013 também) — só comp/% mudavam. As contagens
 --   da genealogia usavam SEMPRE a idade atual e contavam TODOS os filhos.
--- PROBLEMA 2 (Olanda): a mesma matriz fundia filhos nascidos em 1970 E 2020 (duas
---   éguas homônimas). Como a ABCCH guarda o pai/mãe só pelo NOME (sem ID), não dá pra
---   separar com 100% de certeza — MAS os filhos "fundadores" (idade > 30) não são do
---   esporte moderno e só geram ruído. Limitando o total à JANELA ESPORTIVA (filhos com
---   até 30 anos NO ANO de referência) o cohort antigo sai do cômputo, sem vínculo errado.
+-- (O homônimo de REPRODUTOR — ex.: Olanda — é resolvido de forma EXATA na sql/079,
+--  agrupando por TOKEN do pai/mãe da ABCCH, não por idade. Aqui é só o "por ano".)
 --
 -- Agora, com ANO = Y (ou ano atual quando 'Todos'):
 --   • idade de cada filho = Y − ano_nascimento (estatística "daquela época");
 --   • só conta filhos NASCIDOS ATÉ Y (não existiam antes);
---   • total_filhos/f4/f8/comp/%/m140 todos respeitam a idade EM Y, na janela 0..30 anos.
+--   • f4/f8/comp/%/m140 respeitam a idade EM Y; total = filhos nascidos até Y.
 
 drop function if exists public.rankings_geneticos(text, int);
 
@@ -49,8 +46,7 @@ begin
   ),
   tot as (
     select rep_norm, max(rep_disp) as nome,
-           -- total = janela esportiva (0..30 anos em Y): tira fundadores homônimos
-           count(distinct cd_token) filter (where idade between 0 and 30) as total,
+           count(distinct cd_token) as total,    -- todos os filhos nascidos até Y
            count(distinct cd_token) filter (where idade between 5 and 30) as f4,
            count(distinct cd_token) filter (where idade between 9 and 30) as f8
     from ger group by rep_norm
