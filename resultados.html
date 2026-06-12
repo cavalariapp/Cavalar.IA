@@ -195,6 +195,8 @@ body {
 .cdrop-item { padding: 10px 13px; font-size: 13px; color: var(--fg); cursor: pointer; }
 .cdrop-item.sel { color: var(--accent); font-weight: 700; }
 .cdrop-item:hover, .cdrop-item:active { background: var(--surface2); }
+.cdrop-btn.cdrop-off { opacity: .5; pointer-events: none; }
+.cdrop-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .filters-actions {
   margin-top: 10px;
@@ -690,13 +692,7 @@ mark {
       </div>
       <div class="filter-field">
         <label class="filter-label">Ano</label>
-        <!-- dropdown com ROLAGEM PRÓPRIA (o nativo cortava os anos antigos com o
-             histórico do backfill). O <select> fica oculto só como fonte do valor. -->
-        <div class="cdrop">
-          <select class="filter-select" id="filter-ano" style="display:none"><option value="">Todos</option></select>
-          <button type="button" class="filter-select cdrop-btn" id="ano-btn" onclick="toggleCdrop('ano')"><span id="ano-btn-label">Todos</span><span class="cdrop-arrow">▾</span></button>
-          <div class="cdrop-menu" id="ano-menu"></div>
-        </div>
+        <select class="filter-select" id="filter-ano"><option value="">Todos</option></select>
       </div>
       <div class="filter-field">
         <label class="filter-label">Mês</label>
@@ -1032,6 +1028,7 @@ function populateFonteFilter() {
     opt.textContent = f;
     sel.appendChild(opt);
   });
+  cdropInit('filter-fonte', 'Todas'); cdropSync('filter-fonte');
 }
 
 function populateAnoFilter() {
@@ -1043,47 +1040,51 @@ function populateAnoFilter() {
   const anoAtual = new Date().getFullYear();
   const def = anos.includes(anoAtual) ? String(anoAtual) : '';
   sel.value = def;
-  // Espelha no dropdown customizado (rolagem própria — não corta anos antigos)
-  const menu = $id('ano-menu');
-  if (menu) {
-    const item = (v, l) => `<div class="cdrop-item${String(def) === String(v) ? ' sel' : ''}" data-v="${v}" onclick="selectAno('${v}','${l}')">${l}</div>`;
-    menu.innerHTML = item('', 'Todos') + anos.map(a => item(a, a)).join('');
-  }
-  const lbl = $id('ano-btn-label');
-  if (lbl) lbl.textContent = def || 'Todos';
+  cdropInit('filter-ano', 'Todos'); cdropSync('filter-ano');
 }
 
-// Dropdown customizado (rolagem própria) — abre/fecha e seleciona, refletindo no
-// <select> oculto (fonte do valor) e disparando o mesmo 'change' dos filtros nativos.
-function toggleCdrop(id) {
-  const menu = $id(id + '-menu');
-  if (!menu) return;
+// ── Dropdowns CUSTOMIZADOS (padronizam o visual + rolagem própria; o nativo cortava
+// listas grandes como o Ano). cdropInit envolve um <select> existente: esconde o
+// nativo (fonte do valor) e mostra botão + menu rolável espelhando as options.
+// Mudanças no <select> por código (populate/reset) refletem via cdropSync(id).
+function cdropInit(id, ph) {
+  const sel = $id(id); if (!sel || sel.dataset.cdrop) return;
+  sel.dataset.cdrop = '1'; sel.style.display = 'none';
+  const wrap = document.createElement('div'); wrap.className = 'cdrop';
+  sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(sel);
+  wrap.insertAdjacentHTML('beforeend',
+    `<button type="button" class="filter-select cdrop-btn" id="${id}-btn"><span class="cdrop-lbl">${ph || ''}</span><span class="cdrop-arrow">▾</span></button>` +
+    `<div class="cdrop-menu" id="${id}-menu"></div>`);
+  $id(id + '-btn').onclick = () => cdropToggle(id);
+  cdropSync(id);
+}
+function cdropSync(id) {
+  const sel = $id(id), menu = $id(id + '-menu'), btn = $id(id + '-btn');
+  if (!sel || !menu) return;
+  const opts = Array.from(sel.options);
+  menu.innerHTML = opts.map(o =>
+    `<div class="cdrop-item${o.value === sel.value ? ' sel' : ''}" data-v="${(o.value || '').replace(/"/g, '&quot;')}">${escHtml(o.textContent)}</div>`).join('');
+  menu.querySelectorAll('.cdrop-item').forEach(it => it.onclick = () => {
+    sel.value = it.getAttribute('data-v');
+    cdropSync(id); menu.classList.remove('open');
+    sel.dispatchEvent(new Event('change'));
+  });
+  if (btn) {
+    const cur = opts.find(o => o.value === sel.value) || opts[0];
+    const lbl = btn.querySelector('.cdrop-lbl'); if (lbl && cur) lbl.textContent = cur.textContent;
+    btn.classList.toggle('cdrop-off', !!sel.disabled);
+  }
+}
+function cdropToggle(id) {
+  const sel = $id(id); if (sel && sel.disabled) return;
+  const menu = $id(id + '-menu'); if (!menu) return;
   const open = menu.classList.contains('open');
   document.querySelectorAll('.cdrop-menu.open').forEach(m => m.classList.remove('open'));
   if (!open) menu.classList.add('open');
 }
-function selectAno(val, label) {
-  const sel = $id('filter-ano');
-  sel.value = val;
-  const lbl = $id('ano-btn-label'); if (lbl) lbl.textContent = label;
-  const menu = $id('ano-menu');
-  if (menu) {
-    menu.querySelectorAll('.cdrop-item').forEach(it => it.classList.toggle('sel', it.getAttribute('data-v') === String(val)));
-    menu.classList.remove('open');
-  }
-  sel.dispatchEvent(new Event('change'));
-}
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.cdrop')) document.querySelectorAll('.cdrop-menu.open').forEach(m => m.classList.remove('open'));
 });
-// Sincroniza o rótulo/seleção do botão de Ano quando o <select> é setado por código
-function _anoBtnSync() {
-  const v = $id('filter-ano').value;
-  const lbl = $id('ano-btn-label'); if (lbl) lbl.textContent = v || 'Todos';
-  const menu = $id('ano-menu');
-  if (menu) menu.querySelectorAll('.cdrop-item').forEach(it =>
-    it.classList.toggle('sel', it.getAttribute('data-v') === String(v)));
-}
 
 function populateMesFilter() {
   const sel = $id('filter-mes');
@@ -1096,6 +1097,7 @@ function populateMesFilter() {
   }
   // Default: mês corrente
   sel.value = String(new Date().getMonth() + 1);
+  cdropInit('filter-mes', 'Todos'); cdropSync('filter-mes');
 }
 
 // Popula o dropdown de torneios respeitando filtros fonte/ano/mes/busca
@@ -1153,6 +1155,7 @@ async function loadTorneio(torneioId) {
   $id('error-msg').style.display    = 'none';
   $id('provas-container').innerHTML = '';
   $id('filter-prova').innerHTML     = '<option value="">Todas as provas</option>';
+  cdropSync('filter-prova');
   _provaProgramaInfo = {};
 
   try {
@@ -1376,6 +1379,7 @@ function populateProvaFilter() {
     opt.textContent = numLabel + (p.descricao || p.nome || `Prova ${p.id}`);
     sel.appendChild(opt);
   });
+  cdropInit('filter-prova', 'Todas as provas'); cdropSync('filter-prova');
 }
 
 // ─── Leitura dos filtros ─────────────────────────────────────
@@ -1997,7 +2001,6 @@ function toggleDay(dayId) {
 function clearFilters() {
   $id('filter-fonte').value          = '';
   $id('filter-ano').value             = '';
-  _anoBtnSync();
   $id('filter-mes').value             = '';
   $id('filter-torneio-search').value  = '';
   $id('filter-prova').value           = '';
@@ -2007,6 +2010,7 @@ function clearFilters() {
   $id('filter-torneio').disabled       = false;
   $id('filter-prova').disabled         = false;
   $id('filter-torneio-search').disabled = false;
+  ['filter-fonte', 'filter-ano', 'filter-mes', 'filter-prova'].forEach(cdropSync);
   onTorneioListChange();
 }
 
@@ -2079,6 +2083,7 @@ function onTextFilter() {
       $id('filter-prova').disabled = false;
       $id('filter-torneio-search').disabled = false;
     }
+    cdropSync('filter-prova');
 
     // Se acabou de SAIR do modo global → recarrega torneio selecionado
     if (wasGlobal && !globalMode) {
@@ -2126,7 +2131,7 @@ if (_torneioParam) {
         if (mesT) $id('filter-mes').value = String(mesT);
         else $id('filter-mes').value = ''; // se torneio não tem mês conhecido, mostra todos
       }
-      _anoBtnSync();
+      ['filter-fonte', 'filter-ano', 'filter-mes'].forEach(cdropSync);
       populateTorneioFilter();
 
       // 4. Tenta selecionar no dropdown; se falhou (filtros restritivos),
@@ -2136,8 +2141,8 @@ if (_torneioParam) {
       if (sel.value !== _torneioParam) {
         $id('filter-fonte').value = '';
         $id('filter-ano').value = '';
-        _anoBtnSync();
         $id('filter-mes').value = '';
+        ['filter-fonte', 'filter-ano', 'filter-mes'].forEach(cdropSync);
         populateTorneioFilter();
         sel.value = _torneioParam;
       }
