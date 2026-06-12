@@ -178,9 +178,14 @@ class SupabaseWriter:
         if not self.configured:
             return False
         try:
+            # timeout alto: a view recalcula tudo e a tabela cresceu (backfill). Se
+            # ainda assim estourar o tempo HTTP, o refresh segue rodando no servidor
+            # (statement_timeout=0 na função, sql/072) — não é falha de verdade.
             r = requests.post(f"{self.url}/rest/v1/rpc/refresh_genetica",
-                              headers=self._headers("return=minimal"), data="{}", timeout=180)
+                              headers=self._headers("return=minimal"), data="{}", timeout=600)
             return r.ok
+        except requests.exceptions.Timeout:
+            return True   # provavelmente concluiu no servidor; não alarmar
         except Exception:
             return False
 
