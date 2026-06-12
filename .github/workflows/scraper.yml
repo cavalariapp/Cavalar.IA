@@ -92,6 +92,10 @@ on:
         description: "Recompila a materialized view dos rankings genéticos (após backfill/recura). Não exige write."
         type: boolean
         default: false
+      abcch_detalhe:
+        description: "Enriquece a genealogia com o TOKEN do pai/mãe (ABCCH) p/ separar reprodutores homônimos. Resumável (re-rode até zerar a fila). Grava se write=true."
+        type: boolean
+        default: false
       frescor:
         description: "Atualiza AGORA a ORDEM DE ENTRADA + RESULTADOS dos torneios acontecendo (hoje±). Use quando o cron atrasar e a ordem/resultado já saiu. Grava se write=true."
         type: boolean
@@ -155,6 +159,7 @@ jobs:
           IN_RECURAR: ${{ inputs.recurar }}
           IN_REFRESH: ${{ inputs.refresh_genetica }}
           IN_FRESCOR: ${{ inputs.frescor }}
+          IN_ABCCH_DET: ${{ inputs.abcch_detalhe }}
           IN_WALK_ID_MIN: ${{ inputs.walk_id_min }}
           IN_WALK_ID_MAX: ${{ inputs.walk_id_max }}
           IN_PROXIMOS: ${{ inputs.proximos }}
@@ -208,6 +213,12 @@ jobs:
             ARGS="--fph-walk"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS  (IDs ${CAVALARIA_WALK_ID_MIN:-1}..${CAVALARIA_WALK_ID_MAX:-14200}, datas [${CAVALARIA_WALK_DESDE:-2013-01-01}, ${CAVALARIA_WALK_ATE:-2024-01-01}))"
+            python -m scraper.main $ARGS
+          elif [ "${IN_ABCCH_DET:-false}" = "true" ]; then
+            # enriquece a genealogia com token de pai/mãe (separa reprodutores homônimos).
+            ARGS="--abcch-detalhe"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
             python -m scraper.main $ARGS
           elif [ "${IN_FRESCOR:-false}" = "true" ]; then
             # atualiza ordem+resultados dos torneios de hoje (sob demanda, quando o

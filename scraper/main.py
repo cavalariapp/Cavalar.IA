@@ -1041,6 +1041,41 @@ def processar_abcch(args, writer):
     return 0
 
 
+def enriquecer_abcch_tokens(args, writer):
+    """--abcch-detalhe: enriquece a genealogia com o TOKEN do pai/mãe (CdTokenSire/
+    CdTokenDam) buscando o detalhe /animais/<token> de cada animal — o vínculo EXATO
+    que separa reprodutores homônimos (ex.: duas 'Olanda'). Resumável: processa os que
+    ainda não têm pai_token (lote CAVALARIA_ABCCH_DET_MAX, default 8000); re-rode até
+    zerar. Requer --write. Depois, rode a sql/079 + refresh da genética."""
+    import os
+    import time
+    from scraper.adapters import abcch
+    if not (args.write and writer.configured):
+        print("⚠ --abcch-detalhe precisa de --write + SUPABASE_*.", file=sys.stderr)
+        return 3
+    MAX = int(os.environ.get("CAVALARIA_ABCCH_DET_MAX", "8000"))
+    toks = writer.animais_sem_token_pai(limit=MAX)
+    print(f"ABCCH-DETALHE: {len(toks)} animais sem token de pai/mãe (lote {MAX}).")
+    ok = err = 0
+    for i, ct in enumerate(toks, 1):
+        try:
+            pt, mt = abcch.detalhe_pais(ct)
+            writer.set_animal_tokens(ct, pt, mt)   # '' marca processado (sai da fila)
+            ok += 1
+        except Exception:
+            try:
+                writer.set_animal_tokens(ct, "", "")   # erro → marca processado p/ não travar a fila
+            except Exception:
+                pass
+            err += 1
+        if i % 200 == 0:
+            print(f"  …{i}/{len(toks)} (ok={ok} err={err})")
+        time.sleep(float(os.environ.get("CAVALARIA_ABCCH_DET_SLEEP", "0.15")))
+    print(f"=== ABCCH-DETALHE === {ok} enriquecidos, {err} erros. "
+          f"{'Re-rode p/ continuar (ainda há fila).' if len(toks) >= MAX else 'Fila zerada.'}")
+    return 0
+
+
 def _dedup_fgee_shells(writer):
     """Apaga shells legados do N8N (fonte=FGEE, id_nativo nulo, 0 provas) que já
     foram SUPERADOS por um torneio rico (id_nativo setado, com data) de mesmo
@@ -1190,6 +1225,10 @@ def main(argv=None):
     ap.add_argument("--abcch", action="store_true",
                     help="Espelha o studbook genealógico da ABCCH (pai/mãe) na tabela "
                          "genealogia. --write grava.")
+    ap.add_argument("--abcch-detalhe", action="store_true", dest="abcch_detalhe",
+                    help="Enriquece a genealogia com o TOKEN do pai/mãe (detalhe da "
+                         "ABCCH) p/ separar reprodutores homônimos. Resumável (lote "
+                         "CAVALARIA_ABCCH_DET_MAX). Requer --write.")
     ap.add_argument("--refresh-genetica", action="store_true", dest="refresh_genetica",
                     help="Atualiza a materialized view dos rankings genéticos (rpc).")
     ap.add_argument("--spotify-show", dest="spotify_show", metavar="URL",
@@ -1362,6 +1401,14 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_abcch(args, writer)
+
+    if args.abcch_detalhe:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --abcch-detalhe --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return enriquecer_abcch_tokens(args, writer)
 
     # Importa um show inteiro do Spotify → media (tipo=podcast).
     if args.spotify_show:

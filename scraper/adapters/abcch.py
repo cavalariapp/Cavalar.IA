@@ -64,6 +64,20 @@ def detalhe(cd_token, timeout=60):
     return r.json()
 
 
+def detalhe_pais(cd_token, timeout=60):
+    """Detalhe /animais/<token> → (pai_token, mae_token) = CdTokenSire/CdTokenDam.
+    É o VÍNCULO EXATO ao animal pai/mãe (não só o nome) — permite separar reprodutores
+    homônimos (ex.: duas 'Olanda' de pais diferentes). '' quando o pai/mãe é
+    desconhecido na fonte. Levanta em erro de rede (o chamador trata)."""
+    d = detalhe(cd_token, timeout=timeout)
+    if not isinstance(d, dict):
+        return None, None
+    def tok(k):
+        v = d.get(k)
+        return v.strip() if isinstance(v, str) and v.strip() else None
+    return tok("CdTokenSire"), tok("CdTokenDam")
+
+
 def to_row(a):
     """Animal da busca → linha da tabela `genealogia`. CdGender: 'M'/'F' (macho/
     fêmea) conforme a fonte; guardamos o valor cru."""

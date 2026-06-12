@@ -124,6 +124,21 @@ class SupabaseWriter:
             enviados += len(lote)
         return enviados
 
+    def animais_sem_token_pai(self, limit=8000):
+        """cd_tokens da genealogia ainda SEM pai_token (alvo do enriquecimento de
+        tokens de pai/mãe). Resumável: processados ficam não-nulos e somem da fila."""
+        self._require()
+        rows = self._get(
+            f"/rest/v1/genealogia?select=cd_token&pai_token=is.null&limit={limit}")
+        return [r["cd_token"] for r in rows if r.get("cd_token")]
+
+    def set_animal_tokens(self, cd_token, pai_token, mae_token):
+        """Grava o token do pai/mãe de um animal (''=desconhecido, mas processado →
+        sai da fila)."""
+        self._require()
+        self._patch(f"/rest/v1/genealogia?cd_token=eq.{cd_token}",
+                    {"pai_token": pai_token or "", "mae_token": mae_token or ""})
+
     # ── torneios (Fase A: calendário) ────────────────────────────────
     def find_torneio_id(self, fonte, id_nativo):
         """Resolve torneios.id por (fonte, id_nativo) — a chave estável da
