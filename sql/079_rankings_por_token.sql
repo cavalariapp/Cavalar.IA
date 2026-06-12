@@ -13,7 +13,7 @@
 drop materialized view if exists public.mv_genetica;
 create materialized view public.mv_genetica as
 with res as (
-  select r.cavalo_norm as filho_norm,
+  select public.canon_cavalo(r.cavalo_norm) as filho_norm,   -- resolve apelidos (sql/082)
          r.nasc_cavalo  as nasc_res,
          extract(year from coalesce(p.data_prova, t.data_inicio))::int as ano_prova,
          public.altura_m(p.nome, p.descricao, p.categorias) as alt
