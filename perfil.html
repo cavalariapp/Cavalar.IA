@@ -742,6 +742,8 @@ function renderSobre() {
         </div>
       </div>
 
+      ${vincularCavaleiroCardHtml()}
+
       ${analiseConfigCardHtml()}
 
       ${cavalosEditCardHtml()}
@@ -1057,6 +1059,64 @@ function wireEdit() {
 }
 
 // ═══ ANÁLISE DE RESULTADOS (config do cavaleiro) ═══════════════
+// Card de VINCULAR meu nome de cavaleiro/amazona aos resultados (perfil próprio).
+// Quem não vinculou no cadastro (ex.: não havia resultados na época / backfill novo)
+// pode reivindicar aqui: busca o nome nos resultados e confirma que é você → suas
+// estatísticas passam a aparecer e outros te acham pelos resultados.
+let _vincNomes = [];
+let _vincTimer = null;
+function vincularCavaleiroCardHtml() {
+  const atual = _profile.cavaleiro_nome;
+  return `
+    <div class="card">
+      <div class="section-title">Sou cavaleiro / amazona</div>
+      <p class="privacy-note" style="margin-top:-4px;margin-bottom:12px">
+        Vincule seu nome como ele aparece nos <b>resultados das provas</b> pra trazer
+        suas estatísticas pra cá. Confirme só se for realmente você.</p>
+      ${atual ? `<div style="margin-bottom:12px;font-size:14px">Vinculado a:
+        <b style="color:var(--accent)">${esc(atual)}</b>
+        <button class="btn btn-outline" style="margin-left:8px;padding:5px 12px;font-size:12px" onclick="desvincularCavaleiro()">Desvincular</button></div>` : ''}
+      <div class="field" style="margin-bottom:0">
+        <label>${atual ? 'Trocar' : 'Buscar'} meu nome nos resultados</label>
+        <input id="vinc-search" class="input" placeholder="Digite seu nome…" autocomplete="off" oninput="vincBuscar(this.value)">
+      </div>
+      <div id="vinc-results" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+    </div>`;
+}
+function vincBuscar(termo) {
+  clearTimeout(_vincTimer);
+  const box = document.getElementById('vinc-results');
+  if (!box) return;
+  const t = (termo || '').trim();
+  if (t.length < 2) { box.innerHTML = ''; return; }
+  _vincTimer = setTimeout(async () => {
+    try {
+      const { data } = await sb.rpc('buscar_nomes_cavaleiros', { termo: t });
+      _vincNomes = [...new Set((data || []).map(r => (r.nome || '').split('\n')[0].trim()).filter(Boolean))].slice(0, 25);
+      box.innerHTML = _vincNomes.length
+        ? _vincNomes.map((n, i) => `<button class="btn btn-outline" style="text-align:left;justify-content:flex-start;font-weight:600" onclick="vincularCavaleiro(${i})">${esc(n)}</button>`).join('')
+        : '<div class="privacy-note">Nenhum cavaleiro com esse nome nos resultados.</div>';
+    } catch (e) { box.innerHTML = '<div class="privacy-note">Erro na busca. Tente de novo.</div>'; }
+  }, 250);
+}
+async function vincularCavaleiro(i) {
+  const nome = _vincNomes[i];
+  if (!_profile || !nome) return;
+  if (!confirm(`Confirmar que VOCÊ é "${nome}" nos resultados?\n\nSuas estatísticas dessas provas passarão a aparecer no seu perfil.`)) return;
+  const { error } = await sb.from('profiles')
+    .update({ cavaleiro_nome: nome, cavaleiro_match_confirmado: true }).eq('id', _profile.id);
+  if (error) { alert('Erro ao vincular: ' + error.message); return; }
+  location.reload();
+}
+async function desvincularCavaleiro() {
+  if (!_profile) return;
+  if (!confirm('Desvincular seu nome dos resultados? Suas estatísticas deixarão de aparecer.')) return;
+  const { error } = await sb.from('profiles')
+    .update({ cavaleiro_nome: null, cavaleiro_match_confirmado: false }).eq('id', _profile.id);
+  if (error) { alert('Erro: ' + error.message); return; }
+  location.reload();
+}
+
 function analiseConfigCardHtml() {
   if (!_profile.cavaleiro_nome) return ''; // só pra cavaleiro vinculado
   const cfg = _analiseConfig || {};
