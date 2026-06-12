@@ -1053,26 +1053,38 @@ def enriquecer_abcch_tokens(args, writer):
     if not (args.write and writer.configured):
         print("⚠ --abcch-detalhe precisa de --write + SUPABASE_*.", file=sys.stderr)
         return 3
-    MAX = int(os.environ.get("CAVALARIA_ABCCH_DET_MAX", "8000"))
-    toks = writer.animais_sem_token_pai(limit=MAX)
-    print(f"ABCCH-DETALHE: {len(toks)} animais sem token de pai/mãe (lote {MAX}).")
-    ok = err = 0
-    for i, ct in enumerate(toks, 1):
-        try:
-            pt, mt = abcch.detalhe_pais(ct)
-            writer.set_animal_tokens(ct, pt, mt)   # '' marca processado (sai da fila)
-            ok += 1
-        except Exception:
+    # PAGINA INTERNAMENTE até ZERAR: o PostgREST corta cada query em 1000 linhas (mesmo
+    # pedindo mais), então re-buscamos lotes de 1000 num laço — assim UMA execução
+    # processa todos os ~46k. Resumável: se o Action der timeout, os já gravados ficam
+    # (cada um é PATCH individual) e re-rodar continua de onde parou.
+    MAX = int(os.environ.get("CAVALARIA_ABCCH_DET_MAX", "100000"))   # teto total por execução
+    sleep = float(os.environ.get("CAVALARIA_ABCCH_DET_SLEEP", "0.12"))
+    tot = ok = err = 0
+    print(f"ABCCH-DETALHE: enriquecendo tokens de pai/mãe (lotes de 1000, teto {MAX})…")
+    while tot < MAX:
+        toks = writer.animais_sem_token_pai(limit=1000)
+        if not toks:
+            break
+        for ct in toks:
             try:
-                writer.set_animal_tokens(ct, "", "")   # erro → marca processado p/ não travar a fila
+                pt, mt = abcch.detalhe_pais(ct)
+                writer.set_animal_tokens(ct, pt, mt)   # grava token (''=desconhecido, mas processado)
+                ok += 1
             except Exception:
-                pass
-            err += 1
-        if i % 200 == 0:
-            print(f"  …{i}/{len(toks)} (ok={ok} err={err})")
-        time.sleep(float(os.environ.get("CAVALARIA_ABCCH_DET_SLEEP", "0.15")))
-    print(f"=== ABCCH-DETALHE === {ok} enriquecidos, {err} erros. "
-          f"{'Re-rode p/ continuar (ainda há fila).' if len(toks) >= MAX else 'Fila zerada.'}")
+                try:
+                    writer.set_animal_tokens(ct, "", "")   # erro → marca processado p/ não travar a fila
+                except Exception:
+                    pass
+                err += 1
+            tot += 1
+            if tot % 200 == 0:
+                print(f"  …{tot} processados (ok={ok} err={err})")
+            time.sleep(sleep)
+            if tot >= MAX:
+                break
+    restante = len(writer.animais_sem_token_pai(limit=1))
+    print(f"=== ABCCH-DETALHE === {ok} enriquecidos, {err} erros, {tot} processados. "
+          f"{'Fila ZERADA.' if restante == 0 else 'Re-rode p/ continuar (ainda há fila).'}")
     return 0
 
 
