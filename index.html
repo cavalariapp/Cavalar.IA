@@ -6528,9 +6528,19 @@ async function abrirPerfilCavaleiro(i) {
   const dt = r => (r.provas && (r.provas.data_prova || (r.provas.torneios && r.provas.torneios.data_inicio))) || '';
   const recentes = [...meus].sort((a, b) => String(dt(b)).localeCompare(String(dt(a)))).slice(0, 50);
   _cavaleiroPD = { recentes };
-  // usuário do app com esse nome de cavaleiro (mapa nome→id já carregado)
+  // usuário do app com esse nome de cavaleiro (página de usuário). Tenta o mapa
+  // pré-carregado e, se vazio (carregou antes de um claim / não estava no mapa),
+  // consulta DIRETO — assim o selo/link sempre aparece pra quem tem página.
   let userId = null;
   try { if (typeof _profileLinkMap !== 'undefined' && _profileLinkMap) userId = _profileLinkMap.get(nome1.toLowerCase().trim()) || null; } catch (_) {}
+  if (!userId) {
+    try {
+      const { data: up } = await sb.from('profiles_publicos')
+        .select('id').eq('cavaleiro_match_confirmado', true).eq('visibilidade', 'publico')
+        .ilike('cavaleiro_nome', nome1).limit(1);
+      if (up && up[0]) { userId = up[0].id; try { _profileLinkMap.set(nome1.toLowerCase().trim(), userId); } catch (_) {} }
+    } catch (_) {}
+  }
   const stat = (n, l) => `<div style="flex:1;min-width:64px;text-align:center;padding:10px 4px;background:var(--surface2);border-radius:10px"><div style="font-size:18px;font-weight:900">${n}</div><div style="font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px">${l}</div></div>`;
   wrap.innerHTML = `
     <div style="padding:12px 16px 0">
@@ -6540,7 +6550,7 @@ async function abrirPerfilCavaleiro(i) {
       <h2 style="margin:6px 0 2px;font-size:22px;font-weight:900">${escHtml(nome1)}</h2>
       ${c.entidade ? `<div style="font-size:12px;color:var(--muted)">${escHtml(c.entidade)}</div>` : ''}
       ${userId ? `<a href="perfil.html?u=${encodeURIComponent(userId)}" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--accent);color:#08111c;border-radius:8px;padding:8px 14px;font-weight:800;font-size:12px;text-decoration:none">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Ver perfil no app</a>` : ''}
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Tem página no Cavalar.IA · ver e seguir</a>` : ''}
     </div>
     ${nprovas ? `
     <div style="padding:14px 16px 0">
