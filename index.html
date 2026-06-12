@@ -2683,6 +2683,11 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     <button class="tab" id="gtab-mae" onclick="genPapel('mae')">Matrizes</button>
   </div>
 
+  <div class="search-wrap" style="margin:12px 16px 0">
+    <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input class="search-input" type="search" id="gen-search" placeholder="Buscar garanhão ou matriz..." autocomplete="off" oninput="genBusca(this.value)">
+  </div>
+
   <div style="padding:12px 16px 0">
     <div style="font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Ano</div>
     <div class="pills" id="gen-anos" style="margin-bottom:12px"></div>
@@ -5926,7 +5931,10 @@ async function loadGenAnos() {
   } catch (_) { /* mantém só "Todos" se a rpc não existir ainda */ }
 }
 const _GEN_SORTS = [['Filhos', 'total'], ['Competindo', 'comp'], ['% +4a', 'pct_comp'], ['≥1,40m', 'm140'], ['% +8a', 'pct140']];
-let _genRows = [];
+let _genRows = [];          // linhas exibidas (índice usado por abrirReprodutor)
+let _genAllRows = [];       // TODAS as linhas buscadas do servidor (pra filtrar a busca)
+let _genQuery = '';         // termo da busca de reprodutor
+function genBusca(v) { _genQuery = v || ''; _genList(); }
 function abrirReprodutor(i) { const r = _genRows[i]; if (r && r.reprodutor) { _cavaloFrom = 'genetica'; abrirCavaloPorNome(r.reprodutor); } }
 
 function _genChips() {
@@ -5945,7 +5953,7 @@ function genPapel(p) {
   renderGenetica();
 }
 function genAno(a) { STATE.genAno = a; _genChips(); renderGenetica(); }
-function genSort(s) { STATE.genSort = s; _genChips(); renderGenetica(); }
+function genSort(s) { STATE.genSort = s; _genChips(); _genList(); }   // re-ordena sem re-buscar
 function initGenetica() { _genChips(); loadGenAnos(); genPapel(STATE.genPapel); }
 // abre a tela Genética já na aba certa (Garanhões=pai / Matrizes=mae)
 function abrirGenetica(papel) { STATE.genPapel = papel || 'pai'; nav('genetica'); }
@@ -6027,16 +6035,31 @@ async function renderGenetica() {
     return;
   }
   c.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Carregando rankings…</div>';
-  let rows;
-  try { rows = await DB.rankingsGeneticos(STATE.genPapel, STATE.genAno); }
+  try { _genAllRows = await DB.rankingsGeneticos(STATE.genPapel, STATE.genAno); }
   catch (e) { c.innerHTML = paywallHTML('Rankings genéticos', 'Recurso exclusivo para assinantes.'); return; }
-  if (!rows.length) {
+  _genList();
+}
+
+// Re-renderiza a lista a partir de _genAllRows aplicando a BUSCA + ordenação atual
+// (sem re-buscar no servidor). Buscando, mostra TODOS os que casam o nome (mesmo
+// fora do top); sem busca, mostra o top 80 pela ordenação escolhida.
+function _genList() {
+  const c = document.getElementById('gen-list');
+  if (!c) return;
+  if (!_genAllRows.length) {
     c.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Sem dados pra esse filtro ainda.</div>';
     return;
   }
   const key = { total: 'total_filhos', comp: 'comp', pct_comp: 'pct_comp', m140: 'm140', pct140: 'pct140' }[STATE.genSort];
-  const arr = [...rows].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, 80);
+  const q = (_genQuery || '').trim().toLowerCase();
+  let rows = _genAllRows;
+  if (q) rows = rows.filter(r => (r.reprodutor || '').toLowerCase().includes(q));
+  const arr = [...rows].sort((a, b) => (b[key] || 0) - (a[key] || 0)).slice(0, q ? 200 : 80);
   _genRows = arr;
+  if (!arr.length) {
+    c.innerHTML = `<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum reprodutor encontrado para "${escHtml(_genQuery)}".</div>`;
+    return;
+  }
   const em = (on, txt) => on ? `<b style="color:var(--accent)">${txt}</b>` : txt;
   c.innerHTML = arr.map((r, i) => `
     <div style="border-top:1px solid var(--border);padding:11px 14px">
