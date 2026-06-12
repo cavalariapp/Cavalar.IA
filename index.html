@@ -5909,7 +5909,22 @@ function placeBid() {
 STATE.genPapel = STATE.genPapel || 'pai';
 STATE.genAno = (STATE.genAno === undefined ? null : STATE.genAno);
 STATE.genSort = STATE.genSort || 'total';
-const _GEN_ANOS = [['Todos', null], ['2026', 2026], ['2025', 2025], ['2024', 2024]];
+// Anos do filtro: DINÂMICO — puxa os anos reais que existem na genética (rpc
+// anos_genetica). Começa só com "Todos"; ao carregar, inclui 2013…ano atual
+// conforme houver dado (o backfill histórico passa a aparecer no filtro).
+let _GEN_ANOS = [['Todos', null]];
+let _genAnosLoaded = false;
+async function loadGenAnos() {
+  if (_genAnosLoaded) return;
+  try {
+    const { data } = await sb.rpc('anos_genetica');
+    if (Array.isArray(data) && data.length) {
+      _GEN_ANOS = [['Todos', null], ...data.map(y => [String(y), y])];
+      _genAnosLoaded = true;
+      _genChips();
+    }
+  } catch (_) { /* mantém só "Todos" se a rpc não existir ainda */ }
+}
 const _GEN_SORTS = [['Filhos', 'total'], ['Competindo', 'comp'], ['% +4a', 'pct_comp'], ['≥1,40m', 'm140'], ['% +8a', 'pct140']];
 let _genRows = [];
 function abrirReprodutor(i) { const r = _genRows[i]; if (r && r.reprodutor) { _cavaloFrom = 'genetica'; abrirCavaloPorNome(r.reprodutor); } }
@@ -5931,7 +5946,7 @@ function genPapel(p) {
 }
 function genAno(a) { STATE.genAno = a; _genChips(); renderGenetica(); }
 function genSort(s) { STATE.genSort = s; _genChips(); renderGenetica(); }
-function initGenetica() { _genChips(); genPapel(STATE.genPapel); }
+function initGenetica() { _genChips(); loadGenAnos(); genPapel(STATE.genPapel); }
 // abre a tela Genética já na aba certa (Garanhões=pai / Matrizes=mae)
 function abrirGenetica(papel) { STATE.genPapel = papel || 'pai'; nav('genetica'); }
 
