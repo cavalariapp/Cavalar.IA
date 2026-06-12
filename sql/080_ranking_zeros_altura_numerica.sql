@@ -14,7 +14,12 @@ as $$
   with raw as (
     select public.altura_m(p.nome, p.descricao, p.categorias) as altm,
            trim(split_part(case when p_entity = 'cavalo' then r.cavalo_nome else r.cavaleiro_nome end, E'\n', 1)) as nome,
-           (r.penalidade ~ '^0([[:space:](,]|$)') as zero,
+           -- ZERO = percurso limpo de VERDADE: tem um '0' E nenhum dígito 1-9 em
+           -- lugar nenhum da penalidade. Pega 'X (PS+PT)' (faltas obstáculo+tempo) e
+           -- 'duas fases' (total das 2 fases). Ex.: '0 (4+0)', '4 (0+4)', '1 (0+1)' →
+           -- NÃO é zero. 'Eliminado'/'Desistente' (sem dígito) → não é zero.
+           -- (Desempate/2ª volta já usam a 1ª volta: o desempate vai em penalidade_2.)
+           (r.penalidade ~ '0' and r.penalidade !~ '[1-9]') as zero,
            t.data_inicio as dt, coalesce(p.numero, 0) as num, r.id as rid
     from resultados r
     join provas p   on p.id = r.prova_id
