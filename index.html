@@ -5608,9 +5608,13 @@ function renderDestaques() {
     const img = n.image_url
       ? `background-image:url('${String(n.image_url).replace(/'/g, '%27')}');background-size:cover;background-position:center`
       : `background:${grads[i % grads.length]}`;
+    const admBtn = _isAdmin
+      ? `<button onclick="event.stopPropagation();toggleFeaturedAdmin(${n.id})" title="Remover dos destaques" style="position:absolute;top:8px;right:8px;z-index:6;background:rgba(8,13,24,.85);border:1px solid var(--border);color:#fff;border-radius:7px;padding:5px 9px;font-size:11px;font-weight:700;cursor:pointer">★ Remover destaque</button>`
+      : '';
     return `<div class="dq-slide" onclick="openNews(${n.id})">
       <div class="featured-img" style="${img}">
         <div class="featured-img-grad"></div>
+        ${admBtn}
         ${n.cat ? `<div class="featured-img-label">${escHtml(String(n.cat).toUpperCase())}</div>` : ''}
       </div>
       <div class="featured-body">
