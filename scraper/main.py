@@ -800,7 +800,12 @@ def walk_resultados(args, writer):
             n_tabela += 1
         else:
             n_vazio += 1
-        tot_res += _gravar_prova_walk(writer, cache, h, res, args)
+        try:                                    # 1 prova com erro não derruba o bloco
+            tot_res += _gravar_prova_walk(writer, cache, h, res, args)
+        except Exception as e:
+            n_erro += 1
+            print(f"  ⚠ ID {idv}: gravação falhou ({e.__class__.__name__}), seguindo",
+                  file=sys.stderr)
         if (n_tabela + n_vazio) % 200 == 0 and (n_tabela + n_vazio) > 0:
             print(f"  …ID {idv}: {n_tabela} tabela, {len(balao)} balão, "
                   f"{n_fora} fora-janela, {tot_res} resultados")
@@ -820,7 +825,11 @@ def walk_resultados(args, writer):
                 h = hdr_por_id[idv]
                 listas = [M.parse_resultados(html) for _, html in cats_html]
                 merged = M.mesclar_resultados(listas, h.get("tipo_prova"))
-                tot_res += _gravar_prova_walk(writer, cache, h, merged, args)
+                try:
+                    tot_res += _gravar_prova_walk(writer, cache, h, merged, args)
+                except Exception as e:
+                    print(f"  ⚠ balão ID {idv}: gravação falhou ({e.__class__.__name__}), seguindo",
+                          file=sys.stderr)
                 n_b += 1
                 if n_b % 50 == 0:
                     print(f"  …balão {n_b}/{len(ids)} (ID {idv}): {len(merged)} conjuntos")
