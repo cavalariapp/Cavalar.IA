@@ -388,39 +388,52 @@ def recurar_resultados(args, writer):
     _ATE (default 2024-01-01..amanhã); lote CAVALARIA_MAX torneios (re-rode p/ seguir;
     use a janela de datas p/ avançar por períodos). --write grava + refresca a genética."""
     import os
-    import datetime as _d
-    MAX = int(os.environ.get("CAVALARIA_MAX", "60"))
-    desde = os.environ.get("CAVALARIA_RECURAR_DESDE", "2024-01-01")
-    ate = os.environ.get("CAVALARIA_RECURAR_ATE",
-                         (_d.date.today() + _d.timedelta(days=1)).isoformat())
+    from scraper.db import resultado_to_row
+    from scraper import fetch
+    MAX = int(os.environ.get("CAVALARIA_MAX", "1000000"))   # provas por execução (default: todas)
     fontes = ([SRC.get(args.source)] if args.source
               else [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"])
     fontes = [f for f in fontes if f and f.get("resultados_url")]
-    print(f"=== RECURAR (anti-dessincronia) janela [{desde}, {ate}] | lote {MAX} | "
+    print(f"=== RECURAR (anti-dessincronia, POR PROVA) | "
           f"{'GRAVA' if args.write else 'DRY-RUN'} ===")
-    tot_t = tot_meta = tot_ins = 0
+    tot_p = tot_meta = tot_ins = 0
     for src in fontes:
-        rows = writer._get(
-            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
-            f"&data_inicio=gte.{desde}&data_inicio=lte.{ate}"
-            f"&select=id,nome,data_inicio&order=data_inicio.desc&limit={MAX}")
-        print(f"\n{src['codigo']}: {len(rows)} torneios na janela")
+        # TODAS as provas dessa fonte com id_origem (via join torneios.fonte), paginado.
+        # Direto nas provas → NÃO depende de id_nativo do torneio nem da seleção dele.
+        provas, off = [], 0
+        while True:
+            page = writer._get(
+                f"/rest/v1/provas?select=id,id_origem,torneio_id,torneios!inner(fonte)"
+                f"&torneios.fonte=eq.{src['codigo']}&id_origem=not.is.null"
+                f"&order=id.desc&limit=1000&offset={off}")
+            provas += page
+            if len(page) < 1000:
+                break
+            off += 1000
+        print(f"\n{src['codigo']}: {len(provas)} provas com id_origem")
         if not (args.write and writer.configured):
             continue
-        for t in rows:
+        for p in provas[:MAX]:
             try:
-                r = _curar_resultados_torneio(src, t["id"], writer)
+                html = fetch.fetch_resultados(src, p["id_origem"])
+                hdr = mn.parse_resultado_pagina(html)
+                if hdr:                       # REALINHA a metadata SEMPRE (mesmo sem linhas,
+                    hdr["_id"] = p["id_origem"]   # ex.: prova em 'balão' — o cabeçalho parseia)
+                    writer.atualizar_prova_meta(p["id"], _prova_row_de_header(hdr, p["torneio_id"]))
+                    tot_meta += 1
+                R = mn.parse_resultados(html)
+                if R:
+                    rs = writer.upsert_resultados(p["id"], [resultado_to_row(r, p["id"]) for r in R])
+                    tot_ins += rs.get("inseridos", 0)
+                tot_p += 1
+                if tot_p % 200 == 0:
+                    print(f"  …{tot_p} provas | {tot_meta} realinhadas | {tot_ins} resultados")
             except Exception as e:
-                print(f"  ⚠ {t.get('nome','')[:40]}: {e.__class__.__name__}", file=sys.stderr)
-                continue
-            tot_t += 1; tot_meta += r.get("meta_alinhada", 0); tot_ins += r.get("inseridos", 0)
-            if r.get("provas"):
-                print(f"  ✓ {(t.get('nome') or '')[:46]}: {r['provas']} provas, "
-                      f"{r.get('meta_alinhada', 0)} meta-alinhadas, {r['inseridos']} result.")
-    if args.write and writer.configured and tot_ins:
+                print(f"  ⚠ prova id_origem {p.get('id_origem')}: {e.__class__.__name__}", file=sys.stderr)
+    if args.write and writer.configured and (tot_ins or tot_meta):
         ok = writer.refresh_genetica()
         print(f"\n  refresh_genetica: {'ok' if ok else 'falhou (rode --refresh-genetica)'}")
-    print(f"\n=== RECURAR fim === {tot_t} torneios, {tot_meta} provas realinhadas, "
+    print(f"\n=== RECURAR fim === {tot_p} provas, {tot_meta} realinhadas, "
           f"{tot_ins} resultados ({'GRAVADO' if args.write else 'DRY-RUN'}).")
     return 0
 
@@ -461,7 +474,7 @@ def atualizar_frescor(args, writer):
     n_t = n_ord = n_res = 0
     for src in [s for s in SRC.ativos() if s["plataforma"] == "macronetwork"]:
         rows = writer._get(
-            f"/rest/v1/torneios?fonte=eq.{src['codigo']}&id_nativo=not.is.null"
+            f"/rest/v1/torneios?fonte=eq.{src['codigo']}"   # SEM id_nativo: frescor usa id_origem da prova
             f"&data_inicio=gte.{ini}&data_inicio=lte.{fim}"
             f"&select=id,nome&order=data_inicio.desc")
         for t in rows:
