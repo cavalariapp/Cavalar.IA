@@ -1029,9 +1029,20 @@ def estruturar_docs(writer, limit=None):
     for d in docs:
         try:
             texto = E.extrair_texto_pdf(d["url_pdf"])
-            estrut = E.estruturar(d["tipo"], texto, key)
+            # Um QUADRO DE HORÁRIOS pode chegar rotulado como 'adendo' (ex.: "Quadro
+            # atualizado"). Se o título indica horários E o texto é um quadro de
+            # verdade (muitos HH:MM), estrutura com o schema 'horarios' (dias) — assim
+            # o app mostra com os acordeões como "Quadro de Horários Atualizado".
+            tipo_efetivo = d["tipo"]
+            if tipo_efetivo != "horarios":
+                titulo = (d.get("titulo") or "")
+                if re.search(r"quadro|hor[áa]rio", titulo, re.I) and \
+                   len(re.findall(r"\b\d{1,2}[:h]\d{2}\b", texto or "")) >= 5:
+                    tipo_efetivo = "horarios"
+            estrut = E.estruturar(tipo_efetivo, texto, key)
             writer.set_documento_estruturado(d["id"], texto=texto, estrut=estrut)
-            print(f"  ✓ doc {d['id']} [{d['tipo']}] texto={len(texto)}c "
+            print(f"  ✓ doc {d['id']} [{d['tipo']}"
+                  f"{'→horarios' if tipo_efetivo != d['tipo'] else ''}] texto={len(texto)}c "
                   f"estrut={'sim' if estrut else 'não'}")
             ok += 1
         except Exception as e:

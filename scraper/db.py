@@ -369,7 +369,7 @@ class SupabaseWriter:
         [{id, tipo, url_pdf}] — alvo do passo de estruturação (PDF→texto→Claude)."""
         self._require()
         return self._get(
-            "/rest/v1/torneio_documentos?select=id,tipo,url_pdf&url_pdf=not.is.null"
+            "/rest/v1/torneio_documentos?select=id,tipo,titulo,url_pdf&url_pdf=not.is.null"
             "&tipo=in.(programa,horarios,adendo)&conteudo_estruturado=is.null"
             f"&order=id.desc&limit={limit}")
 

@@ -1542,6 +1542,17 @@ body.tem-notif .btn-hamburger::after {
 }
 .featured-excerpt { font-size: 12.5px; line-height: 1.5; color: var(--muted); margin-bottom: 10px; }
 .featured-footer { display: flex; align-items: center; justify-content: space-between; }
+/* Carrossel de Destaques (notícias em destaque, rolagem lateral) */
+.dq-viewport { width: 100%; overflow: hidden; }
+.dq-track { display: flex; transition: transform .55s cubic-bezier(.4,0,.2,1); will-change: transform; }
+.dq-slide { flex: 0 0 100%; min-width: 100%; cursor: pointer; }
+.dq-slide .featured-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.dq-slide .featured-excerpt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-height: 56px; }
+.dq-dots { display: flex; gap: 6px; justify-content: center; padding: 9px 0 11px; }
+.dq-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: all .3s; }
+.dq-dot.active { background: var(--accent); width: 18px; border-radius: 3px; }
+.featured-img-grad { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.7) 0%, transparent 55%); }
+.featured-img-label { position: absolute; bottom: 10px; left: 12px; font-family: var(--font-display); font-size: 10px; font-weight: 700; font-style: italic; text-transform: uppercase; color: rgba(255,255,255,.6); }
 
 /* Player embutido (YouTube/Spotify) — vídeo 16:9 responsivo */
 .media-item { padding: 0 16px 20px; }
@@ -2495,21 +2506,10 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   <!-- DESTAQUES -->
   <div class="sec-hdr" style="margin-top:24px"><span class="sec-title">Destaques</span><button class="sec-link">VER TODOS →</button></div>
 
-  <!-- FEATURED CARD -->
-  <div class="featured-card">
-    <div class="featured-img" style="background:linear-gradient(135deg,#0f1a28,#2a1210,#1a0a0a)">
-      <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 55%)"></div>
-      <div style="position:absolute;bottom:10px;left:12px;font-family:var(--font-display);font-size:10px;font-weight:700;font-style:italic;text-transform:uppercase;color:rgba(255,255,255,.55)">CSIO5* · ROTTERDAM</div>
-    </div>
-    <div class="featured-body">
-      <div class="featured-cat">CSIO5* · RESULTADO</div>
-      <div class="featured-title">Brasil conquista vitória no GP 1.60m em Rotterdam</div>
-      <div class="featured-excerpt">Pedro Veniss garante o lugar mais alto do pódio com King of the Moors, marcando uma das melhores atuações da temporada europeia.</div>
-      <div class="featured-footer">
-        <span style="font-size:10.5px;color:var(--muted)">12 MAI 2024</span>
-        <span style="font-size:10.5px;color:var(--accent);font-weight:700">LER MAIS →</span>
-      </div>
-    </div>
+  <!-- FEATURED CAROUSEL (notícias marcadas como destaque; revezam a cada 5s) -->
+  <div class="featured-card" id="destaques-card" style="display:none;padding:0">
+    <div class="dq-viewport"><div class="dq-track" id="dq-track"></div></div>
+    <div class="dq-dots" id="dq-dots"></div>
   </div>
 
   <!-- SEARCH NOTÍCIAS -->
@@ -5566,6 +5566,7 @@ async function renderNoticiasScreenList() {
   container.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Carregando notícias...</div>';
   const items = await DB.news();
   _newsCache = items;
+  renderDestaques();
   if (!items.length) {
     container.innerHTML = '<div style="padding:24px 16px;color:var(--muted);font-size:13px">Nenhuma notícia disponível.</div>';
     return;
@@ -5584,6 +5585,54 @@ async function renderNoticiasScreenList() {
       }, 200);
     });
     input._wired = true;
+  }
+}
+
+// ─── DESTAQUES (notícias marcadas como ★ destaque) — carrossel auto-rotativo ──
+// Lê _newsCache (já carregado), filtra featured, monta slides com a FOTO da
+// notícia e reveza a cada 5s com rolagem lateral (translateX). Clique → abre a
+// notícia. Mantém o estilo do .featured-card.
+let _dqTimer = null, _dqIdx = 0, _dqCount = 0;
+function renderDestaques() {
+  const card = document.getElementById('destaques-card');
+  const track = document.getElementById('dq-track');
+  const dots = document.getElementById('dq-dots');
+  if (!card || !track) return;
+  if (_dqTimer) { clearInterval(_dqTimer); _dqTimer = null; }
+  const feats = (_newsCache || []).filter(n => n.featured).slice(0, 8);
+  if (!feats.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const grads = (typeof THUMB_GRADIENTS !== 'undefined' && THUMB_GRADIENTS.length)
+    ? THUMB_GRADIENTS : ['linear-gradient(135deg,#0f1a28,#2a1210,#1a0a0a)'];
+  track.innerHTML = feats.map((n, i) => {
+    const img = n.image_url
+      ? `background-image:url('${String(n.image_url).replace(/'/g, '%27')}');background-size:cover;background-position:center`
+      : `background:${grads[i % grads.length]}`;
+    return `<div class="dq-slide" onclick="openNews(${n.id})">
+      <div class="featured-img" style="${img}">
+        <div class="featured-img-grad"></div>
+        ${n.cat ? `<div class="featured-img-label">${escHtml(String(n.cat).toUpperCase())}</div>` : ''}
+      </div>
+      <div class="featured-body">
+        <div class="featured-cat">${escHtml(n.cat || 'Hipismo')}</div>
+        <div class="featured-title">${escHtml(n.title || '')}</div>
+        <div class="featured-excerpt">${escHtml(n.excerpt || '')}</div>
+        <div class="featured-footer">
+          <span style="font-size:10.5px;color:var(--muted)">${escHtml(n.date || '')}</span>
+          <span style="font-size:10.5px;color:var(--accent);font-weight:700">LER MAIS →</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  dots.innerHTML = feats.map((_, i) => `<div class="dq-dot${i === 0 ? ' active' : ''}"></div>`).join('');
+  _dqIdx = 0; _dqCount = feats.length;
+  track.style.transform = 'translateX(0)';
+  if (_dqCount > 1) {
+    _dqTimer = setInterval(() => {
+      _dqIdx = (_dqIdx + 1) % _dqCount;
+      track.style.transform = `translateX(-${_dqIdx * 100}%)`;
+      dots.querySelectorAll('.dq-dot').forEach((d, i) => d.classList.toggle('active', i === _dqIdx));
+    }, 5000);
   }
 }
 
@@ -6677,6 +6726,13 @@ async function _loadTorneioDetail(evtId) {
   const porTipo = { programa: [], adendo: [], horarios: [], outros: [] };
   for (const d of docs) (porTipo[d.tipo] || porTipo.outros).push(d);
 
+  // Quando uma CORREÇÃO de horários chega como ADENDO mas o conteúdo estruturado é
+  // um quadro de verdade (tem .dias), tratamos como QUADRO DE HORÁRIOS ATUALIZADO:
+  // sai dos Adendos e entra no Quadro de Horários (com os acordeões), rotulado.
+  const _temDias = d => d.conteudo_estruturado && Array.isArray(d.conteudo_estruturado.dias) && d.conteudo_estruturado.dias.length;
+  const quadrosAtualizados = porTipo.adendo.filter(_temDias);
+  porTipo.adendo = porTipo.adendo.filter(d => !_temDias(d));
+
   // Identifica "novos" (criados ou atualizados nos últimos 3 dias)
   const TRES_DIAS = 3 * 24 * 60 * 60 * 1000;
   const agora = Date.now();
@@ -6741,12 +6797,14 @@ async function _loadTorneioDetail(evtId) {
          <div class="tor-empty">${torneioId ? 'Nenhum documento publicado ainda. Verifica diariamente.' : 'Evento do calendário CBH — documentos serão publicados pela federação responsável.'}</div>`
       : docBlock('Programa', porTipo.programa) +
         docBlock('Adendos', porTipo.adendo) +
-        // Quadro de Horários: o doc DEDICADO tem prioridade (reflete correções/
-        // alterações de última hora). Sem ele, DERIVA o quadro do próprio programa
-        // (que já traz horário+data por prova) — pedido do cliente.
+        // Quadro de Horários ATUALIZADO: correção de horários que veio como adendo
+        // mas é um quadro completo (tem .dias) → mostra com os acordeões, no topo.
+        _blocoQuadrosAtualizados(quadrosAtualizados) +
+        // Quadro de Horários: o doc DEDICADO tem prioridade. Sem ele (e sem quadro
+        // atualizado), DERIVA do próprio programa (que já traz horário+data/prova).
         (porTipo.horarios.length
           ? docBlock('Quadro de Horários', porTipo.horarios)
-          : _blocoHorariosDerivado(porTipo.programa)) +
+          : (quadrosAtualizados.length ? '' : _blocoHorariosDerivado(porTipo.programa))) +
         docBlock('Outros', porTipo.outros)
     }
   `;
@@ -6809,6 +6867,33 @@ function _diaSemanaBr(s) {
   const d = _parseDataBr(s);
   return d ? ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'][d.getDay()] : '';
 }
+// Quadro de Horários ATUALIZADO — correção de horários publicada (veio como adendo,
+// mas o conteúdo estruturado é um quadro com .dias). Renderiza com os MESMOS
+// acordeões do quadro de horários (_renderHorarios), rotulado "Atualizado".
+function _blocoQuadrosAtualizados(docs) {
+  if (!docs || !docs.length) return '';
+  return docs.map(d => `
+    <div class="tor-section-title">Quadro de Horários Atualizado</div>
+    <div class="tor-doc-card">
+      <div class="tor-doc-hdr" onclick="_toggleDocText(${d.id})">
+        <div class="tor-doc-icon">🕐</div>
+        <div class="tor-doc-body">
+          <div class="tor-doc-title">${escHtml(d.titulo || 'Quadro de Horários Atualizado')}<span class="tor-doc-new">Novo</span></div>
+          <div class="tor-doc-date">Publicado em ${_fmtData(d.data_publicacao) || '—'}</div>
+        </div>
+        <div class="tor-doc-toggle">▾</div>
+      </div>
+      <div class="tor-doc-text" id="doctext-${d.id}" style="display:block">
+        ${_renderHorarios(d.conteudo_estruturado)}
+        <div style="padding:10px 14px;border-top:1px solid var(--border);text-align:right">
+          ${(d.url_pdf && /^https?:\/\//i.test(d.url_pdf))
+            ? `<a href="${escHtml(d.url_pdf)}" target="_blank" rel="noopener" class="tor-doc-pdf-link">Abrir PDF original ↗</a>`
+            : ''}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
 function _blocoHorariosDerivado(programaDocs) {
   const provas = [];
   for (const d of (programaDocs || [])) {
