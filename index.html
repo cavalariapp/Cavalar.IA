@@ -5952,7 +5952,14 @@ let _genRows = [];          // linhas exibidas (índice usado por abrirReproduto
 let _genAllRows = [];       // TODAS as linhas buscadas do servidor (pra filtrar a busca)
 let _genQuery = '';         // termo da busca de reprodutor
 function genBusca(v) { _genQuery = v || ''; _genList(); }
-function abrirReprodutor(i) { const r = _genRows[i]; if (r && r.reprodutor) { _cavaloFrom = 'genetica'; abrirCavaloPorNome(r.reprodutor); } }
+function abrirReprodutor(i) {
+  const r = _genRows[i];
+  if (!r || !r.reprodutor) return;
+  _cavaloFrom = 'genetica';
+  // abre o reprodutor ESPECÍFICO daquela linha (pelo token) — separa homônimos
+  // (ex.: as 4 "Olympia"). Sem token (reprodutor fora do studbook) → cai por nome.
+  abrirReprodutorTok(r.reprodutor, r.rep_token || null, STATE.genPapel);
+}
 
 function _genChips() {
   const anos = document.getElementById('gen-anos');
@@ -6284,7 +6291,7 @@ function _cavaloVoltarBusca(focus) {
   if (focus) { const i = document.getElementById('cavalo-search'); if (i) i.focus(); }
 }
 
-async function abrirPerfilCavalo(i) {
+async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
   const c = _cavaloCache[i];
   if (!c) return;
   const wrap = document.getElementById('cavalo-perfil');
@@ -6304,14 +6311,16 @@ async function abrirPerfilCavalo(i) {
   // Progênie SEMPRE pelo nome (reprodutor pode não ser um animal "registrado" na
   // busca — ex.: garanhão importado). Tenta o papel pelo sexo; se desconhecido,
   // tenta pai e depois mãe. Resultados (compilado) = PREMIUM via RPC protegida.
-  const papel = c.sexo === 'F' ? 'mae' : (c.sexo === 'M' ? 'pai' : null);
+  const papel = repPapel || (c.sexo === 'F' ? 'mae' : (c.sexo === 'M' ? 'pai' : null));
+  // repToken (vindo do ranking) filtra a progênie por mae_token/pai_token EXATO —
+  // separa homônimos (ex.: as 4 "Olympia"). Sem token → por nome (comportamento antigo).
   const [resQ, filQ] = await Promise.all([
     _isPremium ? sb.rpc('historico_cavalo', { p_nome: nome1 }) : Promise.resolve({ data: [] }),
-    sb.rpc('progenie', { papel: papel || 'pai', rep: nome1 }),
+    sb.rpc('progenie', { papel: papel || 'pai', rep: nome1, rep_token: repToken || null }),
   ]);
   let filhos = filQ.data || [];
-  if (!filhos.length && !papel) {   // sexo desconhecido e não achou como pai → tenta mãe
-    const { data } = await sb.rpc('progenie', { papel: 'mae', rep: nome1 });
+  if (!filhos.length && !papel && !repToken) {   // sexo desconhecido, sem token → tenta mãe
+    const { data } = await sb.rpc('progenie', { papel: 'mae', rep: nome1, rep_token: null });
     filhos = data || [];
   }
   // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
@@ -6604,6 +6613,35 @@ async function abrirCavaloPorNome(nome) {
   } catch (_) {}
   _cavaloCache = [item];
   abrirPerfilCavalo(0);
+}
+
+// Abre o reprodutor ESPECÍFICO de uma linha do ranking. Carrega a égua/garanhão pelo
+// cd_token (não pelo nome) — assim o cabeçalho (nascimento) e a progênie batem com a
+// MESMA Olympia; o token é repassado ao progenie pra filtrar os filhos por mae/pai_token.
+async function abrirReprodutorTok(nome, token, papel) {
+  const n1 = (nome || '').split('\n')[0];
+  if (!n1) return;
+  if (STATE.screen !== 'cavalo') nav('cavalo');
+  document.getElementById('cavalo-list').style.display = 'none';
+  document.querySelector('#scr-cavalo .search-wrap').parentElement.style.display = 'none';
+  const wrap = document.getElementById('cavalo-perfil');
+  wrap.style.display = ''; window.scrollTo({ top: 0, behavior: 'instant' });
+  wrap.innerHTML = '<div style="padding:30px 16px;color:var(--muted);font-size:13px">Carregando perfil…</div>';
+  const nn = _normNome(n1);
+  let item = { nome: n1, nn, gen: false, comp: true };
+  try {
+    if (token) {
+      const { data } = await sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').eq('cd_token', token).limit(1);
+      if (data && data[0]) item = { ...data[0], nn: _normNome(data[0].nome), gen: true };
+    } else {
+      const pref = n1.split('(')[0].replace(/[%_,]/g, ' ').replace(/\s+/g, ' ').trim();
+      const { data } = await sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').ilike('nome', '%' + pref + '%').limit(25);
+      const hit = (data || []).find(g => _normNome(g.nome) === nn);
+      if (hit) item = { ...hit, nn, gen: true };
+    }
+  } catch (_) {}
+  _cavaloCache = [item];
+  abrirPerfilCavalo(0, token || null, papel || null);
 }
 
 async function abrirCavaleiroPorNome(nome) {
