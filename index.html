@@ -6556,6 +6556,16 @@ function initCavalo() {
     list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Digite o nome de um cavalo pra buscar.</div>';
 }
 
+// mapa de apelidos (cavalo_alias) — carregado 1x; funde nomes do MESMO cavalo na busca.
+let _aliasMap = null;
+async function _loadAliasMap() {
+  if (_aliasMap) return _aliasMap;
+  _aliasMap = {};
+  try { const { data } = await sb.rpc('aliases_publico'); (data || []).forEach(a => { _aliasMap[a.alias_norm] = a.canonico_norm; }); } catch (_) {}
+  return _aliasMap;
+}
+function _canonNome(nn) { return (_aliasMap && _aliasMap[nn]) || nn; }
+
 async function buscarCavalos(termo) {
   _cavaloFrom = null;   // veio pela busca → Voltar volta pra busca (não pro ranking)
   const list = document.getElementById('cavalo-list');
@@ -6566,9 +6576,23 @@ async function buscarCavalos(termo) {
     sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').ilike('nome', '%' + t + '%').limit(40),
     sb.rpc('buscar_nomes_cavalos', { termo: t }),   // só nomes (free); resultados são premium
   ]);
+  await _loadAliasMap();
+  // FUNDE por chave CANÔNICA: nomes apelidados (ex.: "Lika JT" e "Lika JT PB") viram
+  // UM cavalo só. A entrada da GENÉTICA leva os dados (gen:true, pai/mãe) → clicar
+  // abre a página unificada (Performance + Genética).
   const map = new Map();
-  (g.data || []).forEach(x => { const n = _normNome(x.nome); if (n && !map.has(n)) map.set(n, { ...x, gen: true, comp: false, nn: n }); });
-  (r.data || []).forEach(x => { const n = _normNome(x.nome); if (!n) return; if (map.has(n)) map.get(n).comp = true; else map.set(n, { nome: (x.nome || '').split('\n')[0], gen: false, comp: true, nn: n }); });
+  (g.data || []).forEach(x => {
+    const n = _normNome(x.nome); if (!n) return;
+    const k = _canonNome(n);
+    const e = map.get(k) || {};
+    map.set(k, { ...e, ...x, gen: true, comp: e.comp || false, nn: n });
+  });
+  (r.data || []).forEach(x => {
+    const n = _normNome(x.nome); if (!n) return;
+    const k = _canonNome(n);
+    if (map.has(k)) { map.get(k).comp = true; }
+    else map.set(k, { nome: (x.nome || '').split('\n')[0], gen: false, comp: true, nn: n });
+  });
   _cavaloCache = [...map.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).slice(0, 80);
   if (!_cavaloCache.length) { list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum cavalo encontrado.</div>'; return; }
   list.innerHTML = _cavaloCache.map((c, i) => `
