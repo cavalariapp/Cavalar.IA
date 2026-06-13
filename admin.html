@@ -343,6 +343,10 @@ td .actions { display: flex; gap: 6px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M12 14v8"/><path d="M8 20h8"/></svg>
         Cavalos
       </div>
+      <div class="nav-item" data-section="aliases">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h8M8 12h8M8 17h5"/><circle cx="4.5" cy="7" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17" r="1"/></svg>
+        Match Cavalos
+      </div>
       <div class="nav-item" data-section="cupons">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a2 2 0 0 1 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1-2-2z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>
         Cupons
@@ -473,7 +477,7 @@ function navTo(section) {
   S.section = section;
   S.editId = null;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === section));
-  const titles = { dashboard:'Dashboard', news:'Notícias', videos:'Vídeos', podcasts:'Podcasts', auctions:'Leilões', rankings:'Rankings', events:'Eventos', horses:'Cavalos', cupons:'Cupons', settings:'Configurações' };
+  const titles = { dashboard:'Dashboard', news:'Notícias', videos:'Vídeos', podcasts:'Podcasts', auctions:'Leilões', rankings:'Rankings', events:'Eventos', horses:'Cavalos', aliases:'Match de Cavalos', cupons:'Cupons', settings:'Configurações' };
   $('page-title').textContent = titles[section] || 'Dashboard';
   renderSection(section);
 }
@@ -491,7 +495,105 @@ function renderSection(section) {
   else if (section === 'events') renderTable(c, a, 'events', 'Evento');
   else if (section === 'horses') renderTable(c, a, 'horses', 'Cavalo');
   else if (section === 'cupons') renderCupons(c);
+  else if (section === 'aliases') renderAliases(c);
   else if (section === 'settings') renderSettings(c);
+}
+
+// ─── MATCH DE CAVALOS (apelidos) ─────────────────────────────
+// Dois nomes que são o MESMO cavalo (ex.: "Lika JT" e "Lika JT PB"). O 2º (oficial)
+// vira o canônico; o 1º (variante) passa a apontar pra ele (set_cavalo_alias).
+let _alTimer = null;
+
+function renderAliases(c) {
+  c.innerHTML = `
+    <div class="table-wrap" style="margin-bottom:16px">
+      <div class="table-hdr"><h3>Novo match — mesmo cavalo, nomes diferentes</h3></div>
+      <div style="padding:16px">
+        <p style="color:var(--muted);font-size:12.5px;line-height:1.6;margin-bottom:14px">
+          Busque os dois nomes (digite parte do nome). O <b>nome variante</b> (apelido, ex.: "Lika JT PB")
+          passa a apontar para o <b>nome oficial</b> (canônico, ex.: "Lika JT") — o sistema trata os dois
+          como o mesmo animal em resultados, perfil e genética.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <div style="position:relative">
+            <label style="font-size:12px;color:var(--muted)">Nome variante (apelido)</label>
+            <input id="al-var" autocomplete="off" placeholder="ex.: Lika JT PB" oninput="alBuscar('var')"
+              style="width:100%;margin-top:4px;padding:9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)">
+            <div id="al-var-drop" class="al-drop"></div>
+          </div>
+          <div style="position:relative">
+            <label style="font-size:12px;color:var(--muted)">Nome oficial (canônico)</label>
+            <input id="al-can" autocomplete="off" placeholder="ex.: Lika JT" oninput="alBuscar('can')"
+              style="width:100%;margin-top:4px;padding:9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)">
+            <div id="al-can-drop" class="al-drop"></div>
+          </div>
+        </div>
+        <button class="btn btn-accent" onclick="criarAlias()" style="margin-top:16px">↔ Criar match</button>
+      </div>
+    </div>
+    <div class="table-wrap"><div class="table-hdr"><h3>Matches existentes</h3></div>
+      <div class="table-scroll" id="al-lista"><div class="empty-state">Carregando…</div></div>
+    </div>
+    <style>
+      .al-drop{position:absolute;left:0;right:0;top:100%;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:2px;max-height:240px;overflow:auto;display:none}
+      .al-drop.open{display:block}
+      .al-drop div{padding:8px 10px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)}
+      .al-drop div:hover{background:var(--accent-dim)}
+    </style>`;
+  carregarAliases();
+}
+
+function alBuscar(qual) {
+  const inp = $('al-' + qual), drop = $('al-' + qual + '-drop');
+  const termo = (inp.value || '').trim();
+  clearTimeout(_alTimer);
+  if (termo.length < 2) { drop.classList.remove('open'); return; }
+  _alTimer = setTimeout(async () => {
+    const { data, error } = await sb.rpc('buscar_nomes_cavalos', { termo });
+    if (error) return;
+    // dedup pela 1ª linha (nome), ignorando a genealogia
+    const nomes = [...new Set((data || []).map(r => String(r.nome || '').split('\n')[0].trim()).filter(Boolean))].slice(0, 40);
+    if (!nomes.length) { drop.innerHTML = '<div style="color:var(--muted);cursor:default">Nenhum nome encontrado.</div>'; drop.classList.add('open'); return; }
+    drop.innerHTML = nomes.map(n => `<div onclick="alPick('${qual}', this)" data-n="${esc(n)}">${esc(n)}</div>`).join('');
+    drop.classList.add('open');
+  }, 250);
+}
+
+function alPick(qual, el) {
+  $('al-' + qual).value = el.getAttribute('data-n');
+  $('al-' + qual + '-drop').classList.remove('open');
+}
+
+async function criarAlias() {
+  const variante = ($('al-var').value || '').trim();
+  const canonico = ($('al-can').value || '').trim();
+  if (!variante || !canonico) { alert('Preencha os dois nomes.'); return; }
+  if (variante.toUpperCase() === canonico.toUpperCase()) { alert('Os nomes são iguais.'); return; }
+  if (!confirm(`Confirmar que "${variante}" é o MESMO cavalo que "${canonico}"?`)) return;
+  const { error } = await sb.rpc('set_cavalo_alias', { p_alias: variante, p_canonico: canonico });
+  if (error) { alert('Erro: ' + error.message); return; }
+  $('al-var').value = ''; $('al-can').value = '';
+  carregarAliases();
+}
+
+async function carregarAliases() {
+  const el = $('al-lista');
+  const { data, error } = await sb.rpc('admin_listar_aliases');
+  if (error) { el.innerHTML = `<div class="empty-state">Erro: ${esc(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div class="empty-state">Nenhum match criado ainda.</div>'; return; }
+  const linhas = data.map(a => `
+    <tr>
+      <td style="font-weight:700">${esc(a.alias_norm)}</td>
+      <td style="color:var(--accent)">→ ${esc(a.canonico_norm)}</td>
+      <td style="text-align:right"><button class="btn-icon danger" title="Desfazer match" onclick="removerAlias('${esc(a.alias_norm)}')">✕</button></td>
+    </tr>`).join('');
+  el.innerHTML = `<table><thead><tr><th>Variante (apelido)</th><th>Aponta para (canônico)</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+async function removerAlias(aliasNorm) {
+  if (!confirm(`Desfazer o match de "${aliasNorm}"?`)) return;
+  const { error } = await sb.rpc('admin_remover_alias', { p_alias: aliasNorm });
+  if (error) { alert('Erro: ' + error.message); return; }
+  carregarAliases();
 }
 
 // ─── CUPONS ──────────────────────────────────────────────────
