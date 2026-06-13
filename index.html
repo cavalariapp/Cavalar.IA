@@ -6576,23 +6576,9 @@ async function buscarCavalos(termo) {
     sb.from('genealogia').select('nome,cd_token,registro,nascimento,sexo,pai,mae').ilike('nome', '%' + t + '%').limit(40),
     sb.rpc('buscar_nomes_cavalos', { termo: t }),   // só nomes (free); resultados são premium
   ]);
-  await _loadAliasMap();
-  // FUNDE por chave CANÔNICA: nomes apelidados (ex.: "Lika JT" e "Lika JT PB") viram
-  // UM cavalo só. A entrada da GENÉTICA leva os dados (gen:true, pai/mãe) → clicar
-  // abre a página unificada (Performance + Genética).
   const map = new Map();
-  (g.data || []).forEach(x => {
-    const n = _normNome(x.nome); if (!n) return;
-    const k = _canonNome(n);
-    const e = map.get(k) || {};
-    map.set(k, { ...e, ...x, gen: true, comp: e.comp || false, nn: n });
-  });
-  (r.data || []).forEach(x => {
-    const n = _normNome(x.nome); if (!n) return;
-    const k = _canonNome(n);
-    if (map.has(k)) { map.get(k).comp = true; }
-    else map.set(k, { nome: (x.nome || '').split('\n')[0], gen: false, comp: true, nn: n });
-  });
+  (g.data || []).forEach(x => { const n = _normNome(x.nome); if (n && !map.has(n)) map.set(n, { ...x, gen: true, comp: false, nn: n }); });
+  (r.data || []).forEach(x => { const n = _normNome(x.nome); if (!n) return; if (map.has(n)) map.get(n).comp = true; else map.set(n, { nome: (x.nome || '').split('\n')[0], gen: false, comp: true, nn: n }); });
   _cavaloCache = [...map.values()].sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).slice(0, 80);
   if (!_cavaloCache.length) { list.innerHTML = '<div style="padding:30px 16px;text-align:center;color:var(--muted);font-size:13px">Nenhum cavalo encontrado.</div>'; return; }
   list.innerHTML = _cavaloCache.map((c, i) => `
@@ -6625,6 +6611,10 @@ async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
   // MATCH/apelido: abre SEMPRE o cavalo CANÔNICO — os dois nomes levam à MESMA página
   // (ex.: clicar em "Lika JT PB" abre a "Lika JT", unificada). Não mexe no fluxo do
   // reprodutor por token (repToken já é o indivíduo certo).
+  // MATCH/apelido: se o nome clicado for um APELIDO, reconstrói o cavalo a partir da
+  // entrada CANÔNICA da genealogia → os dois nomes abrem a MESMA página (perf+genética).
+  // Só reconstrói quando o canônico DIFERE do clicado (homônimos têm o mesmo norm →
+  // não reconstrói → mantém o indivíduo certo). Não mexe no fluxo do reprodutor por token.
   if (!repToken) {
     try {
       const { data } = await sb.rpc('resolver_cavalo', { p_nome: c.nome });
