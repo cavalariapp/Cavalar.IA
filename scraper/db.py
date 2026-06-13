@@ -410,6 +410,13 @@ class SupabaseWriter:
     def upsert_news(self, rows):
         """Insere notícias NOVAS (dedup por source_url); não toca nas existentes."""
         self._require()
+        # cinto-de-segurança: nunca grava o marcador de inválido ('Erro') nem item
+        # sem corpo real (defesa em profundidade — reescrever() já filtra, mas
+        # garante aqui caso algum caminho futuro chame upsert_news direto).
+        rows = [r for r in (rows or [])
+                if (r.get("title") or "").strip()
+                and not (r.get("title") or "").strip().lower().startswith("erro")
+                and len(r.get("body") or "") >= 120]
         if not rows:
             return {"inseridos": 0, "vistos": 0}
         existentes, off = set(), 0
