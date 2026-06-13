@@ -438,6 +438,59 @@ def recurar_resultados(args, writer):
     return 0
 
 
+def curar_buracos(args, writer):
+    """--curar-buracos: AUTO-CURA dirigida. Em vez de varrer tudo, mira SÓ as provas
+    já realizadas, COM inscritos e SEM resultado (view provas_incompletas) e tenta
+    re-raspar o resultado de cada uma. Resolve sozinho falhas de timing / baremo novo
+    sem custo de varredura. Por fonte opcional (--source); lote CAVALARIA_MAX (500)."""
+    import os
+    from scraper.db import resultado_to_row
+    from scraper import fetch
+    if not (args.write and writer.configured):
+        print("⚠ --curar-buracos precisa de --write + SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+              file=sys.stderr)
+        return 3
+    MAX = int(os.environ.get("CAVALARIA_MAX", "500"))
+    alvos = writer.provas_incompletas(source=args.source, limit=MAX)
+    print(f"=== CURAR BURACOS === {len(alvos)} prova(s) realizadas, com inscritos e SEM resultado"
+          f"{f' (fonte {args.source})' if args.source else ''}")
+    por_fonte = {}
+    for p in alvos:
+        por_fonte.setdefault(p.get("fonte"), []).append(p)
+    tot_fill = tot_meta = tot_vazio = 0
+    for fonte, ps in por_fonte.items():
+        src = SRC.get(fonte) if fonte else None
+        if not src or not src.get("resultados_url"):
+            print(f"  (fonte {fonte}: sem adapter de resultados — pulando {len(ps)})")
+            continue
+        for p in ps:
+            try:
+                html = fetch.fetch_resultados(src, p["id_origem"])
+                hdr = mn.parse_resultado_pagina(html)
+                if hdr:                       # realinha metadata (anti-dessincronia)
+                    hdr["_id"] = p["id_origem"]
+                    writer.atualizar_prova_meta(p["prova_id"], _prova_row_de_header(hdr, p["torneio_id"]))
+                    tot_meta += 1
+                R = mn.parse_resultados(html)
+                if R:
+                    rs = writer.upsert_resultados(p["prova_id"], [resultado_to_row(r, p["prova_id"]) for r in R])
+                    if rs.get("inseridos"):
+                        tot_fill += 1
+                        print(f"  ✓ prova {p['prova_id']} ({fonte} id {p['id_origem']}): "
+                              f"{rs['inseridos']} resultados — {p.get('torneio','')[:40]}")
+                else:
+                    tot_vazio += 1            # ainda sem resultado na fonte (não realizada/não publicada)
+            except Exception as e:
+                print(f"  ⚠ prova {p.get('prova_id')} (id {p.get('id_origem')}): "
+                      f"{e.__class__.__name__}: {e}", file=sys.stderr)
+    if tot_fill or tot_meta:
+        ok = writer.refresh_genetica()
+        print(f"  refresh_genetica: {'ok' if ok else 'falhou (rode --refresh-genetica)'}")
+    print(f"=== CURAR BURACOS fim === {tot_fill} preenchida(s), {tot_meta} metadata realinhada, "
+          f"{tot_vazio} ainda sem resultado na fonte.")
+    return 0
+
+
 def _curar_ordem_torneio(src, torneio_id, writer):
     """Raspa a ORDEM DE ENTRADA (GET simples) de cada prova do torneio e grava
     (delete+reinsert por prova). Idempotente; parse vazio não apaga. Só faz
@@ -1223,6 +1276,10 @@ def main(argv=None):
                          "dos torneios acontecendo agora (data em [hoje-5,+2]). Pra "
                          "rodar de hora em hora: ordem zerada se preenche e resultado "
                          "parcial vira final. --write grava.")
+    ap.add_argument("--curar-buracos", dest="curar_buracos", action="store_true",
+                    help="AUTO-CURA dirigida: re-raspa SÓ as provas já realizadas, com "
+                         "inscritos e SEM resultado (view provas_incompletas). Por fonte "
+                         "(--source) opcional; lote CAVALARIA_MAX (500). --write grava.")
     ap.add_argument("--proximos", action="store_true",
                     help="FRESCOR dos próximos torneios (janela [hoje-7, hoje+60], "
                          "MacroNetwork c/ id_nativo): detalhe (provas+dia+docs) + "
@@ -1365,6 +1422,15 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return recurar_resultados(args, writer)
+
+    # Auto-cura dirigida: só as provas realizadas, com inscritos e sem resultado.
+    if args.curar_buracos:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --curar-buracos --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return curar_buracos(args, writer)
 
     # Refresh leve e frequente (ordem + resultados dos torneios de hoje).
     if args.frescor:

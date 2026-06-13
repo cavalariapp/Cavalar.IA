@@ -175,6 +175,9 @@ jobs:
             # torneios acontecendo agora (requests, sem navegador). Mantém a ordem de
             # entrada fresca e os resultados parciais convergindo pro final no dia.
             python -m scraper.main --frescor --write
+            # AUTO-CURA dirigida: re-raspa só as provas já realizadas, com inscritos e
+            # SEM resultado (buracos por timing/baremo). Barato e self-heal contínuo.
+            python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             # AUTOMAÇÃO COMPLETA (22h e 7h BRT): 1) reconcilia id_nativo do mês atual
             # → 2) detalhe dos próximos torneios (provas+dia+docs+ordem+resultados) →
@@ -182,6 +185,7 @@ jobs:
             # NÃO roda --current --write aqui (evita duplicar torneios).
             python -m scraper.main --reconcile --write || echo "reconcile falhou, seguindo"
             python -m scraper.main --proximos --write
+            python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
             python -m scraper.main --estruturar || echo "estruturar pulado (falta ANTHROPIC_API_KEY?)"
             python -m scraper.main --noticias --write || echo "noticias pulado"
             python -m scraper.main --shb --write || echo "shb pulado"
@@ -222,11 +226,14 @@ jobs:
             python -m scraper.main $ARGS
           elif [ "${IN_FRESCOR:-false}" = "true" ]; then
             # atualiza ordem+resultados dos torneios de hoje (sob demanda, quando o
-            # cron atrasou). Leve, só requests.
+            # cron atrasou). Leve, só requests. + AUTO-CURA dos buracos no fim.
             ARGS="--frescor"
             [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
             echo "args: $ARGS"
             python -m scraper.main $ARGS
+            if [ "${IN_WRITE:-false}" = "true" ]; then
+              python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
+            fi
           elif [ "${IN_REFRESH:-false}" = "true" ]; then
             # recompila a materialized view dos rankings genéticos (sob demanda).
             python -m scraper.main --refresh-genetica
