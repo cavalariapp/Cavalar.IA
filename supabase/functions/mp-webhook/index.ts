@@ -63,8 +63,11 @@ Deno.serve(async (req) => {
       const ref = pay?.external_reference;
       if (pay && ref && pay.status === "approved") {
         const { data: ass } = await sb.from("assinaturas")
-          .select("id, plano, metodo").eq("id", ref).single();
-        if (ass) {
+          .select("id, plano, metodo, mp_payment_id").eq("id", ref).single();
+        // IDEMPOTÊNCIA: o MP reenvia a mesma notificação várias vezes. Só processa
+        // se ESTE pagamento ainda não foi aplicado a esta assinatura — senão o `fim`
+        // seria empurrado pra frente a cada retentativa (tempo premium de graça).
+        if (ass && ass.mp_payment_id !== String(id)) {
           const meses = ass.plano === "anual" ? 12 : 1;
           // pagamento por período (cartão ou Pix) → libera 1 mês / 1 ano
           await sb.from("assinaturas").update({
