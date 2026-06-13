@@ -5453,12 +5453,13 @@ async function renderMedia(tipo) {
   // aba "Todos": mistura os programas por DATA DE PUBLICAÇÃO (mais novo no topo).
   // Episódios SEM data (ainda não importados/backfillados) vão pro FIM — nunca
   // flutuam pro topo pela data de importação.
+  // "Todos": mistura por DATA DE PUBLICAÇÃO; sem ela, usa a data em que foi ADICIONADO
+  // (created_at/criado_em). Como mídia é curada manualmente, episódios novos (mesmo sem
+  // data preenchida) sobem em vez de afundar no fim. Mais recente no topo.
   if (!sel) filtered.sort((a, b) => {
-    const da = a.data_pub || '', db = b.data_pub || '';
-    if (da && db) return db.localeCompare(da);
-    if (da) return -1;
-    if (db) return 1;
-    return 0;
+    const da = a.data_pub || a.created_at || a.criado_em || '';
+    const db = b.data_pub || b.created_at || b.criado_em || '';
+    return String(db).localeCompare(String(da));
   });
   if (!filtered.length) {
     c.innerHTML = adminBar + subtabs + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} ${sel ? 'em "' + escHtml(sel) + '"' : 'disponível'} ainda.</div>`;
@@ -6590,8 +6591,20 @@ function _cavaloVoltarBusca(focus) {
 }
 
 async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
-  const c = _cavaloCache[i];
+  let c = _cavaloCache[i];
   if (!c) return;
+  // MATCH/apelido: abre SEMPRE o cavalo CANÔNICO — os dois nomes levam à MESMA página
+  // (ex.: clicar em "Lika JT PB" abre a "Lika JT", unificada). Não mexe no fluxo do
+  // reprodutor por token (repToken já é o indivíduo certo).
+  if (!repToken) {
+    try {
+      const { data } = await sb.rpc('resolver_cavalo', { p_nome: c.nome });
+      if (data && data[0] && _normNome(data[0].nome) !== c.nn) {
+        c = { ...data[0], nn: _normNome(data[0].nome), gen: true, comp: true };
+        _cavaloCache[i] = c;
+      }
+    } catch (_) {}
+  }
   const wrap = document.getElementById('cavalo-perfil');
   document.getElementById('cavalo-list').style.display = 'none';
   document.querySelector('#scr-cavalo .search-wrap').parentElement.style.display = 'none';
