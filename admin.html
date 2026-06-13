@@ -343,6 +343,10 @@ td .actions { display: flex; gap: 6px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M12 14v8"/><path d="M8 20h8"/></svg>
         Cavalos
       </div>
+      <div class="nav-item" data-section="cupons">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a2 2 0 0 1 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1-2-2z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>
+        Cupons
+      </div>
       <div class="nav-item" data-section="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Configurações
@@ -469,7 +473,7 @@ function navTo(section) {
   S.section = section;
   S.editId = null;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.section === section));
-  const titles = { dashboard:'Dashboard', news:'Notícias', videos:'Vídeos', podcasts:'Podcasts', auctions:'Leilões', rankings:'Rankings', events:'Eventos', horses:'Cavalos', settings:'Configurações' };
+  const titles = { dashboard:'Dashboard', news:'Notícias', videos:'Vídeos', podcasts:'Podcasts', auctions:'Leilões', rankings:'Rankings', events:'Eventos', horses:'Cavalos', cupons:'Cupons', settings:'Configurações' };
   $('page-title').textContent = titles[section] || 'Dashboard';
   renderSection(section);
 }
@@ -486,7 +490,79 @@ function renderSection(section) {
   else if (section === 'rankings') renderTable(c, a, 'rankings', 'Ranking');
   else if (section === 'events') renderTable(c, a, 'events', 'Evento');
   else if (section === 'horses') renderTable(c, a, 'horses', 'Cavalo');
+  else if (section === 'cupons') renderCupons(c);
   else if (section === 'settings') renderSettings(c);
+}
+
+// ─── CUPONS ──────────────────────────────────────────────────
+// Tudo via RPC admin (a tabela cupons tem RLS sem policy). O servidor valida
+// is_admin() em cada chamada — o front é só conveniência.
+const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+async function renderCupons(c) {
+  c.innerHTML = `
+    <div class="table-wrap" style="margin-bottom:16px">
+      <div class="table-hdr"><h3>Novo cupom</h3></div>
+      <div style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end">
+        <label style="font-size:12px;color:var(--muted)">Código<br><input id="cup-codigo" placeholder="EX: AMIGOS2026" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg);text-transform:uppercase"></label>
+        <label style="font-size:12px;color:var(--muted)">Tipo<br>
+          <select id="cup-tipo" onchange="document.getElementById('cup-dias-wrap').style.display=this.value==='dias'?'':'none'" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)">
+            <option value="vitalicio">Vitalício (pra sempre)</option>
+            <option value="dias">Por tempo (dias)</option>
+          </select>
+        </label>
+        <label id="cup-dias-wrap" style="font-size:12px;color:var(--muted);display:none">Dias<br><input id="cup-dias" type="number" value="365" min="1" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)"></label>
+        <label style="font-size:12px;color:var(--muted)">Limite de usos<br><input id="cup-max" type="number" placeholder="vazio = ilimitado" min="1" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)"></label>
+        <label style="font-size:12px;color:var(--muted)">Validade do cupom<br><input id="cup-exp" type="date" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)"></label>
+        <label style="font-size:12px;color:var(--muted);grid-column:1/-1">Descrição (interna)<br><input id="cup-desc" placeholder="ex.: parceiros, imprensa…" style="width:100%;margin-top:4px;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--fg)"></label>
+        <button class="btn btn-accent" onclick="criarCupom()" style="height:38px">+ Criar cupom</button>
+      </div>
+    </div>
+    <div class="table-wrap"><div class="table-hdr"><h3>Cupons existentes</h3></div>
+      <div class="table-scroll" id="cup-lista"><div class="empty-state">Carregando…</div></div>
+    </div>`;
+  carregarCupons();
+}
+
+async function carregarCupons() {
+  const el = $('cup-lista');
+  const { data, error } = await sb.rpc('admin_listar_cupons');
+  if (error) { el.innerHTML = `<div class="empty-state">Erro: ${esc(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div class="empty-state">Nenhum cupom ainda.</div>'; return; }
+  const linhas = data.map(c => {
+    const tipo = c.vitalicio ? 'Vitalício' : `${c.dias} dias`;
+    const usos = `${c.usos}${c.max_usos != null ? ' / ' + c.max_usos : ''}`;
+    const st = c.ativo ? '<span style="color:var(--green,#3ecf8e)">● ativo</span>' : '<span style="color:var(--muted)">○ inativo</span>';
+    const btn = c.ativo
+      ? `<button class="btn-icon danger" title="Desativar" onclick="toggleCupom('${esc(c.codigo)}',false)">⦸</button>`
+      : `<button class="btn-icon" title="Ativar" onclick="toggleCupom('${esc(c.codigo)}',true)">✓</button>`;
+    return `<tr><td style="font-weight:700">${esc(c.codigo)}</td><td>${tipo}</td><td>${usos}</td><td>${esc(c.descricao||'')}</td><td>${st}</td><td style="text-align:right">${btn}</td></tr>`;
+  }).join('');
+  el.innerHTML = `<table><thead><tr><th>Código</th><th>Tipo</th><th>Usos</th><th>Descrição</th><th>Status</th><th></th></tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+async function criarCupom() {
+  const codigo = ($('cup-codigo').value || '').trim();
+  if (!codigo) { alert('Informe o código.'); return; }
+  const vitalicio = $('cup-tipo').value === 'vitalicio';
+  const dias = vitalicio ? null : (parseInt($('cup-dias').value) || 30);
+  const max = $('cup-max').value ? parseInt($('cup-max').value) : null;
+  const desc = ($('cup-desc').value || '').trim() || null;
+  const exp = $('cup-exp').value || null;
+  const { data, error } = await sb.rpc('admin_criar_cupom', {
+    p_codigo: codigo, p_vitalicio: vitalicio, p_dias: dias,
+    p_max_usos: max, p_descricao: desc, p_expira_em: exp,
+  });
+  if (error) { alert('Erro: ' + error.message); return; }
+  if (data && data.ok === false) { alert(data.erro || 'Não foi possível criar.'); return; }
+  $('cup-codigo').value = ''; $('cup-desc').value = ''; $('cup-max').value = ''; $('cup-exp').value = '';
+  carregarCupons();
+}
+
+async function toggleCupom(codigo, ativo) {
+  const { error } = await sb.rpc('admin_set_cupom_ativo', { p_codigo: codigo, p_ativo: ativo });
+  if (error) { alert('Erro: ' + error.message); return; }
+  carregarCupons();
 }
 
 // ─── DASHBOARD ───────────────────────────────────────────────
