@@ -1143,8 +1143,14 @@ def estruturar_docs(writer, limit=None):
             tipo_efetivo = d["tipo"]
             if tipo_efetivo != "horarios":
                 titulo = (d.get("titulo") or "")
-                if re.search(r"quadro|hor[áa]rio", titulo, re.I) and \
-                   len(re.findall(r"\b\d{1,2}[:h]\d{2}\b", texto or "")) >= 5:
+                n_horarios = len(re.findall(r"\b\d{1,2}[:h]\d{2}\b", texto or ""))
+                titulo_quadro = re.search(r"quadro|hor[áa]rio", titulo, re.I)
+                # Reclassifica como QUADRO DE HORÁRIOS (schema 'horarios' → grade `dias`)
+                # quando: o título indica horário e o texto tem ≥5 horários; OU é um
+                # ADENDO recheado de horários (≥10), mesmo com título genérico ("ADENDO")
+                # — assim o app mostra com acordeões como "Quadro de Horários Atualizado".
+                if (titulo_quadro and n_horarios >= 5) or \
+                   (d["tipo"] == "adendo" and n_horarios >= 10):
                     tipo_efetivo = "horarios"
             estrut = E.estruturar(tipo_efetivo, texto, key)
             writer.set_documento_estruturado(d["id"], texto=texto, estrut=estrut)
