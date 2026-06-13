@@ -4432,9 +4432,18 @@ function alBuscarApp(qual) {
   clearTimeout(_alTimerApp);
   if (termo.length < 2) { drop.classList.remove('open'); return; }
   _alTimerApp = setTimeout(async () => {
-    const { data, error } = await sb.rpc('buscar_nomes_cavalos', { termo });
-    if (error) return;
-    const nomes = [...new Set((data || []).map(r => String(r.nome || '').split('\n')[0].trim()).filter(Boolean))].slice(0, 40);
+    // busca COMBINADA (igual à tela Cavalos): genealogia (genética) + resultados —
+    // assim acha nomes que só existem na genealogia (ex.: "QUALMATIE DU BREIL").
+    const t = termo.replace(/[%_(),]/g, ' ').replace(/\s+/g, ' ').trim();
+    const [g, r] = await Promise.all([
+      sb.from('genealogia').select('nome').ilike('nome', '%' + t + '%').limit(40),
+      sb.rpc('buscar_nomes_cavalos', { termo: t }),
+    ]);
+    const map = new Map();
+    const add = n => { n = String(n || '').split('\n')[0].trim(); if (n) { const k = n.toUpperCase(); if (!map.has(k)) map.set(k, n); } };
+    (g.data || []).forEach(x => add(x.nome));
+    ((r && r.data) || []).forEach(x => add(x.nome));
+    const nomes = [...map.values()].sort((a, b) => a.localeCompare(b)).slice(0, 50);
     drop.innerHTML = nomes.length
       ? nomes.map(n => `<div onclick="alPickApp('${qual}', this)" data-n="${escHtml(n)}">${escHtml(n)}</div>`).join('')
       : '<div style="color:var(--muted)">Nenhum nome encontrado.</div>';
