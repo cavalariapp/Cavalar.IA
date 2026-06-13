@@ -69,9 +69,38 @@ Deno.serve(async (req) => {
     const backUrl = req.headers.get("origin") ? `${req.headers.get("origin")}/perfil.html` : `${SUPABASE_URL}`;
 
     const reason = `Cavalar.IA Premium ${plano === "anual" ? "Anual" : "Mensal"}`;
-    // Pagamento por PERÍODO via Checkout Pro (preference) — cartão OU Pix.
-    // (Renovação automática no cartão exige formulário tokenizado do MP; fica pra depois.)
-    const soPix = metodo === "avulso";   // botão "Pix" → restringe a Pix; "Cartão" → libera cartão
+
+    // ── CARTÃO (recorrente): assinatura que RENOVA SOZINHA via preapproval. O MP
+    //    hospeda a captura do cartão (redirect pro init_point) e cobra a cada período.
+    //    O webhook ativa/cancela o premium conforme o status do preapproval.
+    if (metodo === "recorrente") {
+      const paBody = {
+        reason,
+        external_reference: String(extRef),
+        payer_email: email,
+        back_url: backUrl,
+        notification_url: webhook,
+        auto_recurring: {
+          frequency: meses,            // 1 mês (mensal) | 12 meses (anual)
+          frequency_type: "months",
+          transaction_amount: valor,
+          currency_id: "BRL",
+        },
+        status: "pending",
+      };
+      const r = await fetch("https://api.mercadopago.com/preapproval", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${MP_TOKEN}`, "Content-Type": "application/json" },
+        body: JSON.stringify(paBody),
+      });
+      const j = await r.json();
+      if (!r.ok) return json({ erro: "MP preapproval: " + JSON.stringify(j).slice(0, 400) }, 502);
+      if (j.id) await sb.from("assinaturas").update({ mp_preapproval_id: String(j.id) }).eq("id", extRef);
+      const url = (MP_TEST && j.sandbox_init_point) ? j.sandbox_init_point : j.init_point;
+      return json({ url, assinatura_id: extRef });
+    }
+
+    // ── PIX (avulso): paga o período UMA vez via Checkout Pro (preference), só Pix. ──
     const prefBody = {
       items: [{ title: reason, quantity: 1, unit_price: valor, currency_id: "BRL" }],
       payer: { email },
@@ -80,7 +109,7 @@ Deno.serve(async (req) => {
       back_urls: { success: backUrl, pending: backUrl, failure: backUrl },
       auto_return: "approved",
       payment_methods: {
-        excluded_payment_types: soPix ? [{ id: "credit_card" }, { id: "debit_card" }] : [],
+        excluded_payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
         installments: 1,
       },
     };
@@ -92,7 +121,6 @@ Deno.serve(async (req) => {
     const j = await r.json();
     if (!r.ok) return json({ erro: "MP preference: " + JSON.stringify(j).slice(0, 400) }, 502);
     const checkoutUrl = (MP_TEST && j.sandbox_init_point) ? j.sandbox_init_point : j.init_point;
-
     return json({ url: checkoutUrl, assinatura_id: extRef });
   } catch (e: any) {
     return json({ erro: e.message }, 500);

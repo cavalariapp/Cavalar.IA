@@ -47,12 +47,16 @@ Deno.serve(async (req) => {
     if (type.includes("preapproval")) {
       const pa = await mpGet(`/preapproval/${id}`);
       if (pa?.external_reference) {
-        const novo = (pa.status === "authorized")
-          ? { status: "ativa", inicio: new Date().toISOString(), fim: null }
-          : { status: "cancelada" };
-        await sb.from("assinaturas")
-          .update({ ...novo, mp_preapproval_id: String(id), atualizado_em: new Date().toISOString() })
-          .eq("id", pa.external_reference);
+        const now = new Date().toISOString();
+        let novo: Record<string, unknown> = { mp_preapproval_id: String(id), atualizado_em: now };
+        if (pa.status === "authorized") {
+          // cartão recorrente ATIVO → premium vale enquanto a assinatura estiver
+          // autorizada (fim=null). Quando o MP cancelar/pausar, revogamos abaixo.
+          novo = { ...novo, status: "ativa", inicio: now, fim: null };
+        } else if (pa.status === "cancelled" || pa.status === "paused") {
+          novo = { ...novo, status: "cancelada", fim: now };
+        } // "pending" e outros → só registra o id, não mexe no status
+        await sb.from("assinaturas").update(novo).eq("id", pa.external_reference);
       }
       return new Response("ok", { status: 200 });
     }
