@@ -5640,6 +5640,8 @@ function _ensureMediaEditor() {
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Programa / Canal (vira uma aba)</label>
       <input id="me-programa" list="me-programa-list" placeholder="ex.: PodEquestre, Clac Cast, Big Talk for Breeders" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
       <datalist id="me-programa-list"></datalist>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Data de publicação (define a ordem na aba "Todos")</label>
+      <input id="me-data" type="date" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
       <div style="display:flex;gap:10px;align-items:flex-end;margin-top:10px">
         <div>
           <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:0 0 4px">Cor (auto)</label>
@@ -5707,6 +5709,7 @@ function openMediaEditor(tipo, id) {
   // sugestões de programas já existentes (admin escolhe ou digita um novo)
   const progs = STATE._mediaProgramas[tipo] || [...new Set((STATE.mediaCache[tipo] || []).map(x => (x.programa || '').trim()).filter(Boolean))];
   document.getElementById('me-programa-list').innerHTML = (progs || []).map(p => `<option value="${escHtml(p)}">`).join('');
+  document.getElementById('me-data').value = m && m.data_pub ? String(m.data_pub).slice(0, 10) : '';
   document.getElementById('me-legenda').value = m ? (m.legenda || '') : '';
   document.getElementById('me-premium').checked = !!(m && m.premium);
   document.getElementById('me-preview').innerHTML = m ? mediaEmbed(m.url) : '';
@@ -5732,7 +5735,7 @@ async function saveMediaEditor() {
   const id = document.getElementById('me-id').value;
   let imagem = document.getElementById('me-imagem').value.trim() || null;
   if (!imagem) imagem = await _autoLogo(url);   // garante a capa da fonte mesmo sem digitar
-  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null, premium: document.getElementById('me-premium').checked };
+  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null, premium: document.getElementById('me-premium').checked, data_pub: document.getElementById('me-data').value || null };
   btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
   try {
     let error;
