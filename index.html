@@ -2702,6 +2702,31 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </div>
 </div>
 
+<div class="screen" id="scr-admin-altura">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:16px">
+    <h2 style="font-size:21px;margin:0 0 4px;font-weight:900">Altura Externa</h2>
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.5">Para cavalos BH <b>exportados</b> (sem resultado brasileiro): defina a <b>melhor altura</b> que ele saltou na carreira. A matriz/garanhão ganha o crédito desse filho no ranking genético (visão "Todos").</p>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+      <label style="font-size:11.5px;color:var(--muted)">Cavalo (busca na genealogia ABCCH)</label>
+      <div style="position:relative;margin:4px 0 12px">
+        <input id="alt-busca" autocomplete="off" placeholder="digite o nome do cavalo…" oninput="altBuscar()" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+        <div id="alt-drop" class="al-drop"></div>
+      </div>
+      <div id="alt-sel" style="font-size:12.5px;color:var(--muted);margin-bottom:12px">Nenhum cavalo selecionado.</div>
+      <label style="font-size:11.5px;color:var(--muted)">Melhor altura (metros)</label>
+      <input id="alt-valor" type="number" step="0.05" min="0.80" max="1.70" placeholder="ex.: 1.60" style="width:100%;padding:10px;margin:4px 0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+      <input id="alt-url" placeholder="Link de origem (opcional, ex.: FEI)" style="width:100%;padding:10px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+      <button onclick="salvarAltura()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:800;cursor:pointer">Salvar altura</button>
+      <button onclick="refreshGeneticaApp(this)" style="width:100%;margin-top:8px;background:var(--surface2);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:10px;font-weight:700;cursor:pointer">⟳ Atualizar genética agora</button>
+    </div>
+    <div id="admin-altura-list"></div>
+  </div>
+</div>
+
 <div class="screen" id="scr-assinatura">
   <div class="topbar">
     <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
@@ -3251,7 +3276,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios', 'admin-cupons', 'admin-aliases'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios', 'admin-cupons', 'admin-aliases', 'admin-altura'];
 
 function _fecharOverlays() {
   document.body.style.overflow = '';            // destrava o scroll
@@ -3298,6 +3323,7 @@ function nav(id) {
   if (id === 'admin-patrocinios') auto(renderAdminPatrocinios);
   if (id === 'admin-cupons') auto(renderAdminCupons);
   if (id === 'admin-aliases') auto(renderAdminAliases);
+  if (id === 'admin-altura') auto(renderAdminAltura);
   if (id === 'noticias') renderBanners('noticias', 'banner-noticias');
   if (id === 'videoaulas') renderBanners('programas', 'banner-programas');
   if (id === 'home') renderBanners('home', 'banner-home');
@@ -4462,6 +4488,80 @@ async function refreshGeneticaApp(btn) {
   alert('Genética atualizada (ou finalizando em background). Os rankings já refletem os matches.');
 }
 
+// ─── ADMIN: ALTURA EXTERNA (cavalos BH exportados, in-app) ───────────
+let _altTimer = null, _altSelToken = null, _altSelNome = null;
+async function renderAdminAltura() {
+  if (!_isAdmin) { const el = document.getElementById('admin-altura-list'); if (el) el.innerHTML = '<div style="padding:10px;color:var(--muted)">Acesso restrito.</div>'; return; }
+  _altSelToken = null; _altSelNome = null;
+  const s = document.getElementById('alt-sel'); if (s) s.textContent = 'Nenhum cavalo selecionado.';
+  carregarAltura();
+}
+
+function altBuscar() {
+  const inp = document.getElementById('alt-busca'), drop = document.getElementById('alt-drop');
+  const termo = (inp.value || '').trim();
+  clearTimeout(_altTimer);
+  if (termo.length < 2) { drop.classList.remove('open'); return; }
+  _altTimer = setTimeout(async () => {
+    const { data, error } = await sb.rpc('admin_buscar_genealogia', { termo });
+    if (error) { return; }
+    if (!data || !data.length) { drop.innerHTML = '<div style="color:var(--muted)">Nenhum cavalo na genealogia.</div>'; drop.classList.add('open'); return; }
+    drop.innerHTML = data.map(g => {
+      const ano = g.nascimento ? String(g.nascimento).slice(0, 4) : '—';
+      const pais = [g.pai, g.mae].filter(Boolean).join(' x ');
+      const flag = g.tem_altura ? ' ✓' : '';
+      return `<div onclick='altPick(${JSON.stringify({ t: g.cd_token, n: g.nome })})'>
+        <div style="font-weight:700">${escHtml(g.nome)}${flag}</div>
+        <div style="font-size:10.5px;color:var(--muted)">${ano}${pais ? ' · ' + escHtml(pais) : ''}</div></div>`;
+    }).join('');
+    drop.classList.add('open');
+  }, 250);
+}
+
+function altPick(o) {
+  _altSelToken = o.t; _altSelNome = o.n;
+  document.getElementById('alt-busca').value = o.n;
+  document.getElementById('alt-drop').classList.remove('open');
+  document.getElementById('alt-sel').innerHTML = `Selecionado: <b style="color:var(--fg)">${escHtml(o.n)}</b>`;
+}
+
+async function salvarAltura() {
+  if (!_altSelToken) { alert('Busque e selecione o cavalo na lista.'); return; }
+  const v = parseFloat(String(document.getElementById('alt-valor').value).replace(',', '.'));
+  if (!v || v < 0.8 || v > 1.8) { alert('Informe uma altura válida em metros (ex.: 1.60).'); return; }
+  const url = (document.getElementById('alt-url').value || '').trim() || null;
+  const { error } = await sb.rpc('admin_set_altura_externa', { p_cd_token: _altSelToken, p_nome: _altSelNome, p_altura: v, p_fonte: 'manual', p_url: url });
+  if (error) { alert('Erro: ' + error.message); return; }
+  document.getElementById('alt-busca').value = ''; document.getElementById('alt-valor').value = ''; document.getElementById('alt-url').value = '';
+  _altSelToken = null; _altSelNome = null;
+  document.getElementById('alt-sel').textContent = 'Salvo! Selecione outro cavalo ou atualize a genética.';
+  carregarAltura();
+}
+
+async function carregarAltura() {
+  const el = document.getElementById('admin-altura-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Carregando…</div>';
+  const { data, error } = await sb.rpc('admin_listar_altura_externa');
+  if (error) { el.innerHTML = `<div style="color:#ff8080;font-size:13px;padding:8px 2px">Erro: ${escHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Nenhuma altura externa cadastrada.</div>'; return; }
+  el.innerHTML = data.map(a => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:9px;display:flex;gap:10px;align-items:center">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">${escHtml(a.nome || a.cd_token)}</div>
+        <div style="font-size:10.5px;color:var(--muted)">${(+a.melhor_altura).toFixed(2).replace('.', ',')}m · ${escHtml(a.fonte)}</div>
+      </div>
+      <button onclick="removerAltura('${escHtml(a.cd_token)}')" style="background:var(--surface2);border:1px solid var(--border);color:#ff8080;border-radius:6px;padding:6px 10px;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+
+async function removerAltura(cd) {
+  if (!confirm('Remover esta altura externa?')) return;
+  const { error } = await sb.rpc('admin_remover_altura_externa', { p_cd_token: cd });
+  if (error) { alert('Erro: ' + error.message); return; }
+  carregarAltura();
+}
+
 function openPatrocinadorEditor(id) {
   const p = id ? _adminBanners.find(x => x.id === id) : null;
   const esc = v => (v == null ? '' : String(v).replace(/"/g, '&quot;'));
@@ -4677,6 +4777,10 @@ function updateHamMenu() {
       <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-cupons')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a2 2 0 0 1 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1-2-2z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>
         Cupons
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-altura')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18M7 20V10M12 20V4M17 20v-7"/></svg>
+        Altura externa (exportados)
       </button>` : ''}
       <button class="ham-menu-item danger" onclick="logout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
