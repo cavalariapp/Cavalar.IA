@@ -828,14 +828,15 @@ if (_modoOrdens) {
 }
 // Carrega TODOS os torneios PAGINANDO (o PostgREST corta em 1000/página). Sem isso,
 // com o backfill os torneios mais antigos (2013/2014) ficavam fora das 1000 linhas
-// mais recentes e sumiam do filtro de Ano. provas(count) é leve (só a contagem, pro
-// flag _tem_provas que esconde torneios fantasma/vazios).
+// mais recentes e sumiam do filtro de Ano. n_provas é uma COLUNA pré-computada
+// (sql/086, mantida por trigger) — antes era provas(count), uma agregação por torneio
+// sobre toda a tabela provas que travava a abertura da página.
 async function fetchAllTorneios() {
   const PAGE = 1000;
   let all = [], offset = 0;
   for (;;) {
     const { data, error } = await sb.from('torneios')
-      .select('id, nome, fonte, data_inicio, data_fim, provas(count)')
+      .select('id, nome, fonte, data_inicio, data_fim, n_provas')
       .order('data_inicio', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
       .range(offset, offset + PAGE - 1);
@@ -851,7 +852,7 @@ function _mapTorneio(t) {
   return {
     ...t,
     ano: t.data_inicio ? parseInt(t.data_inicio.substring(0, 4)) : extrairAno(t.nome),
-    _tem_provas: ((t.provas && t.provas[0] && t.provas[0].count) || 0) > 0,
+    _tem_provas: (t.n_provas || 0) > 0,
   };
 }
 
