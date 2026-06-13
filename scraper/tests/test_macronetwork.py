@@ -241,3 +241,15 @@ def test_ordem_dedup_competidores():
     assert len(r) == 2                                  # 4 linhas (2 duplicadas) → 2
     assert [x["cavaleiro_nome"] for x in r] == ["JOAO SILVA", "MARIA LIMA"]
     assert [x["cavalo_nome"] for x in r] == ["RELAMPAGO", "TROVAO"]
+
+
+def test_resultados_velocidade_maneabilidade():
+    # Baremo "VELOCIDADE E MANEABILIDADE" (container lvResultadoVelocidadeManeabilidade)
+    # usa linhas td.classfic-data SEM tr.table-row-styling. Antes voltava 0 resultados
+    # (provas concluídas do JHSF apareciam zeradas). Regressão da correção 2026-06.
+    R = parse_resultados(_fixture("fph_resultados_vm_13966.html"))
+    assert len(R) >= 26
+    assert R[0]["colocacao"] == "1º"
+    assert R[0]["cavaleiro_nome"] and R[0]["cavalo_nome"]
+    assert R[0]["penalidade"] == "0"
+    assert R[0]["tempo"] == "61,40"

@@ -494,9 +494,18 @@ def parse_resultados(html, base_url=None):
         return _parse_resultados_tempo_ideal(soup)
 
     out = []
-    for r in soup.select("tr.table-row-styling"):
+    # Linhas de resultado: a maioria dos baremos usa tr.table-row-styling; alguns
+    # (ex.: VELOCIDADE E MANEABILIDADE, container lvResultadoVelocidadeManeabilidade)
+    # usam linhas com td.classfic-data e o MESMO layout de células (colunaCavaleiro/
+    # colunaCavalo/border-mobile-data + faltas/tempo em align_center). O fallback
+    # abaixo cobre esses sem precisar de parser dedicado.
+    linhas = soup.select("tr.table-row-styling")
+    if not linhas:
+        linhas = [tr for tr in soup.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in linhas:
         cl = r.select_one("td.classfic-data")
-        coloc = _clean(cl.find("b").get_text() if cl and cl.find("b") else None)
+        # colocação: normalmente num <b>; em alguns baremos vem direto na célula.
+        coloc = _clean((cl.find("b") or cl).get_text() if cl else None)
         rid = cl.get("id") if cl else None
 
         cav_el = (r.select_one("td.colunaCavaleiro .format-coluna-competidor strong")
