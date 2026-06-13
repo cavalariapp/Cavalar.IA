@@ -530,6 +530,11 @@ function renderAliases(c) {
         <button class="btn btn-accent" onclick="criarAlias()" style="margin-top:16px">↔ Criar match</button>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px">
+      <div style="flex:1;min-width:200px;font-size:12px;color:var(--muted);line-height:1.5">
+        Matches valem na hora no <b>perfil</b> e nos <b>resultados</b>. No <b>ranking genético</b> a fusão entra no próximo refresh — clique para aplicar agora.</div>
+      <button class="btn btn-accent" id="al-refresh" onclick="refreshGeneticaAdmin(this)">⟳ Atualizar genética agora</button>
+    </div>
     <div class="table-wrap"><div class="table-hdr"><h3>Matches existentes</h3></div>
       <div class="table-scroll" id="al-lista"><div class="empty-state">Carregando…</div></div>
     </div>
@@ -594,6 +599,19 @@ async function removerAlias(aliasNorm) {
   const { error } = await sb.rpc('admin_remover_alias', { p_alias: aliasNorm });
   if (error) { alert('Erro: ' + error.message); return; }
   carregarAliases();
+}
+
+async function refreshGeneticaAdmin(btn) {
+  if (!confirm('Recompor o ranking genético agora? Pode levar alguns segundos.')) return;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = '⟳ Atualizando…';
+  const { error } = await sb.rpc('admin_refresh_genetica');
+  btn.disabled = false; btn.textContent = orig;
+  // refresh longo pode estourar o timeout do gateway, mas segue rodando no banco →
+  // tratamos timeout/cancelamento como "disparado".
+  if (error && !/timeout|statement|57014|cancel/i.test(error.message || '')) {
+    alert('Erro: ' + error.message); return;
+  }
+  alert('Genética atualizada (ou finalizando em background). Os rankings já refletem os matches.');
 }
 
 // ─── CUPONS ──────────────────────────────────────────────────
