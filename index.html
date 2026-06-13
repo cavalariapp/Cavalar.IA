@@ -2644,6 +2644,64 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </div>
 </div>
 
+<style>
+  .al-drop{position:absolute;left:0;right:0;top:100%;z-index:30;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:2px;max-height:240px;overflow:auto;display:none}
+  .al-drop.open{display:block}
+  .al-drop div{padding:9px 11px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border)}
+  .al-drop div:active,.al-drop div:hover{background:var(--surface2)}
+</style>
+<div class="screen" id="scr-admin-cupons">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:16px">
+    <h2 style="font-size:21px;margin:0 0 4px;font-weight:900">Cupons</h2>
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.5">Cupons liberam premium de cortesia (vitalício ou por tempo). Passe o código para quem quiser.</p>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px">
+      <input id="cup-codigo" placeholder="CÓDIGO (ex.: AMIGOS2026)" style="width:100%;padding:10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg);text-transform:uppercase">
+      <select id="cup-tipo" onchange="document.getElementById('cup-dias-wrap').style.display=this.value==='dias'?'block':'none'" style="width:100%;padding:10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+        <option value="vitalicio">Vitalício (pra sempre)</option>
+        <option value="dias">Por tempo (dias)</option>
+      </select>
+      <div id="cup-dias-wrap" style="display:none"><input id="cup-dias" type="number" value="365" min="1" placeholder="dias" style="width:100%;padding:10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)"></div>
+      <input id="cup-max" type="number" min="1" placeholder="Limite de usos (vazio = ilimitado)" style="width:100%;padding:10px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+      <input id="cup-desc" placeholder="Descrição (interna)" style="width:100%;padding:10px;margin-bottom:12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+      <button onclick="criarCupomApp()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:800;cursor:pointer">+ Criar cupom</button>
+    </div>
+    <div id="admin-cupons-list"></div>
+  </div>
+</div>
+
+<div class="screen" id="scr-admin-aliases">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div style="padding:16px">
+    <h2 style="font-size:21px;margin:0 0 4px;font-weight:900">Match de Cavalos</h2>
+    <p style="color:var(--muted);font-size:12.5px;margin:0 0 14px;line-height:1.5">Dois nomes que são o mesmo cavalo (ex.: "Lika JT PB" → "Lika JT"). O variante passa a apontar para o oficial em resultados, perfil e genética.</p>
+    <div style="border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
+      <label style="font-size:11.5px;color:var(--muted)">Nome variante (apelido)</label>
+      <div style="position:relative;margin:4px 0 12px">
+        <input id="al-var" autocomplete="off" placeholder="ex.: Lika JT PB" oninput="alBuscarApp('var')" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+        <div id="al-var-drop" class="al-drop"></div>
+      </div>
+      <label style="font-size:11.5px;color:var(--muted)">Nome oficial (canônico)</label>
+      <div style="position:relative;margin:4px 0 14px">
+        <input id="al-can" autocomplete="off" placeholder="ex.: Lika JT" oninput="alBuscarApp('can')" style="width:100%;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--fg)">
+        <div id="al-can-drop" class="al-drop"></div>
+      </div>
+      <button onclick="criarAliasApp()" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px;font-weight:800;cursor:pointer">↔ Criar match</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="flex:1;font-size:11.5px;color:var(--muted);line-height:1.5">No ranking genético a fusão entra após o refresh. Aplique agora:</div>
+      <button id="al-refresh" onclick="refreshGeneticaApp(this)" style="background:var(--surface2);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointer;white-space:nowrap">⟳ Atualizar genética</button>
+    </div>
+    <div id="admin-aliases-list"></div>
+  </div>
+</div>
+
 <div class="screen" id="scr-assinatura">
   <div class="topbar">
     <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
@@ -3193,7 +3251,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios', 'admin-cupons', 'admin-aliases'];
 
 function _fecharOverlays() {
   document.body.style.overflow = '';            // destrava o scroll
@@ -3238,6 +3296,8 @@ function nav(id) {
   if (id === 'cavaleiro') auto(initCavaleiro);
   if (id === 'assinatura') auto(renderAssinatura);
   if (id === 'admin-patrocinios') auto(renderAdminPatrocinios);
+  if (id === 'admin-cupons') auto(renderAdminCupons);
+  if (id === 'admin-aliases') auto(renderAdminAliases);
   if (id === 'noticias') renderBanners('noticias', 'banner-noticias');
   if (id === 'videoaulas') renderBanners('programas', 'banner-programas');
   if (id === 'home') renderBanners('home', 'banner-home');
@@ -4289,6 +4349,119 @@ async function renderAdminPatrocinios() {
     </div>`).join('') : '<div style="color:var(--muted);font-size:13px;padding:10px 2px">Nenhum banner ainda. Toque em <b>+ Novo banner</b>.</div>';
 }
 
+// ─── ADMIN: CUPONS (in-app) ──────────────────────────────────────────
+async function renderAdminCupons() {
+  const el = document.getElementById('admin-cupons-list');
+  if (!el) return;
+  if (!_isAdmin) { el.innerHTML = '<div style="padding:10px;color:var(--muted)">Acesso restrito.</div>'; return; }
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Carregando…</div>';
+  const { data, error } = await sb.rpc('admin_listar_cupons');
+  if (error) { el.innerHTML = `<div style="color:#ff8080;font-size:13px;padding:8px 2px">Erro: ${escHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Nenhum cupom ainda.</div>'; return; }
+  el.innerHTML = data.map(c => {
+    const tipo = c.vitalicio ? 'Vitalício' : `${c.dias} dias`;
+    const usos = `${c.usos}${c.max_usos != null ? '/' + c.max_usos : ''} usos`;
+    const st = c.ativo ? '<span style="color:#3ecf8e">● ativo</span>' : '<span style="color:var(--muted)">○ inativo</span>';
+    const btn = c.ativo
+      ? `<button onclick="toggleCupomApp('${escHtml(c.codigo)}',false)" style="background:var(--surface2);border:1px solid var(--border);color:#ff8080;border-radius:6px;padding:6px 10px;cursor:pointer">desativar</button>`
+      : `<button onclick="toggleCupomApp('${escHtml(c.codigo)}',true)" style="background:var(--surface2);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 10px;cursor:pointer">ativar</button>`;
+    return `<div style="border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:9px;display:flex;gap:10px;align-items:center;${c.ativo ? '' : 'opacity:.6'}">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:14px">${escHtml(c.codigo)}</div>
+        <div style="font-size:10.5px;color:var(--muted)">${tipo} · ${usos} · ${st}${c.descricao ? ' · ' + escHtml(c.descricao) : ''}</div>
+      </div>${btn}</div>`;
+  }).join('');
+}
+
+async function criarCupomApp() {
+  const codigo = (document.getElementById('cup-codigo').value || '').trim();
+  if (!codigo) { alert('Informe o código.'); return; }
+  const vitalicio = document.getElementById('cup-tipo').value === 'vitalicio';
+  const dias = vitalicio ? null : (parseInt(document.getElementById('cup-dias').value) || 30);
+  const max = document.getElementById('cup-max').value ? parseInt(document.getElementById('cup-max').value) : null;
+  const desc = (document.getElementById('cup-desc').value || '').trim() || null;
+  const { data, error } = await sb.rpc('admin_criar_cupom', { p_codigo: codigo, p_vitalicio: vitalicio, p_dias: dias, p_max_usos: max, p_descricao: desc, p_expira_em: null });
+  if (error) { alert('Erro: ' + error.message); return; }
+  if (data && data.ok === false) { alert(data.erro || 'Não foi possível criar.'); return; }
+  document.getElementById('cup-codigo').value = ''; document.getElementById('cup-desc').value = ''; document.getElementById('cup-max').value = '';
+  renderAdminCupons();
+}
+
+async function toggleCupomApp(codigo, ativo) {
+  const { error } = await sb.rpc('admin_set_cupom_ativo', { p_codigo: codigo, p_ativo: ativo });
+  if (error) { alert('Erro: ' + error.message); return; }
+  renderAdminCupons();
+}
+
+// ─── ADMIN: MATCH DE CAVALOS (apelidos, in-app) ──────────────────────
+let _alTimerApp = null;
+async function renderAdminAliases() {
+  if (!_isAdmin) { const el = document.getElementById('admin-aliases-list'); if (el) el.innerHTML = '<div style="padding:10px;color:var(--muted)">Acesso restrito.</div>'; return; }
+  carregarAliasesApp();
+}
+
+function alBuscarApp(qual) {
+  const inp = document.getElementById('al-' + qual), drop = document.getElementById('al-' + qual + '-drop');
+  const termo = (inp.value || '').trim();
+  clearTimeout(_alTimerApp);
+  if (termo.length < 2) { drop.classList.remove('open'); return; }
+  _alTimerApp = setTimeout(async () => {
+    const { data, error } = await sb.rpc('buscar_nomes_cavalos', { termo });
+    if (error) return;
+    const nomes = [...new Set((data || []).map(r => String(r.nome || '').split('\n')[0].trim()).filter(Boolean))].slice(0, 40);
+    drop.innerHTML = nomes.length
+      ? nomes.map(n => `<div onclick="alPickApp('${qual}', this)" data-n="${escHtml(n)}">${escHtml(n)}</div>`).join('')
+      : '<div style="color:var(--muted)">Nenhum nome encontrado.</div>';
+    drop.classList.add('open');
+  }, 250);
+}
+function alPickApp(qual, elx) {
+  document.getElementById('al-' + qual).value = elx.getAttribute('data-n');
+  document.getElementById('al-' + qual + '-drop').classList.remove('open');
+}
+
+async function criarAliasApp() {
+  const variante = (document.getElementById('al-var').value || '').trim();
+  const canonico = (document.getElementById('al-can').value || '').trim();
+  if (!variante || !canonico) { alert('Preencha os dois nomes.'); return; }
+  if (variante.toUpperCase() === canonico.toUpperCase()) { alert('Os nomes são iguais.'); return; }
+  if (!confirm(`Confirmar que "${variante}" é o MESMO cavalo que "${canonico}"?`)) return;
+  const { error } = await sb.rpc('set_cavalo_alias', { p_alias: variante, p_canonico: canonico });
+  if (error) { alert('Erro: ' + error.message); return; }
+  document.getElementById('al-var').value = ''; document.getElementById('al-can').value = '';
+  carregarAliasesApp();
+}
+
+async function carregarAliasesApp() {
+  const el = document.getElementById('admin-aliases-list');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Carregando…</div>';
+  const { data, error } = await sb.rpc('admin_listar_aliases');
+  if (error) { el.innerHTML = `<div style="color:#ff8080;font-size:13px;padding:8px 2px">Erro: ${escHtml(error.message)}</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 2px">Nenhum match criado ainda.</div>'; return; }
+  el.innerHTML = data.map(a => `
+    <div style="border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:9px;display:flex;gap:10px;align-items:center">
+      <div style="flex:1;min-width:0;font-size:13.5px"><b>${escHtml(a.alias_norm)}</b> <span style="color:var(--accent)">→ ${escHtml(a.canonico_norm)}</span></div>
+      <button onclick="removerAliasApp('${escHtml(a.alias_norm)}')" style="background:var(--surface2);border:1px solid var(--border);color:#ff8080;border-radius:6px;padding:6px 10px;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+
+async function removerAliasApp(aliasNorm) {
+  if (!confirm(`Desfazer o match de "${aliasNorm}"?`)) return;
+  const { error } = await sb.rpc('admin_remover_alias', { p_alias: aliasNorm });
+  if (error) { alert('Erro: ' + error.message); return; }
+  carregarAliasesApp();
+}
+
+async function refreshGeneticaApp(btn) {
+  if (!confirm('Recompor o ranking genético agora? Pode levar alguns segundos.')) return;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = '⟳ Atualizando…';
+  const { error } = await sb.rpc('admin_refresh_genetica');
+  btn.disabled = false; btn.textContent = orig;
+  if (error && !/timeout|statement|57014|cancel/i.test(error.message || '')) { alert('Erro: ' + error.message); return; }
+  alert('Genética atualizada (ou finalizando em background). Os rankings já refletem os matches.');
+}
+
 function openPatrocinadorEditor(id) {
   const p = id ? _adminBanners.find(x => x.id === id) : null;
   const esc = v => (v == null ? '' : String(v).replace(/"/g, '&quot;'));
@@ -4496,6 +4669,14 @@ function updateHamMenu() {
       <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-patrocinios')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3v4M8 3v4M2 11h20"/></svg>
         Gerir patrocínios
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-aliases')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7h8M8 12h8M8 17h5"/><circle cx="4.5" cy="7" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="17" r="1"/></svg>
+        Match de cavalos
+      </button>
+      <button class="ham-menu-item" onclick="closeHamMenu();nav('admin-cupons')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12a2 2 0 0 1 2-2V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-4a2 2 0 0 1-2-2z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>
+        Cupons
       </button>` : ''}
       <button class="ham-menu-item danger" onclick="logout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
