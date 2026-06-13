@@ -5086,6 +5086,11 @@ async function renderRankings() {
 
   const data = await _zrCompute(_zrEntity);
 
+  // PRÉ-CARREGA a outra entidade em segundo plano → trocar Cavaleiros↔Cavalos fica
+  // instantâneo (a RPC ranking_zeros é pesada; cacheada por entidade em _zrComputedCache).
+  const _outraEnt = _zrEntity === 'cavalo' ? 'cavaleiro' : 'cavalo';
+  if (!_zrComputedCache[_outraEnt]) _zrCompute(_outraEnt).catch(() => {});
+
   carousel.innerHTML = ZR_ALTURAS.map(alt => _zrBuildSlide(alt, data[alt])).join('');
   dots.innerHTML = ZR_ALTURAS.map((_, i) => `<span class="zr-dot${i === 0 ? ' active' : ''}"></span>`).join('');
 
