@@ -251,5 +251,13 @@ def test_resultados_velocidade_maneabilidade():
     assert len(R) >= 26
     assert R[0]["colocacao"] == "1º"
     assert R[0]["cavaleiro_nome"] and R[0]["cavalo_nome"]
+    # 1º lugar: 0 faltas, tempo do percurso, tempo ajustado = tempo, pontuação 0,00
     assert R[0]["penalidade"] == "0"
     assert R[0]["tempo"] == "61,40"
+    assert R[0]["tempo_2"] == "61,40"
+    assert R[0]["pontos"] == "0,00"
+    # 7º (Pedro): 4 faltas → tempo 63,59 vira ajustado 67,59 → pontuação 3,10
+    assert R[6]["penalidade"] == "4"
+    assert R[6]["tempo"] == "63,59"
+    assert R[6]["tempo_2"] == "67,59"
+    assert R[6]["pontos"] == "3,10"

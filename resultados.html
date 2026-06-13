@@ -1924,7 +1924,21 @@ function colunasParaTipo(tipo, resultados) {
   });
   const temT2 = preenchido('tempo_2');
   const temPen2 = preenchido('penalidade_2');
+  const temPontos = preenchido('pontos');
   const tempoIdeal = /TEMPO\s*IDEAL|TEMPO\s*OCULTO/.test(t);
+  const velocidade = /VELOCIDAD|MANEAB/.test(t);
+
+  // VELOCIDADE E MANEABILIDADE: faltas + tempo + tempo AJUSTADO (faltas viram +4s)
+  // + PONTUAÇÃO carregada. Detecta pelo tipo OU pelos dados (tem tempo_2 E pontos,
+  // sem penalidade_2 — o que distingue de duas fases, que não tem pontos).
+  if (velocidade || (temT2 && temPontos && !temPen2)) {
+    return [
+      { label: 'Faltas', key: 'penalidade', cls: 'col-num' },
+      { label: 'Tempo',  key: 'tempo',      cls: 'col-num' },
+      { label: 'T. aj.', key: 'tempo_2',    cls: 'col-num' },
+      { label: 'Pont.',  key: 'pontos',     cls: 'col-num accent' },
+    ];
+  }
 
   if (temT2 && temPen2) {          // desempate / duas voltas
     return [

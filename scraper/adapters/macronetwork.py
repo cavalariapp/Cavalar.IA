@@ -492,6 +492,12 @@ def parse_resultados(html, base_url=None):
     if ("TEMPO IDEAL" in tp_up or "TEMPO OCULTO" in tp_up
             or soup.find(id=re.compile(r"lvResultadoTempo(Ideal|Oculto)", re.I))):
         return _parse_resultados_tempo_ideal(soup)
+    # VELOCIDADE E MANEABILIDADE: baremo de velocidade (cada falta = +4s; pontuação
+    # carregada = (tempo_ajustado − tempo_ajustado_do_1º)/2). Container e colunas
+    # próprios → parser dedicado (guarda tempo ajustado e pontuação).
+    if (("VELOCIDADE" in tp_up and "MANEABILIDADE" in tp_up)
+            or soup.find(id=re.compile("lvResultadoVelocidadeManeabilidade", re.I))):
+        return _parse_resultados_velocidade_maneabilidade(soup)
 
     out = []
     # Linhas de resultado: a maioria dos baremos usa tr.table-row-styling; alguns
@@ -575,6 +581,72 @@ def parse_resultados(html, base_url=None):
             "equipe": _clean(eq_el.get_text() if eq_el else None),
             "penalidade": penalidade,
             "tempo": tempo,
+        })
+    return out
+
+
+# ── RESULTADOS de "VELOCIDADE E MANEABILIDADE" ───────────────────────
+# Baremo de velocidade (típico 1º dia de seletivas/brasileiros/estaduais): cada
+# FALTA no obstáculo vira +4s no tempo; a colocação é pelo TEMPO AJUSTADO; e cada
+# conjunto CARREGA pro resto do torneio uma PONTUAÇÃO =
+#   (tempo_ajustado − tempo_ajustado_do_1º) / 2   (o 1º carrega 0,00; menos é melhor).
+# Container lvResultadoVelocidadeManeabilidade; linhas td.classfic-data (SEM
+# tr.table-row-styling). Células desktop, em ordem:
+#   [faltas, tempo, tempo_AJUSTADO, (metade do ajustado), PONTUAÇÃO].
+# Mapa canônico: penalidade←faltas (0/4/8 → volta limpa=0 vale p/ ranking de zeros),
+#   tempo←tempo do percurso, tempo_2←tempo ajustado, pontos←pontuação carregada.
+def _parse_resultados_velocidade_maneabilidade(soup):
+    out = []
+    rows = [tr for tr in soup.find_all("tr") if tr.find("td", class_="classfic-data")]
+    for r in rows:
+        cl = r.select_one("td.classfic-data")
+        coloc = _clean((cl.find("b") or cl).get_text() if cl else None)
+        rid = cl.get("id") if cl else None
+        cav_el = (r.select_one("td.colunaCavaleiro .format-coluna-competidor strong")
+                  or r.select_one("td.colunaCavaleiro strong"))
+        ent_el = r.select_one("span.descCompetidor")
+        idc_el = r.select_one("td.colunaCavaleiro input[id$=hfIDCavaleiro]")
+        cavalo_el = r.select_one("td.colunaCavalo strong")
+        gen_el = r.select_one("td.colunaCavalo span.descCavalo")
+        cat_el = r.select_one("td.border-mobile-data")
+        categoria = None
+        if cat_el:
+            direto = cat_el.find(string=True, recursive=False)
+            categoria = _clean(direto) or _clean(cat_el.get_text(" ", strip=True))
+        # células numéricas (só desktop; os td.is-mobile são duplicatas combinadas)
+        nums = []
+        for td in r.find_all("td"):
+            cls = " ".join(td.get("class") or [])
+            if ("align_center" in cls and "is-desktop" in cls
+                    and "classfic-data" not in cls and "border-mobile-data" not in cls
+                    and not td.find("strong")):
+                t = _clean(td.get_text(" ", strip=True))
+                if t:
+                    nums.append(t)
+        faltas = tempo = tempo_aj = pontos = None
+        if len(nums) >= 5:
+            faltas, tempo, tempo_aj, pontos = nums[0], nums[1], nums[2], nums[4]
+        else:
+            # eliminado/desistente/incompleto: status na td.error ou em alguma célula
+            err = r.select_one("td.error")
+            faltas = (_clean(err.get_text()) if err else next(
+                (n for n in nums if re.search(r"elim|aband|desclass|retir|desist", n, re.I)), None))
+            tempo = next((n for n in nums if re.fullmatch(r"\d{1,3},\d{1,2}", n)), None)
+        if faltas and "(" in faltas:           # "4 (4+0)" → "4"
+            faltas = faltas.split("(")[0].strip()
+        out.append({
+            "id_origem": rid,
+            "colocacao": coloc,
+            "cavaleiro_nome": _clean(cav_el.get_text() if cav_el else None),
+            "entidade": _clean(ent_el.get_text() if ent_el else None),
+            "id_cavaleiro_fonte": (idc_el.get("value") if idc_el else None) or None,
+            "cavalo_nome": _clean(cavalo_el.get_text() if cavalo_el else None),
+            "cavalo_genealogia": _clean(gen_el.get_text(" ") if gen_el else None),
+            "categoria": categoria,
+            "penalidade": faltas,
+            "tempo": tempo,
+            "tempo_2": tempo_aj,
+            "pontos": pontos,
         })
     return out
 
