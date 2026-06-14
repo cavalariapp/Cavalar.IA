@@ -22,7 +22,7 @@ import requests
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; cavalaria-news/1.0)"}
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-5-20250929"
+MODEL = "claude-sonnet-4-6"
 
 FEEDS = [
     "https://news.google.com/rss/search?q=hipismo+salto&hl=pt-BR&gl=BR&ceid=BR:pt-419",

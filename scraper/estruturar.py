@@ -19,7 +19,7 @@ import re
 import requests
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-5-20250929"   # mesmo modelo da função chat
+MODEL = "claude-sonnet-4-6"   # mesmo modelo da função chat
 UA = {"User-Agent": "Mozilla/5.0 (cavalaria-estruturar)"}
 
 _PROMPTS = {
