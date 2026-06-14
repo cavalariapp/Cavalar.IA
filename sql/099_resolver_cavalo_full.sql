@@ -1,34 +1,25 @@
 -- 099 — resolver_cavalo_full: resolução ÚNICA e completa do indivíduo CANÔNICO.
+-- (v2: corrige "column reference canonico_norm is ambiguous" — a coluna de SAÍDA
+--  canonico_norm colidia com cavalo_alias.canonico_norm no WHERE. Agora as referências
+--  à tabela são QUALIFICADAS com alias, e o OUT param virou o_canonico.)
 --
--- PROBLEMA (busca mostrava só performance OU só genética; nome às vezes não-canônico):
---   * resolver_cavalo (097) devolve a entrada de GENEALOGIA do grupo do match, mas o
---     campo `nome` é o nome da genealogia (que pode ser o APELIDO, não o canônico) —
---     então o cabeçalho exibia o apelido em vez do canônico (ex.: "QUALMATIE DU BRIEL"
---     em vez de "QUALMATIE DU BREIL").
---   * o nome canônico definido no match (canonico_norm) às vezes só existe em
---     RESULTADOS (ex.: "LIKA JT PB"), nunca na genealogia → não havia de onde tirar a
---     grafia "bonita" do canônico.
---
--- SOLUÇÃO: uma RPC que, para QUALQUER nome do grupo, devolve:
---   - display_nome: a grafia CANÔNICA para exibir (preferindo a 1ª linha de um
---     resultado cujo norm == canonico_norm; se não houver em resultados, usa a
---     genealogia do canônico; se nem isso, usa a entrada de genealogia do grupo).
---   - os campos de genealogia (cd_token, nascimento, sexo, pai, mae) do indivíduo
---     (entrada com cd_token / nascimento mais informativa do grupo).
---   - tem_gen: se existe QUALQUER entrada de genealogia no grupo (→ mostra aba/genética).
---
--- Assim BUSCA e RANKING chamam a MESMA resolução e abrem a MESMA página completa.
+-- Para QUALQUER nome do grupo de um match devolve:
+--   - display_nome: a grafia CANÔNICA p/ o cabeçalho;
+--   - pedigree (cd_token, nascimento, sexo, pai, mae) do indivíduo;
+--   - tem_gen: existe genealogia no grupo (→ mostra a aba/genética);
+--   - tem_alias: o grupo tem apelido (→ o front desliga o filtro anti-homônimo).
+drop function if exists public.resolver_cavalo_full(text);
 create or replace function public.resolver_cavalo_full(p_nome text)
 returns table (
   display_nome text,
-  canonico_norm text,
-  cd_token text,
-  nascimento date,
-  sexo text,
-  pai text,
-  mae text,
-  tem_gen boolean,
-  tem_alias boolean
+  o_canonico   text,
+  cd_token     text,
+  nascimento   date,
+  sexo         text,
+  pai          text,
+  mae          text,
+  tem_gen      boolean,
+  tem_alias    boolean
 )
 language plpgsql stable security definer set search_path = public as $$
 declare
@@ -41,11 +32,10 @@ begin
   v_grp := array(
     select v_canon
     union
-    select alias_norm from public.cavalo_alias where canonico_norm = v_canon
+    select a.alias_norm from public.cavalo_alias a where a.canonico_norm = v_canon
   );
 
-  -- grafia canônica p/ exibir:
-  -- 1) genealogia cujo norm == canônico (a entrada oficial)
+  -- grafia canônica p/ exibir: 1) genealogia cujo norm == canônico
   select g2.nome into v_disp
   from public.genealogia g2
   where norm_nome(g2.nome) = v_canon
@@ -67,8 +57,7 @@ begin
   order by (g3.cd_token is not null) desc, g3.nascimento nulls last
   limit 1;
 
-  -- 3) último fallback p/ exibição: a própria entrada de genealogia do grupo,
-  --    e por fim o nome pedido.
+  -- 3) último fallback p/ exibição
   if v_disp is null then v_disp := g.nome; end if;
   if v_disp is null then v_disp := split_part(p_nome, E'\n', 1); end if;
 
@@ -81,6 +70,6 @@ begin
     g.pai,
     g.mae,
     (g.nome is not null),
-    exists (select 1 from public.cavalo_alias where canonico_norm = v_canon);
+    exists (select 1 from public.cavalo_alias a where a.canonico_norm = v_canon);
 end; $$;
 grant execute on function public.resolver_cavalo_full(text) to anon, authenticated;
