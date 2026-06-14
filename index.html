@@ -5871,8 +5871,10 @@ async function renderNewsScreen() {
     let a = null;
     try {
       const ano = new Date().getFullYear();
-      let { data } = await sb.rpc('analise_destaque', { p_ano: ano });
-      if (!data) { ({ data } = await sb.rpc('analise_destaque', { p_ano: null })); }
+      // alterna entre as duas métricas (% percursos limpos × média de faltas) por dia
+      const metrica = (new Date().getDate() % 2 === 0) ? 'limpos' : 'media';
+      let { data } = await sb.rpc('analise_destaque', { p_ano: ano, p_metrica: metrica });
+      if (!data) { ({ data } = await sb.rpc('analise_destaque', { p_ano: null, p_metrica: metrica })); }
       a = data || null;
     } catch (_) {}
     if (!a) { try { a = await DB.aiAnalysis(); } catch (_) {} }
