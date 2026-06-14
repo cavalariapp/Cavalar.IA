@@ -2488,18 +2488,13 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   <div class="ai-card">
     <div class="ai-hdr">
       <div class="ai-badge">IA CAVALAR</div>
-      <div class="ai-hdr-title">Análise Semanal</div>
-      <span style="margin-left:auto;font-size:9.5px;color:rgba(255,255,255,.45)">19 MAI 2024</span>
+      <div class="ai-hdr-title">Destaque Genético</div>
+      <span id="ai-card-date" style="margin-left:auto;font-size:9.5px;color:rgba(255,255,255,.45)"></span>
     </div>
     <div class="ai-body">
-      <div class="ai-headline">Temporada europeia 2024: dominância técnica e o impacto das novas linhagens</div>
-      <div class="ai-summary">A IA Cavalar analisou 1.247 percursos nas últimas 4 semanas. O índice de falhas em obstáculos verticais caiu 12% entre cavalos com Cornet Obolensky na linhagem paterna. Cavalos com breeding value acima de 90 apresentaram 34% mais consistência em provas 5*.</div>
-      <div class="ai-tags">
-        <span class="ai-tag">Breeding Values</span>
-        <span class="ai-tag">CSIO5*</span>
-        <span class="ai-tag">Linhagens</span>
-        <span class="ai-tag">Temporada 2024</span>
-      </div>
+      <div class="ai-headline">Carregando análise…</div>
+      <div class="ai-summary"></div>
+      <div class="ai-tags"></div>
     </div>
   </div>
 
@@ -5871,14 +5866,26 @@ let _newsCache = [];
 async function renderNewsScreen() {
   const aiCard = document.querySelector('.ai-card .ai-body');
   if (aiCard) {
-    const a = await DB.aiAnalysis();
-    aiCard.innerHTML = `
-      <div class="ai-headline">${a.headline||''}</div>
-      <div class="ai-summary">${a.summary||''}</div>
-      <div class="ai-tags">
-        ${(a.tags||[]).map(t => `<span class="ai-tag">${t}</span>`).join('')}
-      </div>
-    `;
+    // Destaque genético REAL (mv_genetica): tenta o ano atual; se não houver, histórico;
+    // por fim cai no texto armazenado (site_settings) se existir.
+    let a = null;
+    try {
+      const ano = new Date().getFullYear();
+      let { data } = await sb.rpc('analise_destaque', { p_ano: ano });
+      if (!data) { ({ data } = await sb.rpc('analise_destaque', { p_ano: null })); }
+      a = data || null;
+    } catch (_) {}
+    if (!a) { try { a = await DB.aiAnalysis(); } catch (_) {} }
+    const d = document.getElementById('ai-card-date');
+    if (d) d.textContent = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+    if (a) {
+      aiCard.innerHTML = `
+        <div class="ai-headline">${escHtml(a.headline || '')}</div>
+        <div class="ai-summary">${escHtml(a.summary || '')}</div>
+        <div class="ai-tags">${(a.tags || []).map(t => `<span class="ai-tag">${escHtml(t)}</span>`).join('')}</div>`;
+    } else {
+      aiCard.innerHTML = '<div class="ai-summary" style="color:var(--muted)">Análise indisponível no momento.</div>';
+    }
   }
 }
 
