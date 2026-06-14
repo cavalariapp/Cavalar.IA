@@ -6608,18 +6608,29 @@ function _cavaloVoltarBusca(focus) {
 async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
   let c = _cavaloCache[i];
   if (!c) return;
-  // MATCH/apelido: abre SEMPRE o cavalo CANÔNICO — os dois nomes levam à MESMA página
-  // (ex.: clicar em "Lika JT PB" abre a "Lika JT", unificada). Não mexe no fluxo do
-  // reprodutor por token (repToken já é o indivíduo certo).
-  // MATCH/apelido: se o nome clicado for um APELIDO, reconstrói o cavalo a partir da
-  // entrada CANÔNICA da genealogia → os dois nomes abrem a MESMA página (perf+genética).
-  // Só reconstrói quando o canônico DIFERE do clicado (homônimos têm o mesmo norm →
-  // não reconstrói → mantém o indivíduo certo). Não mexe no fluxo do reprodutor por token.
+  // MATCH/apelido: abre SEMPRE o MESMO indivíduo CANÔNICO, venha da BUSCA ou do RANKING.
+  // resolver_cavalo_full devolve, para QUALQUER nome do grupo do match:
+  //   - display_nome: a grafia CANÔNICA p/ o cabeçalho;
+  //   - pedigree (pai/mãe/nascimento/sexo/token) do indivíduo + tem_gen (mostra genética);
+  //   - tem_alias: se o grupo tem apelidos (→ desliga o filtro anti-homônimo por
+  //     nascimento, que zerava a performance de cavalos casados; historico_cavalo já
+  //     restringe ao grupo canônico + segurança de idade no servidor).
+  // Homônimos NÃO casados não têm alias → tem_alias=false → filtro segue ativo (separados).
+  // Não mexe no fluxo do reprodutor por token (repToken já é o indivíduo certo).
+  let _viaAlias = false;
   if (!repToken) {
     try {
-      const { data } = await sb.rpc('resolver_cavalo', { p_nome: c.nome });
-      if (data && data[0] && _normNome(data[0].nome) !== c.nn) {
-        c = { ...data[0], nn: _normNome(data[0].nome), gen: true, comp: true };
+      const { data } = await sb.rpc('resolver_cavalo_full', { p_nome: c.nome });
+      const d = data && data[0];
+      if (d) {
+        _viaAlias = !!d.tem_alias;
+        c = {
+          nome: d.display_nome || c.nome,
+          nn: _normNome(d.display_nome || c.nome),
+          cd_token: d.cd_token, registro: c.registro,
+          nascimento: d.nascimento, sexo: d.sexo, pai: d.pai, mae: d.mae,
+          gen: !!d.tem_gen, comp: true,
+        };
         _cavaloCache[i] = c;
       }
     } catch (_) {}
@@ -6676,11 +6687,16 @@ async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
     // carrega o NASCIMENTO do cavalo daquela linha. Mantém só os resultados cujo
     // ANO de nascimento bate com o do cavalo aberto — separa homônimos (ex.: a
     // Arabella de escola da Arabella que salta 1,55m). Linha sem nascimento → mantém.
-    meus = meus.filter(r => {
-      const ln2 = String(r.cavalo_nome || '').split('\n')[1] || '';
-      const m = ln2.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-      return !m || parseInt(m[3]) === _birthYr;
-    });
+    // EXCEÇÃO: cavalo CASADO (via apelido) — os nomes do match têm grafias/nascimentos
+    // divergentes de propósito; aplicar este filtro zerava a performance ("só genética").
+    // historico_cavalo já restringiu ao grupo canônico + segurança de idade no servidor.
+    if (!_viaAlias) {
+      meus = meus.filter(r => {
+        const ln2 = String(r.cavalo_nome || '').split('\n')[1] || '';
+        const m = ln2.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        return !m || parseInt(m[3]) === _birthYr;
+      });
+    }
   }
   const nprovas = meus.length;
   const torneios = new Set(meus.map(r => r.provas && r.provas.torneios && r.provas.torneios.nome).filter(Boolean)).size;
