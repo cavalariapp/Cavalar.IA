@@ -53,6 +53,19 @@ def episodes(sid, tok, market="BR"):
     return out
 
 
+def episode_id(url):
+    """Extrai o id de um episódio a partir da URL (open.spotify.com/episode/ID)."""
+    m = re.search(r"episode/([A-Za-z0-9]+)", url or "")
+    return m.group(1) if m else None
+
+
+def episode(eid, tok, market="BR"):
+    """Detalhe de UM episódio (pra pegar o release_date original). None se falhar."""
+    r = requests.get(f"{API}/episodes/{eid}", params={"market": market},
+                     headers={"Authorization": f"Bearer {tok}", **UA}, timeout=30)
+    return r.json() if r.status_code == 200 else None
+
+
 def release_to_date(s):
     """release_date do Spotify ('2024', '2024-05' ou '2024-05-01') → data ISO
     completa (preenche mês/dia com 01)."""

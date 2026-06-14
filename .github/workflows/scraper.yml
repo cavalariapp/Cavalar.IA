@@ -188,6 +188,7 @@ jobs:
             python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
             python -m scraper.main --estruturar || echo "estruturar pulado (falta ANTHROPIC_API_KEY?)"
             python -m scraper.main --noticias --write || echo "noticias pulado"
+            python -m scraper.main --media-datas --write || echo "media-datas pulado"
             python -m scraper.main --shb --write || echo "shb pulado"
             python -m scraper.main --fgee --write || echo "fgee pulado"
             python -m scraper.main --refresh-genetica || echo "refresh-genetica pulado"

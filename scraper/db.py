@@ -393,6 +393,14 @@ class SupabaseWriter:
             "&tipo=in.(programa,horarios,adendo)&conteudo_estruturado=is.null"
             f"&order=id.desc&limit={limit}")
 
+    def media_sem_data(self, limit=3000):
+        """Episódios/mídia SEM data_pub (pra preencher a data de publicação original
+        buscando na fonte). [{id, url, tipo}]."""
+        self._require()
+        return self._get(
+            "/rest/v1/media?select=id,url,tipo&data_pub=is.null&url=not.is.null"
+            f"&order=id.desc&limit={limit}")
+
     def provas_incompletas(self, source=None, limit=500):
         """Provas JÁ realizadas, COM inscritos e SEM resultado (view provas_incompletas).
         Alvo do --curar-buracos. [{prova_id, id_origem, torneio_id, fonte, ...}]."""

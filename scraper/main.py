@@ -1072,6 +1072,49 @@ def processar_spotify_show(args, writer):
     return 0
 
 
+def processar_media_datas(args, writer):
+    """--media-datas: preenche data_pub das mídias SEM data, buscando a DATA DE
+    PUBLICAÇÃO ORIGINAL na fonte. Spotify: Web API (release_date por episódio).
+    YouTube/outros: pulado (sem API). Requer SPOTIFY_CLIENT_ID/SECRET."""
+    import os
+    from scraper.adapters import spotify as sp
+    if not (args.write and writer.configured):
+        print("⚠ --media-datas precisa de --write + SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+              file=sys.stderr)
+        return 3
+    cid = os.environ.get("SPOTIFY_CLIENT_ID"); sec = os.environ.get("SPOTIFY_CLIENT_SECRET")
+    rows = writer.media_sem_data()
+    print(f"=== MEDIA-DATAS === {len(rows)} mídia(s) sem data_pub")
+    tok = None
+    if cid and sec:
+        try:
+            tok = sp.token(cid, sec)
+        except Exception as e:
+            print(f"⚠ Spotify token: {e.__class__.__name__}: {e}", file=sys.stderr)
+    else:
+        print("⚠ sem SPOTIFY_CLIENT_ID/SECRET — só Spotify é suportado por enquanto.", file=sys.stderr)
+    fill = naospot = erro = 0
+    for m in rows:
+        eid = sp.episode_id(m.get("url") or "")
+        if not (eid and tok):
+            naospot += 1
+            continue
+        try:
+            ep = sp.episode(eid, tok)
+            dp = sp.release_to_date((ep or {}).get("release_date"))
+            if dp:
+                writer._patch(f"/rest/v1/media?id=eq.{m['id']}", {"data_pub": dp})
+                fill += 1
+            else:
+                naospot += 1
+        except Exception as e:
+            erro += 1
+            print(f"  ⚠ episódio {eid}: {e.__class__.__name__}: {e}", file=sys.stderr)
+    print(f"=== MEDIA-DATAS fim === {fill} datas preenchidas, {naospot} sem data "
+          f"(não-Spotify ou sem release), {erro} erros.")
+    return 0
+
+
 def processar_abcch(args, writer):
     """--abcch: espelha o studbook da ABCCH (api.abcch.com.br) → tabela
     genealogia. Varre /pesquisa/ por a–z + 0–9, deduplica por CdToken (~46k
@@ -1309,6 +1352,9 @@ def main(argv=None):
     ap.add_argument("--spotify-show", dest="spotify_show", metavar="URL",
                     help="Importa todos os episódios de um show do Spotify pra media. --write grava.")
     ap.add_argument("--programa", help="Nome do programa/aba (default: nome do show).")
+    ap.add_argument("--media-datas", dest="media_datas", action="store_true",
+                    help="Preenche data_pub dos episódios SEM data, buscando a data de "
+                         "publicação ORIGINAL na fonte (Spotify Web API). --write grava.")
     args = ap.parse_args(argv)
 
     # Fase B: captura de detalhe pra inspeção (gera a fixture do parser no CI).
@@ -1502,6 +1548,14 @@ def main(argv=None):
                   file=sys.stderr)
             return 3
         return processar_spotify_show(args, writer)
+
+    if args.media_datas:
+        writer = SupabaseWriter()
+        if args.write and not writer.configured:
+            print("⚠ --media-datas --write precisa de SUPABASE_URL/SUPABASE_SERVICE_KEY.",
+                  file=sys.stderr)
+            return 3
+        return processar_media_datas(args, writer)
 
     # Atualiza a materialized view dos rankings genéticos (após scrapes do dia).
     if args.refresh_genetica:
