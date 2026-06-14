@@ -100,6 +100,10 @@ on:
         description: "Atualiza AGORA a ORDEM DE ENTRADA + RESULTADOS dos torneios acontecendo (hoje±). Use quando o cron atrasar e a ordem/resultado já saiu. Grava se write=true."
         type: boolean
         default: false
+      media_datas:
+        description: "Preenche a DATA DE PUBLICAÇÃO original dos podcasts/episódios (busca no Spotify) p/ ordenar o 'Todos' por data real. Grava se write=true."
+        type: boolean
+        default: false
   schedule:
     # COMPLETO ~07:00 e ~22:00 BRT (UTC-3): manhã da prova + véspera à noite.
     # 07h BRT = 10:00 UTC; 22h BRT = 01:00 UTC. (GitHub agenda em UTC e pode atrasar.)
@@ -159,6 +163,7 @@ jobs:
           IN_RECURAR: ${{ inputs.recurar }}
           IN_REFRESH: ${{ inputs.refresh_genetica }}
           IN_FRESCOR: ${{ inputs.frescor }}
+          IN_MEDIA_DATAS: ${{ inputs.media_datas }}
           IN_ABCCH_DET: ${{ inputs.abcch_detalhe }}
           IN_WALK_ID_MIN: ${{ inputs.walk_id_min }}
           IN_WALK_ID_MAX: ${{ inputs.walk_id_max }}
@@ -235,6 +240,12 @@ jobs:
             if [ "${IN_WRITE:-false}" = "true" ]; then
               python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
             fi
+          elif [ "${IN_MEDIA_DATAS:-false}" = "true" ]; then
+            # preenche data_pub dos podcasts buscando a data original no Spotify.
+            ARGS="--media-datas"
+            [ "${IN_WRITE:-false}" = "true" ] && ARGS="$ARGS --write"
+            echo "args: $ARGS"
+            python -m scraper.main $ARGS
           elif [ "${IN_REFRESH:-false}" = "true" ]; then
             # recompila a materialized view dos rankings genéticos (sob demanda).
             python -m scraper.main --refresh-genetica
