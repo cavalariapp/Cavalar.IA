@@ -5456,15 +5456,15 @@ async function renderMedia(tipo) {
   }
   let filtered = sel ? items.filter(m => (m.programa || '').trim() === sel) : items.slice();
   // aba "Todos": mistura os programas por DATA DE PUBLICAÇÃO (mais novo no topo).
-  // Episódios SEM data (ainda não importados/backfillados) vão pro FIM — nunca
-  // flutuam pro topo pela data de importação.
-  // "Todos": mistura por DATA DE PUBLICAÇÃO; sem ela, usa a data em que foi ADICIONADO
-  // (created_at/criado_em). Como mídia é curada manualmente, episódios novos (mesmo sem
-  // data preenchida) sobem em vez de afundar no fim. Mais recente no topo.
+  // "Todos": ordena PURAMENTE pela DATA DE PUBLICAÇÃO do episódio (data_pub),
+  // misturando os programas — mais recente no topo. Sem data → fim (até o
+  // buscador de datas preencher via Spotify/YouTube).
   if (!sel) filtered.sort((a, b) => {
-    const da = a.data_pub || a.created_at || a.criado_em || '';
-    const db = b.data_pub || b.created_at || b.criado_em || '';
-    return String(db).localeCompare(String(da));
+    const da = a.data_pub || '', db = b.data_pub || '';
+    if (da && db) return db.localeCompare(da);
+    if (da) return -1;
+    if (db) return 1;
+    return 0;
   });
   if (!filtered.length) {
     c.innerHTML = adminBar + subtabs + `<div style="padding:30px 24px;text-align:center;color:var(--muted);font-size:13px">Nenhum ${_MEDIA_LABEL[tipo].toLowerCase()} ${sel ? 'em "' + escHtml(sel) + '"' : 'disponível'} ainda.</div>`;
