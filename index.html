@@ -6301,6 +6301,20 @@ let _genRows = [];          // linhas exibidas (índice usado por abrirReproduto
 let _genAllRows = [];       // TODAS as linhas buscadas do servidor (pra filtrar a busca)
 let _genQuery = '';         // termo da busca de reprodutor
 function genBusca(v) { _genQuery = v || ''; _genList(); }
+// Admin: remove um reprodutor do ranking (marca o NOME como "não é reprodutor" via
+// rep_placeholder). O ranking exclui na próxima leitura; tiramos da lista na hora.
+async function removerMatrizRanking(i) {
+  const r = _genRows[i];
+  if (!r || !r.reprodutor) return;
+  if (!confirm(`Remover "${r.reprodutor}" do ranking genético?\n(marca o nome como "não é reprodutor" — afeta os homônimos desse nome)`)) return;
+  const { error } = await sb.rpc('add_rep_placeholder', { p_nome: r.reprodutor });
+  if (error) { alert('Erro: ' + error.message); return; }
+  const alvo = (r.reprodutor || '').toUpperCase();
+  _genAllRows = _genAllRows.filter(x => (x.reprodutor || '').toUpperCase() !== alvo);
+  DB._cache = {};
+  _genList();
+}
+
 function abrirReprodutor(i) {
   const r = _genRows[i];
   if (!r || !r.reprodutor) return;
@@ -6440,6 +6454,7 @@ function _genList() {
         <span style="color:var(--muted);font-weight:800;min-width:20px;font-size:13px">${i + 1}</span>
         <span onclick="abrirReprodutor(${i})" style="font-weight:800;font-size:15px;flex:1;min-width:0;cursor:pointer">${escHtml(r.reprodutor || '')} <span style="color:var(--muted);font-weight:400">›</span></span>
         <span style="font-size:11px;color:var(--muted);white-space:nowrap">${em(STATE.genSort === 'total', r.total_filhos + ' filhos')}</span>
+        ${_isAdmin ? `<button onclick="event.stopPropagation();removerMatrizRanking(${i})" title="Remover do ranking (não é reprodutor de verdade)" style="background:var(--surface2);border:1px solid var(--border);color:#ff8080;border-radius:6px;padding:2px 7px;font-size:12px;cursor:pointer;line-height:1.4">🚫</button>` : ''}
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5">
         +4 anos <b style="color:var(--fg)">${r.f4}</b> · competindo ${em(STATE.genSort === 'comp', r.comp)}
