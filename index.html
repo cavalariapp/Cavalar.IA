@@ -2423,30 +2423,7 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   <!-- ÚLTIMAS NOTÍCIAS -->
   <div class="sec-hdr"><span class="sec-title">Últimas Notícias</span><button class="sec-link" onclick="nav('noticias')">VER TODAS →</button></div>
   <div class="news-list" id="home-news-list">
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1028,#2a1010)"></div>
-      <div class="news-body">
-        <div class="news-cat">CSIO5*</div>
-        <div class="news-title">Brasil conquista vitória no GP 1.60m em Rotterdam</div>
-        <div class="news-date">17 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#101828,#1a1028)"></div>
-      <div class="news-body">
-        <div class="news-cat">MERCADO</div>
-        <div class="news-title">Mercado de cavalos de esporte cresce 15% em 2024</div>
-        <div class="news-date">16 MAI 2024</div>
-      </div>
-    </div>
-    <div class="news-card">
-      <div class="news-thumb" style="background:linear-gradient(135deg,#1a1a08,#081828)"></div>
-      <div class="news-body">
-        <div class="news-cat">IA ANÁLISE</div>
-        <div class="news-title">IA Cavalar: nova geração de garanhões europeus avaliada</div>
-        <div class="news-date">15 MAI 2024</div>
-      </div>
-    </div>
+    <div style="padding:18px 16px;color:var(--muted);font-size:13px">Carregando notícias…</div>
   </div>
 
   <!-- PARTNERS -->
@@ -4907,7 +4884,7 @@ async function renderNews() {
   const container = document.getElementById('home-news-list');
   if (!container) return;
   const items = await DB.news();
-  if (!items.length) return;
+  if (!items.length) { container.innerHTML = '<div style="padding:18px 16px;color:var(--muted);font-size:13px">Nenhuma notícia no momento.</div>'; return; }
   _newsCache = items;
   container.innerHTML = items.slice(0, 3).map((n, i) => `
     <div class="news-card" onclick="openNews(${n.id})">
