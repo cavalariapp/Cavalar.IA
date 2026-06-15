@@ -2435,33 +2435,21 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
+  <!-- SUB-ABAS: Notícias | Programas (uma página: Notícias & Mídias) -->
+  <div class="tabs"><button class="tab active" onclick="nav('noticias')">Notícias</button><button class="tab" onclick="nav('videoaulas')">Programas</button></div>
   <!-- HERO -->
   <div class="hero" style="min-height:380px">
     <div class="hero-bg" style="background:linear-gradient(150deg,#080e18,#120820,#0e1408)"></div>
     <div class="hero-accent-line"></div>
     <div class="hero-overlay"></div>
     <div class="hero-content">
-      <div class="eyebrow">Notícias & Análise IA</div>
+      <div class="eyebrow">Notícias & Mídias</div>
       <h2 class="hero-h1">O HIPISMO<br>EM <span class="ora">MOVIMENTO.</span></h2>
       <p class="hero-sub">Notícias, tendências, mercado e os bastidores das grandes competições.</p>
       <button class="btn-primary">
         VER TODAS AS NOTÍCIAS
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
       </button>
-    </div>
-  </div>
-
-  <!-- AI ANALYSIS CARD -->
-  <div class="ai-card">
-    <div class="ai-hdr">
-      <div class="ai-badge">IA CAVALAR</div>
-      <div class="ai-hdr-title">Destaque Genético</div>
-      <span id="ai-card-date" style="margin-left:auto;font-size:9.5px;color:rgba(255,255,255,.45)"></span>
-    </div>
-    <div class="ai-body">
-      <div class="ai-headline">Carregando análise…</div>
-      <div class="ai-summary"></div>
-      <div class="ai-tags"></div>
     </div>
   </div>
 
@@ -2495,6 +2483,8 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
   </div>
 
+  <!-- SUB-ABAS: Notícias | Programas (uma página: Notícias & Mídias) -->
+  <div class="tabs"><button class="tab" onclick="nav('noticias')">Notícias</button><button class="tab active" onclick="nav('videoaulas')">Programas</button></div>
   <!-- HERO -->
   <div class="hero" style="min-height:360px">
     <div class="hero-bg" style="background:linear-gradient(150deg,#080d18,#0e0820,#18100a)"></div>
@@ -2762,6 +2752,41 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 <!-- ============================================================
      SCREEN: LEILÃO / PREGÃO
 ============================================================ -->
+<div class="screen" id="scr-ia">
+  <div class="topbar">
+    <svg class="logo-img" viewBox="0 0 4000 500" height="32" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
+    <div class="topbar-right"><button class="btn-hamburger"><span></span><span></span><span></span></button></div>
+  </div>
+  <div class="hero" style="min-height:300px">
+    <div class="hero-bg" style="background:linear-gradient(150deg,#0a0820,#120a28,#081820)"></div>
+    <div class="hero-accent-line"></div><div class="hero-overlay"></div>
+    <div class="hero-content">
+      <div class="eyebrow">Inteligência Cavalar</div>
+      <h2 class="hero-h1">IA <span class="ora">CAVALAR.</span></h2>
+      <p class="hero-sub">Análises cruzando genética e resultados — e mídias geradas por IA.</p>
+    </div>
+  </div>
+  <div class="ai-card">
+    <div class="ai-hdr">
+      <div class="ai-badge">IA CAVALAR</div>
+      <div class="ai-hdr-title">Destaque Genético</div>
+      <span id="ai-card-date" style="margin-left:auto;font-size:9.5px;color:rgba(255,255,255,.45)"></span>
+    </div>
+    <div class="ai-body">
+      <div class="ai-headline">Carregando análise…</div>
+      <div class="ai-summary"></div>
+      <div class="ai-tags"></div>
+    </div>
+  </div>
+  <div style="padding:14px 16px 4px">
+    <button onclick="openChatbot()" style="width:100%;background:var(--accent);color:#08111c;border:none;border-radius:10px;padding:13px;font-weight:800;cursor:pointer">💬 Conversar com a IA Cavalar</button>
+  </div>
+  <div class="sec-hdr" style="margin-top:18px"><span class="sec-title">Podcasts por IA</span></div>
+  <div style="padding:0 16px 8px;color:var(--muted);font-size:13px;line-height:1.6">Em breve: episódios e resumos gerados por IA sobre o cenário do hipismo.</div>
+  <div class="sec-hdr" style="margin-top:16px"><span class="sec-title">Análises de artigos científicos</span></div>
+  <div style="padding:0 16px 36px;color:var(--muted);font-size:13px;line-height:1.6">Em breve: leituras de estudos de genética e esporte equestre, explicadas pela IA Cavalar.</div>
+</div>
+
 <div class="screen" id="scr-leilao">
   <div class="topbar">
     <svg class="logo-img" viewBox="0 0 4000 500" height="32" style="" xmlns="http://www.w3.org/2000/svg" aria-label="CAVALAR.IA" role="img"><image href="logo-white.png" width="4000" height="500"/></svg>
@@ -3022,9 +3047,9 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>
     Notícias
   </button>
-  <button class="nav-btn" id="nb-videoaulas" onclick="nav('videoaulas')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-    Programas
+  <button class="nav-btn" id="nb-ia" onclick="nav('ia')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z"/><path d="M5 15l.9 2.1L8 18l-2.1.9L5 21l-.9-2.1L2 18l2.1-.9z"/></svg>
+    IA Cavalar
   </button>
   <button class="nav-btn" id="nb-leilao" onclick="nav('leilao')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4l5.5 5.5L8 22H2v-6L14.5 4z"/></svg>
@@ -3254,7 +3279,7 @@ async function auto(fn) { try { await fn(); } catch(e) { console.warn(e); } }
 // ─── NAVIGATION ───────────────────────────────────────────────
 // Inclui TODAS as telas — senão, ao sair de mensagens/comunidade/feed-global
 // elas não recebem remove('active') e ficam empilhadas por cima da home.
-const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios', 'admin-cupons', 'admin-aliases', 'admin-altura', 'admin-apagar'];
+const SCREENS = ['onboarding', 'home', 'noticias', 'videoaulas', 'ia', 'leilao', 'genetica', 'cavalo', 'cavaleiro', 'feed-global', 'mensagens', 'comunidade', 'assinatura', 'admin-patrocinios', 'admin-cupons', 'admin-aliases', 'admin-altura', 'admin-apagar'];
 
 function _fecharOverlays() {
   document.body.style.overflow = '';            // destrava o scroll
@@ -3283,8 +3308,12 @@ function nav(id) {
     try { Object.values(_featTimers).forEach(t => clearInterval(t)); } catch (_) {}
     const _bh = document.getElementById('banner-home'); if (_bh && _bh._timer) { clearTimeout(_bh._timer); _bh._timer = null; }
   }
+  // carrossel de destaques (tela Notícias) não fica rodando em segundo plano
+  if (id !== 'noticias') { try { if (_dqTimer) { clearInterval(_dqTimer); _dqTimer = null; } } catch (_) {} }
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  const nb = document.getElementById('nb-' + id);
+  // 'videoaulas' (Programas) faz parte da página "Notícias & Mídias" → acende o nb-noticias.
+  const navId = (id === 'videoaulas') ? 'noticias' : id;
+  const nb = document.getElementById('nb-' + navId);
   if (nb) nb.classList.add('active');
   const bn = document.getElementById('bottom-nav');
   bn.style.display = id === 'onboarding' ? 'none' : 'flex';
@@ -3303,6 +3332,8 @@ function nav(id) {
   if (id === 'admin-aliases') auto(renderAdminAliases);
   if (id === 'admin-altura') auto(renderAdminAltura);
   if (id === 'admin-apagar') auto(renderAdminApagar);
+  if (id === 'videoaulas') auto(() => renderMedia());
+  if (id === 'ia') auto(renderNewsScreen);
   if (id === 'noticias') renderBanners('noticias', 'banner-noticias');
   if (id === 'videoaulas') renderBanners('programas', 'banner-programas');
   if (id === 'home') renderBanners('home', 'banner-home');
@@ -6028,7 +6059,8 @@ function closeNewsModal(e) {
 }
 
 async function initNoticias() {
-  await Promise.all([renderNewsScreen(), renderNoticiasScreenList()]);
+  // o card de análise foi pra página IA Cavalar; aqui só a lista de notícias.
+  await renderNoticiasScreenList();
 }
 
 // ─── ADMIN DE NOTÍCIAS (só aparece p/ profile is_admin) ──────────────
