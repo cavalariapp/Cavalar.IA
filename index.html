@@ -74,12 +74,12 @@ body {
   display: none;
   min-height: 100dvh;
   padding-bottom: 80px;
-  animation: fadeIn .18s ease;
+  animation: fadeIn .26s cubic-bezier(.22,.61,.36,1);
 }
 .screen.active { display: block; }
 .screen.fullscreen { padding-bottom: 0; }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
 /* ===========================
    TOP BAR
@@ -1722,6 +1722,9 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
 .seg-btn svg { width: 16px; height: 16px; }
 .seg-btn.active { background: var(--accent); color: #08111c; box-shadow: 0 2px 10px rgba(0,0,0,.28); }
 .seg-btn:not(.active):active { background: rgba(255,255,255,.05); }
+/* fixa o seletor logo abaixo da topbar (58px) — sempre visível ao rolar */
+.seg-wrap { position: sticky; top: 58px; z-index: 90; background: var(--bg); box-shadow: 0 8px 12px -10px rgba(0,0,0,.6); }
+.seg-wrap .seg-nav { margin-top: 8px; }
 .tab {
   flex: 1;
   padding: 12px 8px;
@@ -2451,10 +2454,10 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </div>
 
   <!-- SUB-ABAS: Notícias | Programas (uma página: Notícias & Mídias) -->
-  <div class="seg-nav">
+  <div class="seg-wrap"><div class="seg-nav">
     <button class="seg-btn active" onclick="nav('noticias')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>Notícias</button>
     <button class="seg-btn" onclick="nav('videoaulas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>Programas</button>
-  </div>
+  </div></div>
   <!-- HERO -->
   <div class="hero" style="min-height:380px">
     <div class="hero-bg" style="background:linear-gradient(150deg,#080e18,#120820,#0e1408)"></div>
@@ -2502,10 +2505,10 @@ body.player-on.player-min .screen { padding-bottom: 92px; }
   </div>
 
   <!-- SUB-ABAS: Notícias | Programas (uma página: Notícias & Mídias) -->
-  <div class="seg-nav">
+  <div class="seg-wrap"><div class="seg-nav">
     <button class="seg-btn" onclick="nav('noticias')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>Notícias</button>
     <button class="seg-btn active" onclick="nav('videoaulas')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>Programas</button>
-  </div>
+  </div></div>
   <!-- HERO -->
   <div class="hero" style="min-height:360px">
     <div class="hero-bg" style="background:linear-gradient(150deg,#080d18,#0e0820,#18100a)"></div>
