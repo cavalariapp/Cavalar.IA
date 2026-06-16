@@ -6724,33 +6724,34 @@ function _cavaloVoltarBusca(focus) {
 async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
   let c = _cavaloCache[i];
   if (!c) return;
-  // MATCH/apelido: abre SEMPRE o MESMO indivíduo CANÔNICO, venha da BUSCA ou do RANKING.
-  // resolver_cavalo_full devolve, para QUALQUER nome do grupo do match:
-  //   - display_nome: a grafia CANÔNICA p/ o cabeçalho;
+  // RESOLUÇÃO ÚNICA E PADRONIZADA — vale p/ TODOS os pontos de entrada (busca da página
+  // Cavalos, ranking genético, ranking de zeros, resultados, pai/mãe, filhos). SEMPRE
+  // resolve o MESMO indivíduo CANÔNICO, COM ou SEM token. resolver_cavalo_full devolve:
+  //   - display_nome: a grafia CANÔNICA p/ o cabeçalho (a definida no match);
   //   - pedigree (pai/mãe/nascimento/sexo/token) do indivíduo + tem_gen (mostra genética);
-  //   - tem_alias: se o grupo tem apelidos (→ desliga o filtro anti-homônimo por
-  //     nascimento, que zerava a performance de cavalos casados; historico_cavalo já
-  //     restringe ao grupo canônico + segurança de idade no servidor).
-  // Homônimos NÃO casados não têm alias → tem_alias=false → filtro segue ativo (separados).
-  // Não mexe no fluxo do reprodutor por token (repToken já é o indivíduo certo).
+  //   - tem_alias: o grupo tem apelidos (→ desliga o filtro anti-homônimo por nascimento,
+  //     que zerava a performance de cavalos casados; o servidor já restringe ao grupo
+  //     canônico + segurança de idade).
+  // ANTES: o ranking genético (com token) PULAVA esta resolução → nome divergente no
+  // cabeçalho + filtro anti-homônimo ligado zerando a performance ("ora mostra, ora não").
+  // AGORA o token (quando vem do ranking) é repassado ao resolvedor: o indivíduo segue
+  // sendo o exato (separa homônimos), mas o cabeçalho e o tem_alias ficam corretos.
   let _viaAlias = false;
-  if (!repToken) {
-    try {
-      const { data } = await sb.rpc('resolver_cavalo_full', { p_nome: c.nome });
-      const d = data && data[0];
-      if (d) {
-        _viaAlias = !!d.tem_alias;
-        c = {
-          nome: d.display_nome || c.nome,
-          nn: _normNome(d.display_nome || c.nome),
-          cd_token: d.cd_token, registro: c.registro,
-          nascimento: d.nascimento, sexo: d.sexo, pai: d.pai, mae: d.mae,
-          gen: !!d.tem_gen, comp: true,
-        };
-        _cavaloCache[i] = c;
-      }
-    } catch (_) {}
-  }
+  try {
+    const { data } = await sb.rpc('resolver_cavalo_full', { p_nome: c.nome, p_token: repToken });
+    const d = data && data[0];
+    if (d) {
+      _viaAlias = !!d.tem_alias;
+      c = {
+        nome: d.display_nome || c.nome,
+        nn: _normNome(d.display_nome || c.nome),
+        cd_token: d.cd_token || repToken || c.cd_token, registro: c.registro,
+        nascimento: d.nascimento, sexo: d.sexo, pai: d.pai, mae: d.mae,
+        gen: !!d.tem_gen, comp: true,
+      };
+      _cavaloCache[i] = c;
+    }
+  } catch (_) {}
   const wrap = document.getElementById('cavalo-perfil');
   document.getElementById('cavalo-list').style.display = 'none';
   document.querySelector('#scr-cavalo .search-wrap').parentElement.style.display = 'none';
@@ -6769,16 +6770,25 @@ async function abrirPerfilCavalo(i, repToken = null, repPapel = null) {
   // busca — ex.: garanhão importado). Tenta o papel pelo sexo; se desconhecido,
   // tenta pai e depois mãe. Resultados (compilado) = PREMIUM via RPC protegida.
   const papel = repPapel || (c.sexo === 'F' ? 'mae' : (c.sexo === 'M' ? 'pai' : null));
-  // repToken (vindo do ranking) filtra a progênie por mae_token/pai_token EXATO —
-  // separa homônimos (ex.: as 4 "Olympia"). Sem token → por nome (comportamento antigo).
+  // PROGÊNIE padronizada: usa o token (do ranking OU o resolvido na busca) p/ separar
+  // homônimos (ex.: as 4 "Olympia") e, se o token não trouxer nada (reprodutor cujos
+  // filhos não têm token gravado), CAI PARA o nome. Sexo desconhecido → tenta os dois
+  // papéis. Assim a MESMA lista de filhos aparece venha do ranking ou da busca.
+  const progTok = repToken || c.cd_token || null;
+  const primPapel = papel || 'pai';
   const [resQ, filQ] = await Promise.all([
     _isPremium ? sb.rpc('historico_cavalo', { p_nome: nome1 }) : Promise.resolve({ data: [] }),
-    sb.rpc('progenie', { papel: papel || 'pai', rep: nome1, rep_token: repToken || null }),
+    sb.rpc('progenie', { papel: primPapel, rep: nome1, rep_token: progTok }),
   ]);
   let filhos = filQ.data || [];
-  if (!filhos.length && !papel && !repToken) {   // sexo desconhecido, sem token → tenta mãe
-    const { data } = await sb.rpc('progenie', { papel: 'mae', rep: nome1, rep_token: null });
+  if (!filhos.length && progTok) {                // token sem filhos → tenta por NOME
+    const { data } = await sb.rpc('progenie', { papel: primPapel, rep: nome1, rep_token: null });
     filhos = data || [];
+  }
+  if (!filhos.length && !papel) {                 // sexo desconhecido → tenta 'mae' (token e nome)
+    let r2 = progTok ? await sb.rpc('progenie', { papel: 'mae', rep: nome1, rep_token: progTok }) : { data: [] };
+    if (!(r2.data && r2.data.length)) r2 = await sb.rpc('progenie', { papel: 'mae', rep: nome1, rep_token: null });
+    filhos = r2.data || [];
   }
   // mapeia o retorno achatado da RPC pro formato aninhado que a renderização usa
   let meus = (resQ.data || []).map(r => ({
