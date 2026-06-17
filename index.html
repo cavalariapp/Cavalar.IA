@@ -5561,6 +5561,12 @@ async function renderMedia(tipo) {
              <div class="media-balloon-prog">${escHtml(m.programa || _MEDIA_LABEL[tipo])}</div>
              <div class="media-balloon-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><polygon points="5,3 19,12 5,21"/></svg></div>
            </div>`;
+        // áudio PRÓPRIO sem capa → balão genérico c/ ícone de fone (toca no player nativo)
+        if (m.audio_path) return `<div class="media-balloon" style="background:${escHtml(bf.cor || '#1e66ff')}" onclick="playMedia('${tipo}',${m.id})" title="Ouvir">
+             <div class="media-balloon-logo" style="display:flex;align-items:center;justify-content:center;font-size:26px">🎧</div>
+             <div class="media-balloon-prog">${escHtml(m.programa || m.titulo || _MEDIA_LABEL[tipo])}</div>
+             <div class="media-balloon-play"><svg width="15" height="15" viewBox="0 0 24 24" fill="#fff"><polygon points="5,3 19,12 5,21"/></svg></div>
+           </div>`;
         const info = _embedInfo(m.url);
         return info ? `<div class="media-presenter ${info.kind}">${mediaEmbed(m.url)}<div class="media-presenter-tap" onclick="playMedia('${tipo}',${m.id})" title="${tipo === 'podcast' ? 'Ouvir' : 'Assistir'}"></div></div>`
           : `<a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:6px;color:var(--accent);font-weight:700;font-size:13px">Abrir link ↗</a>`;
@@ -5661,6 +5667,14 @@ function playMediaDirect(m) {
   document.getElementById('mini-player-title').textContent = m.titulo || '';
   if (_spotifyCtrl) { try { _spotifyCtrl.destroy(); } catch (_) {} _spotifyCtrl = null; }
   _spotifyPending = null;
+  if (m.audio_path) {                                  // ÁUDIO PRÓPRIO (Storage privado; premium via RLS)
+    mp.className = 'show audio';
+    body.innerHTML = '<div style="padding:14px;color:var(--muted);font-size:13px">Carregando áudio…</div>';
+    document.body.classList.add('player-on');
+    document.body.classList.remove('player-min');
+    _mountAudioProprio(m.audio_path);
+    return;
+  }
   const info = _embedInfo(m.url);
   if (!info) {
     body.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px">Link não suportado. <a href="${escHtml(m.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Abrir ↗</a></div>`;
@@ -5677,6 +5691,23 @@ function playMediaDirect(m) {
   }
   document.body.classList.add('player-on');
   document.body.classList.remove('player-min');
+}
+
+// Gera a URL ASSINADA (temporária) do áudio próprio e monta o player nativo. A URL só
+// é emitida para quem é premium (RLS de leitura do bucket); deslogado/free → erro tratado.
+async function _mountAudioProprio(path) {
+  const body = document.getElementById('mini-player-body');
+  if (!body) return;
+  try {
+    const { data, error } = await sb.storage.from('podcasts').createSignedUrl(path, 60 * 60 * 6); // 6h
+    if (error || !data || !data.signedUrl) throw (error || new Error('sem url'));
+    body.innerHTML = `<div style="padding:12px 12px 14px;background:var(--surface)">
+        <audio controls autoplay playsinline preload="metadata" style="width:100%;display:block">
+          <source src="${data.signedUrl}">Seu navegador não suporta áudio.
+        </audio></div>`;
+  } catch (e) {
+    body.innerHTML = `<div style="padding:14px;color:var(--muted);font-size:13px">Não foi possível carregar o áudio${_isPremium ? '.' : ' — exclusivo para assinantes.'}</div>`;
+  }
 }
 
 function fecharMiniPlayer() {
@@ -5717,9 +5748,13 @@ function _ensureMediaEditor() {
         <button onclick="closeMediaEditor()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1">×</button>
       </div>
       <input id="me-id" type="hidden"/><input id="me-tipo" type="hidden"/>
-      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Link (YouTube ou Spotify)</label>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Link (YouTube ou Spotify) <span style="font-weight:400">— ou suba um áudio abaixo</span></label>
       <input id="me-url" placeholder="https://www.youtube.com/watch?v=… ou https://open.spotify.com/episode/…" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
       <div id="me-preview" style="margin-top:10px"></div>
+      <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:12px 0 4px">Áudio próprio (MP3/M4A) <span style="font-weight:400">— hospeda no app, sem Spotify. Marque 🔒 Premium pra travar só p/ assinantes.</span></label>
+      <input id="me-audio" type="file" accept="audio/*" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--fg);font-size:12.5px"/>
+      <input id="me-audio-path" type="hidden"/>
+      <div id="me-audio-cur" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Título</label>
       <input id="me-titulo" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px;color:var(--fg);font-size:13px"/>
       <label style="display:block;font-size:11px;font-weight:700;color:var(--muted);margin:10px 0 4px">Programa / Canal (vira uma aba)</label>
@@ -5791,6 +5826,11 @@ function openMediaEditor(tipo, id) {
   document.getElementById('me-programa').value = m ? (m.programa || '') : '';
   document.getElementById('me-cor').value = (m && m.cor) || '#1e66ff';
   document.getElementById('me-imagem').value = m ? (m.imagem || '') : '';
+  // áudio próprio (Storage): zera o seletor, guarda o caminho atual p/ manter ao editar
+  const _auEl = document.getElementById('me-audio'); if (_auEl) _auEl.value = '';
+  document.getElementById('me-audio-path').value = m ? (m.audio_path || '') : '';
+  document.getElementById('me-audio-cur').textContent = (m && m.audio_path)
+    ? '✓ Áudio já hospedado — deixe vazio p/ manter, ou escolha outro p/ trocar.' : '';
   // sugestões de programas já existentes (admin escolhe ou digita um novo)
   const progs = STATE._mediaProgramas[tipo] || [...new Set((STATE.mediaCache[tipo] || []).map(x => (x.programa || '').trim()).filter(Boolean))];
   document.getElementById('me-programa-list').innerHTML = (progs || []).map(p => `<option value="${escHtml(p)}">`).join('');
@@ -5815,14 +5855,28 @@ async function saveMediaEditor() {
   const tipo = document.getElementById('me-tipo').value;
   const url = document.getElementById('me-url').value.trim();
   const titulo = document.getElementById('me-titulo').value.trim();
-  if (!url) { msg.textContent = 'Cole o link do YouTube ou Spotify.'; return; }
+  const fileEl = document.getElementById('me-audio');
+  const file = fileEl && fileEl.files && fileEl.files[0];
+  let audioPath = (document.getElementById('me-audio-path').value || '').trim() || null;
+  if (!url && !file && !audioPath) { msg.textContent = 'Cole um link (YouTube/Spotify) OU suba um arquivo de áudio.'; return; }
   if (!titulo) { msg.textContent = 'Título é obrigatório.'; return; }
   const id = document.getElementById('me-id').value;
-  let imagem = document.getElementById('me-imagem').value.trim() || null;
-  if (!imagem) imagem = await _autoLogo(url);   // garante a capa da fonte mesmo sem digitar
-  const rec = { tipo, url, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null, premium: document.getElementById('me-premium').checked, data_pub: document.getElementById('me-data').value || null };
-  btn.disabled = true; msg.style.color = 'var(--muted)'; msg.textContent = 'Salvando...';
+  btn.disabled = true; msg.style.color = 'var(--muted)';
   try {
+    // áudio PRÓPRIO: sobe o arquivo escolhido pro bucket privado e usa o caminho
+    if (file) {
+      if (file.size > 100 * 1024 * 1024) throw new Error('Áudio acima de 100MB — comprima antes de subir.');
+      msg.textContent = 'Enviando áudio… pode levar 1–2 min, não feche.';
+      const safe = (file.name || 'audio').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-60);
+      const path = `ep/${Date.now()}_${safe}`;
+      const { error: upErr } = await sb.storage.from('podcasts').upload(path, file, { contentType: file.type || 'audio/mpeg', upsert: false });
+      if (upErr) throw new Error('upload: ' + (upErr.message || upErr));
+      audioPath = path;
+    }
+    let imagem = document.getElementById('me-imagem').value.trim() || null;
+    if (!imagem && url) imagem = await _autoLogo(url);   // capa da fonte (só faz sentido p/ link)
+    const rec = { tipo, url: url || null, audio_path: audioPath, titulo, programa: document.getElementById('me-programa').value.trim() || null, cor: document.getElementById('me-cor').value || null, imagem, legenda: document.getElementById('me-legenda').value.trim() || null, premium: document.getElementById('me-premium').checked, data_pub: document.getElementById('me-data').value || null };
+    msg.textContent = 'Salvando…';
     let error;
     if (id) ({ error } = await sb.from('media').update(rec).eq('id', id));
     else {
@@ -5848,6 +5902,7 @@ async function deleteMediaAdmin(tipo, id) {
   try {
     const { error } = await sb.from('media').delete().eq('id', id);
     if (error) throw error;
+    if (m && m.audio_path) { try { await sb.storage.from('podcasts').remove([m.audio_path]); } catch (_) {} }  // remove o arquivo órfão
     DB._cache = {};
     await renderMedia(tipo);
     showToast('Excluído');
