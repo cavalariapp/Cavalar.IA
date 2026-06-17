@@ -13,6 +13,7 @@ Campos batem com resultados.html (estr.provas[].numero/data/horario/tabela;
 estr.dias[].horarios[].prova_numero/hora/pista) e com a função chat.
 Requer ANTHROPIC_API_KEY no ambiente. Best-effort: erro num doc não derruba o lote.
 """
+import base64
 import io
 import json
 import re
@@ -69,26 +70,36 @@ _PROMPTS = {
 }
 
 
-def extrair_texto_pdf(url, timeout=60):
-    """Baixa o PDF e extrai o texto (pypdf). Tolerante a Content-Length errado (stream)."""
-    from pypdf import PdfReader
+def baixar_pdf_bytes(url, timeout=60):
+    """Baixa o PDF e devolve os BYTES crus (pro Claude ler visualmente)."""
     r = requests.get(url, headers=UA, timeout=timeout, stream=True)
     r.raise_for_status()
-    data = r.raw.read(decode_content=True)
+    return r.raw.read(decode_content=True)
+
+
+def extrair_texto_pdf(url, timeout=60, _bytes=None):
+    """Extrai o texto (pypdf). Aceita os bytes já baixados (evita baixar 2x)."""
+    from pypdf import PdfReader
+    data = _bytes if _bytes is not None else baixar_pdf_bytes(url, timeout=timeout)
     reader = PdfReader(io.BytesIO(data))
     return "\n".join((pg.extract_text() or "") for pg in reader.pages).strip()
 
 
-def estruturar(tipo, texto, api_key):
-    """Manda o texto pro Claude e devolve o dict estruturado (ou None se o tipo não
-    tem schema / texto vazio / resposta inválida)."""
-    prompt = _PROMPTS.get(tipo)
-    if not prompt or not texto:
-        return None
-    body = {
-        "model": MODEL, "max_tokens": 8192,   # programas grandes (50+ provas) cabem
-        "messages": [{"role": "user", "content": prompt + "\n\n=== TEXTO ===\n" + texto[:60000]}],
-    }
+def dias_validas(estrut):
+    """True se o estruturado é uma GRADE de horários DE VERDADE: tem >=1 dia com >=1
+    horário preenchido. Filtra grades vazias/malformadas (a "caixa preta" do app)."""
+    if not isinstance(estrut, dict):
+        return False
+    dias = estrut.get("dias")
+    return isinstance(dias, list) and any(
+        isinstance(d, dict) and isinstance(d.get("horarios"), list)
+        and any(isinstance(h, dict) and (h.get("hora") or h.get("prova_nome")) for h in d["horarios"])
+        for d in dias)
+
+
+def _claude_json(content, api_key):
+    """POST genérico p/ a Messages API → devolve o 1º objeto JSON da resposta (ou None)."""
+    body = {"model": MODEL, "max_tokens": 8192, "messages": [{"role": "user", "content": content}]}
     r = requests.post(ANTHROPIC_URL, timeout=180, data=json.dumps(body), headers={
         "x-api-key": api_key, "anthropic-version": "2023-06-01", "content-type": "application/json"})
     r.raise_for_status()
@@ -100,3 +111,28 @@ def estruturar(tipo, texto, api_key):
         return json.loads(m.group(0))
     except Exception:
         return None
+
+
+def estruturar(tipo, texto, api_key):
+    """Estrutura a partir do TEXTO extraído (programas/adendos em prosa). Devolve o dict
+    ou None (tipo sem schema / texto vazio / resposta inválida)."""
+    prompt = _PROMPTS.get(tipo)
+    if not prompt or not texto:
+        return None
+    return _claude_json(prompt + "\n\n=== TEXTO ===\n" + texto[:60000], api_key)
+
+
+def estruturar_pdf(tipo, pdf_bytes, api_key):
+    """Estrutura a partir do PDF ENVIADO AO CLAUDE (lê o layout VISUAL). Essencial p/
+    QUADROS DE HORÁRIOS: muitos são tabelas/grades que a extração de texto (pypdf)
+    destrói — o Claude lendo o PDF cru enxerga colunas/dias/horários corretamente."""
+    prompt = _PROMPTS.get(tipo)
+    if not prompt or not pdf_bytes:
+        return None
+    b64 = base64.standard_b64encode(pdf_bytes).decode("ascii")
+    content = [
+        {"type": "document", "source": {"type": "base64",
+                                        "media_type": "application/pdf", "data": b64}},
+        {"type": "text", "text": prompt},
+    ]
+    return _claude_json(content, api_key)

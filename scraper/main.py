@@ -1231,28 +1231,42 @@ def estruturar_docs(writer, limit=None):
     ok = err = 0
     for d in docs:
         try:
-            texto = E.extrair_texto_pdf(d["url_pdf"])
-            # Um QUADRO DE HORÁRIOS pode chegar rotulado como 'adendo' (ex.: "Quadro
-            # atualizado"). Se o título indica horários E o texto é um quadro de
-            # verdade (muitos HH:MM), estrutura com o schema 'horarios' (dias) — assim
-            # o app mostra com os acordeões como "Quadro de Horários Atualizado".
-            tipo_efetivo = d["tipo"]
-            if tipo_efetivo != "horarios":
-                titulo = (d.get("titulo") or "")
-                n_horarios = len(re.findall(r"\b\d{1,2}[:h]\d{2}\b", texto or ""))
-                titulo_quadro = re.search(r"quadro|hor[áa]rio", titulo, re.I)
-                # Reclassifica como QUADRO DE HORÁRIOS (schema 'horarios' → grade `dias`)
-                # quando: o título indica horário e o texto tem ≥5 horários; OU é um
-                # ADENDO recheado de horários (≥10), mesmo com título genérico ("ADENDO")
-                # — assim o app mostra com acordeões como "Quadro de Horários Atualizado".
-                if (titulo_quadro and n_horarios >= 5) or \
-                   (d["tipo"] == "adendo" and n_horarios >= 10):
-                    tipo_efetivo = "horarios"
-            estrut = E.estruturar(tipo_efetivo, texto, key)
+            pdf_bytes = E.baixar_pdf_bytes(d["url_pdf"])
+            try:
+                texto = E.extrair_texto_pdf(d["url_pdf"], _bytes=pdf_bytes)
+            except Exception:
+                texto = ""   # PDF escaneado/sem camada de texto → segue só pelo visual
+            titulo = (d.get("titulo") or "")
+            n_horarios = len(re.findall(r"\b\d{1,2}[:h]\d{2}\b", texto or ""))
+            # É um QUADRO DE HORÁRIOS? Sinais: tipo já 'horarios'; OU o TÍTULO indica quadro
+            # (FPH publica "QUADRO ATUALIZADO"); OU densidade de horários no texto (≥6).
+            # MUITOS quadros são TABELAS VISUAIS que o pypdf destrói (às vezes 0 horários no
+            # texto!) → o título é o sinal confiável; por isso mandamos o PDF pro Claude LER
+            # VISUALMENTE (estruturar_pdf), validamos a grade (dias_validas) e só então usamos.
+            eh_quadro = d["tipo"] == "horarios" \
+                or bool(re.search(r"quadro|grade\s+de\s+hor|hor[áa]rio", titulo, re.I)) \
+                or n_horarios >= 6
+            tag = d["tipo"]
+            if eh_quadro:
+                try:
+                    estrut = E.estruturar_pdf("horarios", pdf_bytes, key)   # Claude lê o PDF
+                except Exception as _pe:
+                    print(f"    (pdf-visual falhou doc {d['id']}: {_pe.__class__.__name__}) → tenta texto", file=sys.stderr)
+                    estrut = None
+                if E.dias_validas(estrut):
+                    tag = "horarios(pdf-visual)"
+                else:
+                    alt = E.estruturar("horarios", texto, key) if texto else None
+                    if E.dias_validas(alt):
+                        estrut, tag = alt, "horarios(texto)"
+                    else:   # não é grade de verdade → estrutura no tipo original (resumo)
+                        estrut = E.estruturar(d["tipo"], texto, key) if texto else None
+                        tag = d["tipo"] + "(sem-grade)"
+            else:
+                estrut = E.estruturar(d["tipo"], texto, key)
             writer.set_documento_estruturado(d["id"], texto=texto, estrut=estrut)
-            print(f"  ✓ doc {d['id']} [{d['tipo']}"
-                  f"{'→horarios' if tipo_efetivo != d['tipo'] else ''}] texto={len(texto)}c "
-                  f"estrut={'sim' if estrut else 'não'}")
+            print(f"  ✓ doc {d['id']} [{d['tipo']}→{tag}] texto={len(texto)}c "
+                  f"horarios_txt={n_horarios} grade={'OK' if E.dias_validas(estrut) else '—'}")
             ok += 1
         except Exception as e:
             print(f"  ⚠ doc {d['id']}: {e.__class__.__name__}: {e}", file=sys.stderr)

@@ -7367,7 +7367,12 @@ async function _loadTorneioDetail(evtId) {
   // Quando uma CORREÇÃO de horários chega como ADENDO mas o conteúdo estruturado é
   // um quadro de verdade (tem .dias), tratamos como QUADRO DE HORÁRIOS ATUALIZADO:
   // sai dos Adendos e entra no Quadro de Horários (com os acordeões), rotulado.
-  const _temDias = d => d.conteudo_estruturado && Array.isArray(d.conteudo_estruturado.dias) && d.conteudo_estruturado.dias.length;
+  // QUADRO de verdade = tem ≥1 dia com ≥1 horário preenchido. (Só .dias.length deixava
+  // passar grades vazias/malformadas → o app mostrava uma "caixa preta". Agora valida o
+  // conteúdo: bate com dias_validas() do scraper.)
+  const _temDias = d => !!(d.conteudo_estruturado && Array.isArray(d.conteudo_estruturado.dias)
+    && d.conteudo_estruturado.dias.some(dia => dia && Array.isArray(dia.horarios)
+        && dia.horarios.some(h => h && (h.hora || h.prova_nome))));
   const quadrosAtualizados = porTipo.adendo.filter(_temDias);
   porTipo.adendo = porTipo.adendo.filter(d => !_temDias(d));
 
@@ -7572,24 +7577,28 @@ function _blocoHorariosDerivado(programaDocs) {
 
 // Renderização Quadro de Horários — ACORDEÃO por dia (estilo do app)
 function _renderHorarios(s) {
-  if (!s.dias || !s.dias.length) {
-    return `<div class="doc-pending">Quadro vazio ou não reconhecido.</div>`;
+  // Mantém só dias com horários DE VERDADE (sem acordeão vazio nem "caixa preta").
+  const dias = (s && Array.isArray(s.dias) ? s.dias : [])
+    .map(d => ({ ...d, horarios: (d && Array.isArray(d.horarios) ? d.horarios : []).filter(h => h && (h.hora || h.prova_nome)) }))
+    .filter(d => d.horarios.length);
+  if (!dias.length) {
+    return `<div class="doc-pending">Horários ainda não reconhecidos neste documento. Abra o PDF original abaixo.</div>`;
   }
   return `
     <div class="qh-wrap">
       ${s.validade ? `<div class="qh-validade">Versão de ${escHtml(s.validade)}</div>` : ''}
-      ${s.dias.map((dia, i) => `
+      ${dias.map((dia, i) => `
         <details class="qh-acc"${i === 0 ? ' open' : ''}>
           <summary class="qh-acc-sum">
             <div class="qh-acc-day">
               <div class="qh-dia-data">${escHtml(dia.data || '—')}</div>
               <div class="qh-dia-semana">${escHtml(dia.dia_semana || '')}</div>
             </div>
-            <span class="qh-acc-count">${(dia.horarios || []).length} prova${(dia.horarios || []).length !== 1 ? 's' : ''}</span>
+            <span class="qh-acc-count">${dia.horarios.length} prova${dia.horarios.length !== 1 ? 's' : ''}</span>
             <svg class="qh-acc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </summary>
           <div class="qh-provas">
-            ${(dia.horarios || []).map(h => `
+            ${dia.horarios.map(h => `
               <div class="qh-row">
                 <div class="qh-hora">${escHtml(h.hora || '--:--')}</div>
                 <div class="qh-prova">
