@@ -183,6 +183,10 @@ jobs:
             # AUTO-CURA dirigida: re-raspa só as provas já realizadas, com inscritos e
             # SEM resultado (buracos por timing/baremo). Barato e self-heal contínuo.
             python -m scraper.main --curar-buracos --write || echo "curar-buracos pulado"
+            # ESTRUTURA docs novos a cada 2h: QUADRO ATUALIZADO é urgente (evento rolando)
+            # e não pode esperar o cron diário. Lote 15, só docs sem conteudo_estruturado
+            # → na maioria dos ciclos a fila está vazia (custo ~zero).
+            python -m scraper.main --estruturar || echo "estruturar pulado"
           elif [ "${{ github.event_name }}" = "schedule" ]; then
             # AUTOMAÇÃO COMPLETA (22h e 7h BRT): 1) reconcilia id_nativo do mês atual
             # → 2) detalhe dos próximos torneios (provas+dia+docs+ordem+resultados) →
