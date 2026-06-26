@@ -121,7 +121,7 @@ const TOOLS = [
     input_schema: { type: "object", properties: {
       torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
     }, required: ["torneio_termo"] } },
-  { name: "horarios_torneio", description: "Retorna o QUADRO DE HORÁRIOS estruturado de um torneio: dias com lista de horas+provas. Use quando o usuário pergunta 'que horas começa', 'qual o horário da prova X', 'agenda do dia tal'. Sempre usa a versão MAIS RECENTE do quadro.",
+  { name: "horarios_torneio", description: "Retorna o QUADRO DE HORÁRIOS MAIS ATUALIZADO de um torneio (dias com horas+provas). Considera o quadro dedicado E correções publicadas como ADENDO ('QUADRO ATUALIZADO') — sempre a versão mais recente; sem quadro separado, deriva do programa. O campo 'origem' diz de onde veio. Use pra 'que horas começa', 'horário da prova X', 'agenda do dia', 'qual o quadro mais atualizado'.",
     input_schema: { type: "object", properties: {
       torneio_termo: { type: "string", description: "Nome ou parte do nome do torneio" },
       data: { type: "string", description: "Filtrar por data específica (formato DD/MM ou DD/MM/AAAA). Opcional." },
@@ -503,6 +503,27 @@ async function _buscaDocsEstruturados(torneio_termo: string, tipo: string) {
   return { torneio: t, docs: data || [] };
 }
 
+// Grade de horários VÁLIDA = ≥1 dia com ≥1 horário preenchido (espelha app + scraper).
+// Um "QUADRO ATUALIZADO" pode chegar como tipo='adendo' COM dias → também é quadro.
+function _diasValidas(estrut: any): boolean {
+  const dias = estrut?.dias;
+  return Array.isArray(dias) && dias.some((d: any) =>
+    d && Array.isArray(d.horarios) && d.horarios.some((h: any) => h && (h.hora || h.prova_nome)));
+}
+
+// TODOS os docs estruturados de um torneio (QUALQUER tipo), do mais novo p/ o mais antigo.
+async function _todosDocsEstruturados(torneio_termo: string) {
+  const matched = await buscarTorneiosSmart(torneio_termo);
+  if (!matched.length) return { erro: `Nenhum torneio achado com "${torneio_termo}"` };
+  const t: any = matched[0];
+  const { data } = await sb.from("torneio_documentos")
+    .select("id, tipo, titulo, data_publicacao, url_pdf, conteudo_estruturado")
+    .eq("torneio_id", t.id)
+    .not("conteudo_estruturado", "is", null)
+    .order("data_publicacao", { ascending: false });
+  return { torneio: t, docs: data || [] };
+}
+
 async function tool_programa_torneio({ torneio_termo }: any) {
   const r = await _buscaDocsEstruturados(torneio_termo, "programa");
   if ((r as any).erro) return r;
@@ -521,31 +542,54 @@ async function tool_programa_torneio({ torneio_termo }: any) {
 }
 
 async function tool_horarios_torneio({ torneio_termo, data }: any) {
-  const r = await _buscaDocsEstruturados(torneio_termo, "horarios");
+  const r = await _todosDocsEstruturados(torneio_termo);
   if ((r as any).erro) return r;
   const { torneio, docs } = r as any;
-  if (!docs.length) {
-    return { torneio: torneio.nome, erro: "Sem quadro de horários estruturado pra esse torneio." };
-  }
-  const maisRecente = docs[0];
-  const estrut = maisRecente.conteudo_estruturado as any;
-  let dias = estrut?.dias || [];
 
-  // Filtra por data se passado
+  // QUADRO MAIS ATUALIZADO = doc com grade VÁLIDA mais recente — INCLUI quadros publicados
+  // como ADENDO ("QUADRO ATUALIZADO"), não só tipo='horarios'. É a MESMA regra do app: o
+  // organizador publica correções de horário como adendo, e ESSAS substituem o programa.
+  const quadros = (docs || []).filter((d: any) => _diasValidas(d.conteudo_estruturado));
+  let origem: string, ref: any, dias: any[], validade: any;
+  if (quadros.length) {
+    ref = quadros[0];                                   // já ordenado por data_publicacao desc
+    dias = ref.conteudo_estruturado.dias;
+    validade = ref.conteudo_estruturado.validade;
+    origem = `QUADRO ATUALIZADO ("${ref.titulo}") — esta é a versão mais recente; substitui os horários do programa.`;
+  } else {
+    // Sem quadro separado → DERIVA do PROGRAMA (cada prova traz data+horário). Igual ao app.
+    const prog = (docs || []).find((d: any) => d.tipo === "programa");
+    const provas = (prog?.conteudo_estruturado?.provas || []).filter((p: any) => p && (p.horario || p.hora));
+    if (!provas.length) {
+      return { torneio: torneio.nome, erro: "Sem quadro de horários nem horários no programa pra esse torneio (ainda não publicado/estruturado)." };
+    }
+    const porData: any = {};
+    for (const p of provas) {
+      const dt = p.data || "—";
+      (porData[dt] = porData[dt] || []).push({ prova_numero: p.numero, hora: p.horario || p.hora, prova_nome: p.nome, altura: p.altura, categoria: p.categoria, tabela: p.tabela });
+    }
+    dias = Object.keys(porData).map((dt) => ({ data: dt, horarios: porData[dt].sort((a: any, b: any) => String(a.hora || "").localeCompare(String(b.hora || ""))) }));
+    validade = undefined;
+    ref = prog;
+    origem = "Derivado do PROGRAMA oficial — não há quadro de horários atualizado publicado separadamente.";
+  }
+
   if (data && Array.isArray(dias)) {
     const norm = data.replace(/\D/g, "");
     dias = dias.filter((d: any) => {
       const dn = String(d.data || "").replace(/\D/g, "");
-      return dn.includes(norm) || norm.includes(dn.substring(0, 4));
+      return dn.includes(norm) || (norm.length >= 4 && dn.includes(norm.substring(0, 4)));
     });
   }
 
   return {
     torneio: torneio.nome,
-    versao_publicada_em: maisRecente.data_publicacao,
-    validade_do_quadro: estrut?.validade,
-    url_pdf: maisRecente.url_pdf,
+    origem,
+    versao_publicada_em: ref?.data_publicacao,
+    validade_do_quadro: validade,
+    url_pdf: ref?.url_pdf,
     dias,
+    nota: "Estes são os horários MAIS ATUALIZADOS disponíveis no app. Baseie QUALQUER resposta sobre horário de prova nestes dados (não no programa, se houver quadro atualizado).",
   };
 }
 
@@ -553,13 +597,21 @@ async function tool_adendos_torneio({ torneio_termo }: any) {
   const r = await _buscaDocsEstruturados(torneio_termo, "adendo");
   if ((r as any).erro) return r;
   const { torneio, docs } = r as any;
-  if (!docs.length) {
-    return { torneio: torneio.nome, adendos: [], info: "Nenhum adendo publicado pra esse torneio até o momento." };
+  // Adendos que são QUADRO ATUALIZADO (têm dias) saem daqui — são o quadro de horários
+  // (use horarios_torneio). Aqui ficam só os adendos TEXTUAIS (mudanças de regra/premiação).
+  const quadros = (docs || []).filter((d: any) => _diasValidas(d.conteudo_estruturado));
+  const textuais = (docs || []).filter((d: any) => !_diasValidas(d.conteudo_estruturado));
+  const nota_quadro = quadros.length
+    ? `Há ${quadros.length} quadro(s) de horários ATUALIZADO(S) publicado(s) como adendo (ex.: "${quadros[0].titulo}", ${quadros[0].data_publicacao}). Para horários, use horarios_torneio.`
+    : undefined;
+  if (!textuais.length) {
+    return { torneio: torneio.nome, adendos: [], info: "Nenhum adendo textual publicado.", quadros_atualizados: nota_quadro };
   }
   return {
     torneio: torneio.nome,
-    total_adendos: docs.length,
-    adendos: docs.map((d: any) => ({
+    total_adendos: textuais.length,
+    quadros_atualizados: nota_quadro,
+    adendos: textuais.map((d: any) => ({
       titulo: d.titulo,
       publicado_em: d.data_publicacao,
       url_pdf: d.url_pdf,
@@ -724,11 +776,11 @@ Exemplo CORRETO:
 
 PRINCÍPIO #8: PROGRAMAS, HORÁRIOS E ADENDOS. Pra perguntas sobre programa oficial, horários, premiações, regulamentos, juízes, mudanças (adendos) de um torneio, USE AS TOOLS ESPECÍFICAS:
 - "qual o programa do [torneio]?", "quem é o juiz presidente?", "qual a premiação da prova 1,40m?", "que dia é o GP?" → use programa_torneio
-- "que horas começa?", "qual o horário da Copa Ouro?", "agenda do sábado?" → use horarios_torneio (dado mais ATUALIZADO sempre)
+- "que horas começa?", "qual o horário da Copa Ouro?", "agenda do sábado?", "qual o quadro mais atualizado?" → use horarios_torneio. Ele JÁ devolve a versão MAIS ATUALIZADA (inclusive quando a correção foi publicada como ADENDO "QUADRO ATUALIZADO") e diz a 'origem'. NUNCA responda horário pelo programa quando a tool indicar um quadro atualizado — o organizador altera horários por adendo, e ELES valem.
 - "teve adendo?", "qual a última mudança?", "o programa foi alterado?" → use adendos_torneio
 - Pra busca livre em qualquer texto (regulamento detalhado, observações), use buscar_em_documentos como fallback.
 
-IMPORTANTE: Quando responder com base em programa/horários/adendos, SEMPRE mencione a data de publicação do documento (publicado_em) — assim o usuário sabe se a info é recente. Se houver adendos posteriores ao programa, mencione que houve atualização.
+IMPORTANTE: Quando responder com base em programa/horários/adendos, SEMPRE mencione a data de publicação do documento (publicado_em/versao_publicada_em) — assim o usuário sabe se a info é recente. Se a 'origem' do horário for um QUADRO ATUALIZADO, deixe explícito que é a versão mais recente (com a data). Você lê o banco AO VIVO a cada pergunta — sempre tem o dado mais novo do app (horários, adendos, notícias, resultados, estatísticas); nunca diga que está desatualizado.
 
 PRINCÍPIO #9: VOCÊ TEM ACESSO A TODO O CONTEÚDO DO APP — use as ferramentas certas sem hesitar:
 - pai/mãe/filhos/progênie de um cavalo → genealogia_cavalo
